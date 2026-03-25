@@ -123,6 +123,11 @@ function advanceCall(state, localSlot){
     // Local human — stop for local input
     if(!holder.ai && holder.id===localSlot){
       const sotR=applyStartOfTurn(s,s.callIdx,localSlot);s=sotR.state;const sotEvents=sotR.events;
+      // If assassinated during start-of-turn (human pendingKill applied), skip turn like the dead branch
+      if(s.players.find(p=>p.id===localSlot).dead){
+        s={...s,heraldQueue:[...s.heraldQueue,{charId:s.callIdx,holderName:holder.name,events:sotEvents}],callIdx:s.callIdx+1};
+        continue;
+      }
       if(s.heraldQueue.length>0||sotEvents.length>0){
         let q=[...s.heraldQueue];
         if(sotEvents.length>0)q=[...q,{charId:s.callIdx,holderName:'Your turn begins',events:sotEvents,isStartOnly:true}];
@@ -155,10 +160,10 @@ function applyStartOfTurn(state,charId,pid){
     });
   }
 
-  // Apply thief steal
+  // Apply thief steal (only if target was not assassinated this same turn)
   if(charId!==1&&charId!==2){
     const thief=s.players.find(q=>q.char===2&&!q.dead&&q.stolenTarget===charId);
-    if(thief){const stolen=p().gold;if(stolen>0){
+    if(thief&&!p().dead){const stolen=p().gold;if(stolen>0){
       events.push({icon:'💰',text:`${thief.name} (Thief) steals ${stolen}✦ from ${p().name}!`,color:'#b0b0b0'});
       s={...s,players:s.players.map(q=>{if(q.id===thief.id)return{...q,gold:q.gold+stolen};if(q.id===pid)return{...q,gold:0};return q;})};}}
   }
@@ -199,6 +204,8 @@ function doAITurn(state,pid,charId){
   let s={...state};const events=[];
   const sotR=applyStartOfTurn(s,charId,pid);s=sotR.state;events.push(...sotR.events);
   const p=()=>s.players.find(q=>q.id===pid);
+  // If this player was assassinated during start-of-turn (via human pendingKill), skip their turn
+  if(p().dead){return{state:s,events};}
   // Income
   const hasLib=p().city.some(d=>d.id==='library');
   if(p().hand.length<3&&s.deck.length>0){
