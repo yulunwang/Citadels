@@ -1,0 +1,1700 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>⚜ Citadels</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{font-family:Georgia,serif;background:#090c18;color:#e8dfc8;font-size:14px}
+#app{display:flex;flex-direction:column;height:100vh;overflow:hidden}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:#090c18}
+::-webkit-scrollbar-thumb{background:#2e3560;border-radius:3px}
+
+/* ── TOP BAR: 2x height, 4-col grid ── */
+#topbar{background:#0d1128;border-bottom:1px solid #2a2f55;flex-shrink:0;overflow-y:auto;max-height:52vh;padding:9px 10px}
+.tb-header{display:flex;align-items:center;gap:10px;margin-bottom:9px;padding-bottom:7px;border-bottom:1px solid #1e2245}
+.tb-title{font-family:Cinzel,serif;font-size:16px;color:#d4a843;font-weight:700}
+.tb-meta{font-size:12px;color:#4a3e2a}
+.tb-calling{font-size:12px;font-family:Cinzel,serif;margin-left:auto}
+/* Confirmation modal */
+.confirm-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.72);display:flex;align-items:center;justify-content:center;z-index:9999}
+.confirm-box{background:#151830;border:1px solid #4a3060;border-radius:12px;padding:24px 28px;max-width:340px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,0.8);text-align:center}
+.confirm-box h3{font-family:Cinzel,serif;font-size:16px;color:#e8dfc8;margin-bottom:8px}
+.confirm-box p{font-size:12px;color:#5a4e3a;margin-bottom:20px;line-height:1.5}
+.confirm-btns{display:flex;gap:10px}
+.confirm-btns button{flex:1;padding:10px;border-radius:6px;font-family:Cinzel,serif;font-size:12px;cursor:pointer;border:1px solid;transition:background .15s}
+.tb-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.tb-player{background:#111530;border:1px solid #1e2245;border-radius:8px;padding:9px 11px;transition:background .15s;position:relative}
+.tb-player.active{background:rgba(212,168,67,0.09);border-color:#5a3f10}
+.tb-player.active::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:#d4a843;border-radius:3px 0 0 3px}
+.tb-player-row1{display:flex;align-items:center;gap:5px;margin-bottom:4px;flex-wrap:wrap}
+.tb-player-name{font-family:Cinzel,serif;font-size:13px;color:#d4a843;font-weight:600}
+.tb-player-char{font-size:10px;padding:2px 7px;border-radius:10px;border:1px solid;font-family:Cinzel,serif;white-space:nowrap}
+.tb-player-stats{display:flex;gap:10px;font-size:12px;color:#7a6848;margin-bottom:6px;flex-wrap:wrap}
+.tb-stat-val{color:#c8b080;font-weight:600}
+/* District chips — always show pts; tooltip only for unique specials */
+.tb-city{display:flex;flex-wrap:wrap;gap:4px;margin-top:2px}
+.tb-chip{position:relative;display:inline-block}
+.tb-chip-label{font-size:11px;border-radius:4px;padding:3px 7px;border:1px solid;white-space:nowrap;font-family:Cinzel,serif;cursor:default;display:flex;align-items:center;gap:4px}
+.tb-chip-pts{font-size:10px;opacity:0.7;font-family:Georgia,serif}
+/* Tooltip only for unique specials */
+.tb-chip-tip{
+  display:none;position:absolute;bottom:calc(100% + 6px);left:0;
+  background:#1a1535;border:1px solid #4a3870;border-radius:7px;
+  padding:8px 11px;font-size:11px;color:#d0c0f0;line-height:1.5;
+  white-space:pre-line;width:220px;z-index:999;
+  box-shadow:0 6px 24px rgba(0,0,0,.85);pointer-events:none;
+}
+.tb-chip.has-tip{cursor:help}
+.tb-chip.has-tip .tb-chip-label{border-style:dashed}
+.tb-chip.has-tip:hover .tb-chip-tip{display:block}
+
+/* ── CENTER — shrinks, gives space to bottom ── */
+#main{display:flex;flex:0 1 auto;overflow:hidden;min-height:60px;max-height:44vh}
+#center{flex:1;overflow-y:auto;padding:12px 16px;min-width:0;background:#0b0e1c;min-height:0}
+
+/* ── BOTTOM PANEL — much taller ── */
+#bottom{display:flex;background:#0d1128;border-top:1px solid #2a2f55;flex:1;min-height:300px}
+#bot-hand{width:50%;border-right:1px solid #1e2245;padding:10px 12px;overflow-y:auto;display:flex;flex-direction:column}
+#bot-city{width:50%;padding:10px 12px;overflow-y:auto;display:flex;flex-direction:column}
+.bot-label{font-family:Cinzel,serif;font-size:11px;color:#3a3020;letter-spacing:1px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.bot-label-right{font-size:13px;color:#d4a843;letter-spacing:0;font-family:Georgia,serif}
+.cards-wrap{display:flex;flex-wrap:wrap;gap:8px;align-content:flex-start}
+
+/* ── DISTRICT CARDS ── */
+/* Default: landscape (compact, used in build picker & city) */
+.dcard{display:inline-flex;flex-direction:row;border-radius:7px;border-width:1px;border-style:solid;overflow:hidden;transition:transform .15s,box-shadow .15s;cursor:default;flex-shrink:0;align-items:stretch}
+.dcard.clickable{cursor:pointer}
+.dcard.clickable:hover{transform:translateY(-3px);box-shadow:0 6px 20px rgba(0,0,0,.6)}
+.dcard.selected{border-width:2px;transform:translateY(-2px)}
+.dcard-emoji-col{display:flex;align-items:center;justify-content:center;flex-shrink:0;border-right:1px solid}
+.dcard-info-col{display:flex;flex-direction:column;padding:5px 8px;flex:1;min-width:0;justify-content:center}
+.dcard-cost{font-family:Cinzel,serif;font-size:13px;font-weight:700;line-height:1}
+.dcard-name{font-family:Cinzel,serif;font-size:11px;line-height:1.2;margin-top:2px}
+.dcard-type{font-size:9px;opacity:0.5;text-transform:uppercase;letter-spacing:.4px}
+.dcard-desc{font-size:9px;opacity:0.65;line-height:1.3;margin-top:2px;color:inherit}
+
+/* Portrait variant: tall card, used in hand & draw-pick */
+.dcard.portrait{flex-direction:column;height:auto;width:130px}
+.dcard.portrait .dcard-emoji-col{width:100%;height:64px;border-right:none;border-bottom:1px solid;font-size:30px}
+.dcard.portrait .dcard-info-col{padding:7px 9px;justify-content:flex-start}
+.dcard.portrait .dcard-cost{font-size:15px}
+.dcard.portrait .dcard-name{font-size:12px;white-space:normal;line-height:1.3;margin-top:3px}
+.dcard.portrait .dcard-type{font-size:10px;margin-top:2px}
+.dcard.portrait .dcard-desc{font-size:10px;line-height:1.4;margin-top:5px;padding-top:5px;border-top:1px solid rgba(255,255,255,0.08);white-space:normal}
+
+/* ── CHARACTER CARDS ── */
+.charcard{border-radius:10px;border:1px solid;padding:12px 14px;cursor:pointer;transition:all .15s;display:flex;flex-direction:column;gap:6px}
+.charcard:hover{transform:translateY(-3px)}
+.charcard-emoji{font-size:36px;text-align:center;line-height:1;margin-bottom:2px}
+.charcard-name{font-family:Cinzel,serif;font-size:13px;font-weight:700}
+.charcard-ability{font-size:11px;line-height:1.45;opacity:0.7}
+
+/* ── HERALD ── */
+.herald-wrap{display:flex;flex-direction:column;gap:0;max-width:680px}
+.herald-pips{display:flex;gap:4px;margin-bottom:14px;flex-wrap:wrap}
+.herald-pip{height:4px;border-radius:2px;flex:1;min-width:14px;max-width:34px;transition:background .2s}
+.herald-card{background:#111530;border:1px solid #2a2855;border-radius:12px;padding:20px 24px}
+.herald-char-num{font-family:Cinzel,serif;font-size:10px;letter-spacing:2px;color:#3a3060;margin-bottom:4px;text-transform:uppercase}
+.herald-title{font-family:Cinzel,serif;font-size:22px;font-weight:700;margin-bottom:4px}
+.herald-sub{font-size:12px;color:#6858a0;margin-bottom:10px}
+.herald-empty{font-size:13px;color:#3a3060;font-style:italic;margin:10px 0 14px}
+.herald-events{display:flex;flex-direction:column;gap:5px;margin:10px 0 16px}
+.herald-event{display:flex;align-items:flex-start;gap:10px;background:rgba(255,255,255,.03);border-radius:6px;padding:8px 10px;border-left:3px solid}
+.herald-ev-icon{font-size:16px;line-height:1;flex-shrink:0;margin-top:1px}
+.herald-ev-text{font-size:13px;color:#c0b088;line-height:1.45}
+.herald-cont{width:100%;padding:11px;font-family:Cinzel,serif;font-size:13px;cursor:pointer;border-radius:7px;border:1px solid;transition:background .15s}
+
+/* ── BUTTONS ── */
+.gbtn{border-radius:5px;border:1px solid;cursor:pointer;font-family:Georgia,serif;font-size:12px;padding:7px 14px;transition:background .15s;display:inline-block}
+
+/* ── MISC ── */
+.sect-label{font-family:Cinzel,serif;font-size:11px;color:#2e2818;letter-spacing:1px;margin-bottom:8px;margin-top:4px}
+.action-banner{border-radius:9px;border:1px solid;padding:12px 16px;margin-bottom:14px;display:flex;align-items:flex-start;gap:14px}
+.action-banner-emoji{font-size:44px;line-height:1;flex-shrink:0}
+.action-banner-info{flex:1}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+// ═══════════════ DATA ══════════════════════════════════════════════════════════
+const CHARS=[
+  {id:1,name:'Assassin', clr:'#cc7777',emoji:'🥷',ability:'Kill a character — they skip their turn this round.'},
+  {id:2,name:'Thief',    clr:'#b0b0b0',emoji:'🕵️',ability:'Declare a target; steal all their gold when they are called.'},
+  {id:3,name:'Magician', clr:'#9b6fff',emoji:'🧙',ability:'Swap hands with a player, OR discard cards and redraw the same number.'},
+  {id:4,name:'King',     clr:'#d4a843',emoji:'🤴',ability:'Take the Crown — pick roles first next round. Gain +1✦ per Noble (yellow) district in your city.'},
+  {id:5,name:'Bishop',   clr:'#5a9fd4',emoji:'⛪',ability:'Protected from Warlord. Gain +1✦ per Religious (blue) district built.'},
+  {id:6,name:'Merchant', clr:'#4db87a',emoji:'🧑‍💼',ability:'Gain +1✦ bonus. Gain +1✦ per Trade (green) district built.'},
+  {id:7,name:'Architect',clr:'#e0975c',emoji:'👷',ability:'Draw +2 cards immediately. May build up to 3 districts this turn.'},
+  {id:8,name:'Warlord',  clr:'#d45a5a',emoji:'🤺',ability:'Destroy a district (pay cost−1 gold). Gain +1✦ per Military (red) district built.'},
+];
+
+const CS={
+  yellow:{bg:'#1c1608',bdr:'#6a4e10',txt:'#d4a843',bar:'#d4a843',label:'Noble'},
+  blue:  {bg:'#08121e',bdr:'#1e3f63',txt:'#5a9fd4',bar:'#5a9fd4',label:'Religious'},
+  green: {bg:'#081408',bdr:'#1a4a20',txt:'#4db87a',bar:'#4db87a',label:'Trade'},
+  red:   {bg:'#1a0808',bdr:'#631e1e',txt:'#d45a5a',bar:'#d45a5a',label:'Military'},
+  purple:{bg:'#110820',bdr:'#4a1a7a',txt:'#c084fc',bar:'#c084fc',label:'Unique'},
+};
+
+// Emoji per district
+const DEMOJI={
+  manor:'🏡',castle:'🏰',palace:'🏛️',
+  temple:'⛩️',church:'⛪',monastery:'🛕',cathedral:'🕍',
+  tavern:'🍺',market:'⚖️',trading_post:'🏪',docks:'⚓',harbor:'🚢',town_hall:'🏢',
+  watchtower:'🗼',prison:'🔒',battlefield:'🛡️',fortress:'🏯',
+  haunted_city:'👻',factory:'⚙️',dragon_gate:'🐉',university:'🎓',
+  thieves_den:'🗝️',keep:'🛡️',graveyard:'⚰️',observatory:'🔭',
+  smithy:'⚒️',library:'📚',school_of_magic:'✨',wishing_well:'🪄',
+  map_room:'🗺️',secret_vault:'🤫',great_wall:'🧱',
+};
+
+const SDESC={
+  flex_color:  'Counts as any color for the 5-color diversity bonus (+3 pts) at game end.',
+  bonus2:      'Worth +2 extra victory points at game end.',
+  keep:        'Cannot be destroyed by the Warlord.',
+  graveyard:   'When any district is destroyed, pay 1✦ to recover it into your hand.',
+  observatory: 'Draw 3 cards for income, keep 1 (instead of draw 2 keep 1).',
+  smithy:      'Once per turn: pay 2✦ to draw 3 district cards.',
+  library:     'When you take cards for income, keep BOTH drawn cards.',
+  factory:     'All other purple unique districts cost 1✦ less for you to build.',
+  wishing_well:'+1 pt per other unique (purple) district in your city at game end.',
+  map_room:    '+1 pt per card remaining in your hand at game end.',
+  secret_vault:'Worth points never revealed to others during the game.',
+  great_wall:  'Warlord must pay full cost (not cost−1) to destroy your districts.',
+  thieves_den: 'May be built by paying any mix of gold and cards from hand.',
+};
+
+let UID=0;
+function mkDeck(){
+  const D=[];
+  function add(id,name,cost,color,special){D.push({uid:'d'+(UID++),id,name,cost,color,special:special||null});}
+  for(let i=0;i<3;i++)add('manor','Manor',3,'yellow');
+  for(let i=0;i<3;i++)add('castle','Castle',4,'yellow');
+  for(let i=0;i<2;i++)add('palace','Palace',5,'yellow');
+  for(let i=0;i<3;i++)add('temple','Temple',1,'blue');
+  for(let i=0;i<3;i++)add('church','Church',2,'blue');
+  for(let i=0;i<3;i++)add('monastery','Monastery',3,'blue');
+  for(let i=0;i<2;i++)add('cathedral','Cathedral',5,'blue');
+  for(let i=0;i<3;i++)add('tavern','Tavern',1,'green');
+  for(let i=0;i<3;i++)add('market','Market',2,'green');
+  for(let i=0;i<2;i++)add('trading_post','Trading Post',2,'green');
+  for(let i=0;i<2;i++)add('docks','Docks',3,'green');
+  for(let i=0;i<2;i++)add('harbor','Harbor',4,'green');
+  for(let i=0;i<2;i++)add('town_hall','Town Hall',5,'green');
+  for(let i=0;i<3;i++)add('watchtower','Watchtower',1,'red');
+  for(let i=0;i<3;i++)add('prison','Prison',2,'red');
+  for(let i=0;i<2;i++)add('battlefield','Battlefield',3,'red');
+  for(let i=0;i<2;i++)add('fortress','Fortress',5,'red');
+  add('haunted_city','Haunted City',2,'purple','flex_color');
+  add('factory','Factory',5,'purple','factory');
+  add('dragon_gate','Dragon Gate',6,'purple','bonus2');
+  add('university','University',6,'purple','bonus2');
+  add('thieves_den',"Thieves' Den",6,'purple','thieves_den');
+  add('keep','Keep',3,'purple','keep');
+  add('graveyard','Graveyard',1,'purple','graveyard');
+  add('observatory','Observatory',5,'purple','observatory');
+  add('smithy','Smithy',5,'purple','smithy');
+  add('library','Library',6,'purple','library');
+  add('school_of_magic','School of Magic',6,'purple','flex_color');
+  add('wishing_well','Wishing Well',5,'purple','wishing_well');
+  add('map_room','Map Room',5,'purple','map_room');
+  add('secret_vault','Secret Vault',3,'purple','secret_vault');
+  add('great_wall','Great Wall',6,'purple','great_wall');
+  return D;
+}
+function shuffle(a){const b=[...a];for(let i=b.length-1;i>0;i--){const j=0|Math.random()*(i+1);[b[i],b[j]]=[b[j],b[i]];}return b;}
+
+function calcScore(player,isFirst){
+  let s=player.city.reduce((t,d)=>t+d.cost,0);
+  if(isFirst)s+=4;else if(player.city.length>=8)s+=2;
+  const base=new Set(player.city.filter(d=>d.special!=='flex_color').map(d=>d.color));
+  if(player.city.some(d=>d.special==='flex_color')&&base.size===4)
+    ['yellow','blue','green','red','purple'].forEach(c=>{if(!base.has(c))base.add(c);});
+  if(['yellow','blue','green','red','purple'].every(c=>base.has(c)))s+=3;
+  player.city.forEach(d=>{
+    if(d.special==='bonus2')s+=2;
+    if(d.special==='wishing_well')s+=player.city.filter(x=>x.special&&x.uid!==d.uid&&x.color==='purple').length;
+    if(d.special==='map_room')s+=player.hand.length;
+  });
+  return s;
+}
+
+// ── STATE ──────────────────────────────────────────────────────────────────────
+function newGame(){
+  const deck=shuffle(mkDeck());
+  const crown=0|Math.random()*4;
+  const players=[
+    {id:0,name:'You',       ai:false,gold:2,hand:[],city:[],char:null,dead:false,stolenTarget:null,smithyUsed:false,pendingKill:null},
+    {id:1,name:'Lady Mira', ai:true, gold:2,hand:[],city:[],char:null,dead:false,stolenTarget:null,smithyUsed:false,pendingKill:null},
+    {id:2,name:'Duke Arven',ai:true, gold:2,hand:[],city:[],char:null,dead:false,stolenTarget:null,smithyUsed:false,pendingKill:null},
+    {id:3,name:'Baron Selt',ai:true, gold:2,hand:[],city:[],char:null,dead:false,stolenTarget:null,smithyUsed:false,pendingKill:null},
+  ];
+  const d=[...deck];players.forEach(p=>{p.hand=d.splice(0,4);});
+  return{phase:'draft',sub:'idle',round:1,deck:d,trash:[],players,crown,
+    draftOrder:draftSeq(crown,4),draftIdx:0,avail:[1,2,3,4,5,6,7,8],
+    heraldQueue:[],heraldIdx:0,heraldAfter:'action',heraldAcks:[],
+    callIdx:1,log:['The game begins!'],firstCompleter:null,
+    collected:false,builtCount:0,drawOpts:[],selCards:[],pendingDestroy:null,_confirmEnd:false};
+}
+function draftSeq(crown,n){return Array.from({length:n},(_,i)=>(crown+i)%n);}
+
+function buildCost(player,district){
+  if(district.color==='purple'&&district.special!=='factory'&&player.city.some(d=>d.id==='factory'))
+    return Math.max(1,district.cost-1);
+  return district.cost;
+}
+
+// ── AI ─────────────────────────────────────────────────────────────────────────
+function aiPickChar(p,avail,state){
+  const humanMax=Math.max(0,...state.players.filter(q=>!q.ai).map(q=>q.city.length));
+  const pref=[];
+  if(humanMax>=6&&avail.includes(8))pref.push(8);
+  if(p.gold>=6&&avail.includes(7))pref.push(7);
+  if(p.city.filter(d=>d.color==='blue').length>=2&&avail.includes(5))pref.push(5);
+  if(p.city.filter(d=>d.color==='green').length>=2&&avail.includes(6))pref.push(6);
+  if(p.city.filter(d=>d.color==='yellow').length>=2&&avail.includes(4))pref.push(4);
+  for(const c of [...pref,6,4,5,3,2,1,8,7])if(avail.includes(c))return c;
+  return avail[0|Math.random()*avail.length];
+}
+function aiBestBuild(p){
+  const can=p.hand.filter(d=>{const cost=buildCost(p,d);return cost<=p.gold&&!p.city.some(c=>c.id===d.id);});
+  return can.length?can.sort((a,b)=>buildCost(p,a)-buildCost(p,b))[0]:null;
+}
+function addLog(s,msg){return{...s,log:[...s.log,msg]};}
+
+// ── DRAFT ──────────────────────────────────────────────────────────────────────
+function runAIDraft(state){
+  let s={...state,players:state.players.map(p=>({...p})),avail:[...state.avail]};
+  while(s.draftIdx<s.players.length){
+    const pid=s.draftOrder[s.draftIdx];
+    const p=s.players[pid];
+    if(!p.ai)break; // stop at any human player (local or remote)
+    const picked=aiPickChar(p,s.avail,s);
+    s.players=s.players.map(q=>q.id===pid?{...q,char:picked}:q);
+    s.avail=s.avail.filter(c=>c!==picked);s.draftIdx++;
+  }
+  if(s.draftIdx>=s.players.length)s=startActionPhase(s);
+  return s;
+}
+function humanDraft(state,charId){
+  let s={...state,players:state.players.map(p=>p.id===0?{...p,char:charId}:p),
+    avail:state.avail.filter(c=>c!==charId),draftIdx:state.draftIdx+1};
+  s=addLog(s,'You secretly choose your character.');
+  if(s.draftIdx>=s.players.length)return startActionPhase(s);
+  return runAIDraft(s);
+}
+
+// ── ACTION PHASE ───────────────────────────────────────────────────────────────
+function startActionPhase(state){
+  let s={...state,phase:'action',sub:'idle',callIdx:1,
+    collected:false,builtCount:0,drawOpts:[],selCards:[],heraldQueue:[],heraldIdx:0,heraldAcks:[],
+    players:state.players.map(p=>({...p,smithyUsed:false}))};
+  s=addLog(s,`Round ${s.round}: The Herald calls characters...`);
+  return advanceCall(s,_applyLocalSlot);
+}
+
+function advanceCall(state, localSlot){
+  if(localSlot===undefined)localSlot=0;
+  let s={...state};
+  while(s.callIdx<=8){
+    const holder=s.players.find(p=>p.char===s.callIdx);
+    if(!holder){s={...s,heraldQueue:[...s.heraldQueue,{charId:s.callIdx,holderName:null,events:[]}],callIdx:s.callIdx+1};continue;}
+    if(holder.dead){s={...s,heraldQueue:[...s.heraldQueue,{charId:s.callIdx,holderName:holder.name,events:[
+      {icon:'☠️',text:`${holder.name} was assassinated and skips this turn.`,color:'#cc4444'}]}],callIdx:s.callIdx+1};continue;}
+
+    // Remote human peer — stop and wait for their action message
+    if(!holder.ai && holder.id!==localSlot){
+      const sotR=applyStartOfTurn(s,s.callIdx,holder.id);s=sotR.state;const sotEvents=sotR.events;
+      let q=[...s.heraldQueue];
+      if(sotEvents.length>0)q=[...q,{charId:s.callIdx,holderName:holder.name+"'s turn begins",events:sotEvents,isStartOnly:true}];
+      return{...s,heraldQueue:q.length?q:s.heraldQueue,heraldIdx:0,
+        phase:q.length?'herald':'action',
+        heraldAfter:'peer_act',
+        sub:'idle',collected:false,builtCount:0,drawOpts:[],selCards:[]};
+    }
+
+    // Local human — stop for local input
+    if(!holder.ai && holder.id===localSlot){
+      const sotR=applyStartOfTurn(s,s.callIdx,localSlot);s=sotR.state;const sotEvents=sotR.events;
+      if(s.heraldQueue.length>0||sotEvents.length>0){
+        let q=[...s.heraldQueue];
+        if(sotEvents.length>0)q=[...q,{charId:s.callIdx,holderName:'Your turn begins',events:sotEvents,isStartOnly:true}];
+        return{...s,heraldQueue:q,heraldIdx:0,phase:'herald',heraldAfter:'human_act'};
+      }
+      return{...s,phase:'action',sub:'choose',collected:false,builtCount:0,drawOpts:[],selCards:[]};
+    }
+
+    const {state:ns,events}=doAITurn(s,holder.id,s.callIdx);
+    s={...ns,heraldQueue:[...ns.heraldQueue,{charId:s.callIdx,holderName:holder.name,events}],callIdx:ns.callIdx+1};
+  }
+  if(s.heraldQueue.length>0)return{...s,phase:'herald',heraldIdx:0,heraldAfter:'end_round'};
+  return endRound(s);
+}
+
+function applyStartOfTurn(state,charId,pid){
+  let s={...state};const p=()=>s.players.find(q=>q.id===pid);const events=[];
+
+  // Apply pending assassination — any human player with pendingKill targeting this char
+  if(charId!==1){
+    s.players.filter(q=>!q.ai&&q.pendingKill===charId).forEach(assassin=>{
+      const victim=s.players.find(q=>q.char===charId&&q.id!==assassin.id);
+      if(victim){
+        s={...s,players:s.players.map(q=>
+          q.id===victim.id?{...q,dead:true}:
+          q.id===assassin.id?{...q,pendingKill:null}:q
+        )};
+        events.push({icon:'☠️',text:`${assassin.name} (Assassin) eliminates the ${CHARS[charId-1].name}!`,color:'#cc7777'});
+      }
+    });
+  }
+
+  // Apply thief steal — any thief targeting this char
+  if(charId!==1&&charId!==2){
+    const thief=s.players.find(q=>q.char===2&&!q.dead&&q.stolenTarget===charId);
+    if(thief){const stolen=p().gold;if(stolen>0){
+      events.push({icon:'💰',text:`${thief.name} (Thief) steals ${stolen}✦ from ${p().name}!`,color:'#b0b0b0'});
+      s={...s,players:s.players.map(q=>{if(q.id===thief.id)return{...q,gold:q.gold+stolen};if(q.id===pid)return{...q,gold:0};return q;})};}}
+  }
+  let bonus=0,newCrown=s.crown;
+  if(charId===4){
+    newCrown=pid;
+    bonus=p().city.filter(d=>d.color==='yellow').length;
+    events.push({icon:'👑',text:bonus>0?`${p().name} takes the Crown and earns ${bonus}✦ from Noble districts!`:`${p().name} takes the Crown!`,color:'#d4a843'});
+    // Always apply crown transfer; apply gold if any yellow districts
+    s={...s,crown:newCrown};
+    if(bonus>0)s={...s,players:s.players.map(q=>q.id===pid?{...q,gold:q.gold+bonus}:q)};
+  }else if(charId===5){
+    bonus=p().city.filter(d=>d.color==='blue').length;
+    if(bonus>0){events.push({icon:'⛪',text:`${p().name} earns ${bonus}✦ from Religious districts.`,color:'#5a9fd4'});
+      s={...s,players:s.players.map(q=>q.id===pid?{...q,gold:q.gold+bonus}:q)};}
+  }else if(charId===6){
+    bonus=1+p().city.filter(d=>d.color==='green').length;
+    events.push({icon:'💰',text:`${p().name} earns ${bonus}✦ (Merchant bonus + Trade income).`,color:'#4db87a'});
+    s={...s,players:s.players.map(q=>q.id===pid?{...q,gold:q.gold+bonus}:q)};
+  }else if(charId===8){
+    bonus=p().city.filter(d=>d.color==='red').length;
+    if(bonus>0){events.push({icon:'⚔️',text:`${p().name} earns ${bonus}✦ from Military districts.`,color:'#d45a5a'});
+      s={...s,players:s.players.map(q=>q.id===pid?{...q,gold:q.gold+bonus}:q)};}
+  }
+  if(charId===7){
+    const drawn=s.deck.slice(0,Math.min(2,s.deck.length));
+    if(drawn.length>0){s={...s,deck:s.deck.slice(drawn.length),players:s.players.map(q=>q.id===pid?{...q,hand:[...q.hand,...drawn]}:q)};
+      events.push({icon:'🃏',text:`${p().name} draws ${drawn.length} extra card${drawn.length>1?'s':''} as the Architect.`,color:'#e0975c'});}
+  }
+  return{state:s,events};
+}
+
+function doAITurn(state,pid,charId){
+  let s={...state};const events=[];
+  const sotR=applyStartOfTurn(s,charId,pid);s=sotR.state;events.push(...sotR.events);
+  const p=()=>s.players.find(q=>q.id===pid);
+  // Income
+  const hasLib=p().city.some(d=>d.id==='library');
+  if(p().hand.length<3&&s.deck.length>0){
+    const cnt=hasLib?Math.min(2,s.deck.length):1;
+    const drawn=s.deck.slice(0,cnt);
+    s={...s,deck:s.deck.slice(cnt),players:s.players.map(q=>q.id===pid?{...q,hand:[...q.hand,...drawn]}:q)};
+    events.push({icon:'🃏',text:`${p().name} draws ${cnt} card${cnt>1?'s':''} for income.`,color:'#888'});
+  }else{
+    s={...s,players:s.players.map(q=>q.id===pid?{...q,gold:q.gold+2}:q)};
+    events.push({icon:'✦',text:`${p().name} collects 2✦ gold.`,color:'#d4a843'});
+  }
+  // Specials
+  if(charId===1){
+    // Target the human player with the most city districts, prefer their char
+    const humanPlayers=s.players.filter(q=>!q.ai&&q.id!==pid);
+    const mainTarget=humanPlayers.sort((a,b)=>b.city.length-a.city.length)[0];
+    const humanChar=mainTarget?.char;
+    const validT=CHARS.filter(c=>c.id!==1).map(c=>c.id);
+    const target=humanChar&&humanChar!==1?humanChar:validT[0|Math.random()*validT.length];
+    const victim=s.players.find(q=>q.char===target);
+    if(victim&&victim.id!==pid){s={...s,players:s.players.map(q=>q.id===victim.id?{...q,dead:true}:q)};
+      events.push({icon:'🗡️',text:`${p().name} assassinates the ${CHARS[target-1].name}!`,color:'#cc7777'});}
+  }else if(charId===2){
+    const others=s.players.filter(q=>q.id!==pid&&q.char&&q.char!==1&&q.char!==2);
+    if(others.length){const richest=others.sort((a,b)=>b.gold-a.gold)[0];
+      s={...s,players:s.players.map(q=>q.id===pid?{...q,stolenTarget:richest.char}:q)};
+      events.push({icon:'🦹',text:`${p().name} declares theft on the ${CHARS[richest.char-1].name}.`,color:'#b0b0b0'});}
+  }else if(charId===3){
+    const others=s.players.filter(q=>q.id!==pid);const most=others.sort((a,b)=>b.hand.length-a.hand.length)[0];
+    if(most&&most.hand.length>p().hand.length){
+      const myH=[...p().hand],thH=[...most.hand];
+      s={...s,players:s.players.map(q=>{if(q.id===pid)return{...q,hand:thH};if(q.id===most.id)return{...q,hand:myH};return q;})};
+      events.push({icon:'🔄',text:`${p().name} swaps hands with ${most.name}!`,color:'#9b6fff'});
+    }else events.push({icon:'🧙',text:`${p().name} (Magician) keeps their hand.`,color:'#9b6fff'});
+  }else if(charId===8){
+    // Target the human player with the most city districts (excluding Bishop-protected)
+    const humanTargets=s.players.filter(q=>q.id!==pid&&!q.ai&&!(q.char===5&&!q.dead)&&q.city.length>0);
+    const target=humanTargets.sort((a,b)=>b.city.length-a.city.length)[0]||null;
+    if(target){
+      const wallBonus=target.city.some(d=>d.id==='great_wall');
+      const destructible=target.city.filter(d=>{if(d.id==='keep')return false;const c1=wallBonus?d.cost:Math.max(0,d.cost-1);return c1<=p().gold;});
+      if(destructible.length){const t=destructible.sort((a,b)=>b.cost-a.cost)[0];
+        const c1=wallBonus?t.cost:Math.max(0,t.cost-1);
+        s={...s,players:s.players.map(q=>{if(q.id===pid)return{...q,gold:q.gold-c1};if(q.id===target.id)return{...q,city:q.city.filter(d=>d.uid!==t.uid)};return q;})};
+        events.push({icon:'💥',text:`${p().name} destroys ${target.name}'s ${t.name}! (paid ${c1}✦)`,color:'#d45a5a'});}
+    }
+  }
+  // Smithy
+  if(p().city.some(d=>d.id==='smithy')&&!p().smithyUsed&&p().gold>=2&&s.deck.length>=1){
+    const drawn=s.deck.slice(0,Math.min(3,s.deck.length));
+    s={...s,deck:s.deck.slice(drawn.length),players:s.players.map(q=>q.id===pid?{...q,gold:q.gold-2,hand:[...q.hand,...drawn],smithyUsed:true}:q)};
+    events.push({icon:'⚒️',text:`${p().name} uses the Smithy: pay 2✦, draw ${drawn.length} cards.`,color:'#c084fc'});
+  }
+  // Build
+  const maxB=charId===7?3:1;let built=0;
+  for(let i=0;i<maxB;i++){
+    const dist=aiBestBuild(p());if(!dist)break;built++;
+    const cost=buildCost(p(),dist);
+    s={...s,players:s.players.map(q=>q.id===pid?{...q,gold:q.gold-cost,hand:q.hand.filter(c=>c.uid!==dist.uid),city:[...q.city,dist]}:q)};
+    events.push({icon:DEMOJI[dist.id]||'🏛️',text:`${p().name} builds ${dist.name} (${cost}✦ — ${CS[dist.color].label}).`,color:CS[dist.color].txt});
+    s=addLog(s,`${p().name} builds ${dist.name}.`);
+    if(p().city.length>=8&&s.firstCompleter===null){s={...s,firstCompleter:pid};
+      events.push({icon:'🏆',text:`${p().name} completes 8 districts! Final round!`,color:'#d4a843'});
+      s=addLog(s,`🏰 ${p().name} completes 8 districts!`);}
+  }
+  if(!built)events.push({icon:'—',text:`${p().name} cannot afford to build.`,color:'#4a3e2a'});
+  return{state:s,events};
+}
+
+function endRound(state){
+  let s={...state};if(s.firstCompleter!==null)return{...s,phase:'gameover'};
+  // Rotate draftOrder so new crown goes first, preserving original player order
+  const crownIdx=s.draftOrder.indexOf(s.crown);
+  const newDraftOrder=crownIdx>=0
+    ?[...s.draftOrder.slice(crownIdx),...s.draftOrder.slice(0,crownIdx)]
+    :s.draftOrder;
+  s={...s,round:s.round+1,phase:'draft',sub:'idle',draftIdx:0,callIdx:1,heraldQueue:[],heraldIdx:0,heraldAcks:[],
+    draftOrder:newDraftOrder,avail:[1,2,3,4,5,6,7,8],
+    players:s.players.map(p=>({...p,char:null,dead:false,stolenTarget:null,pendingKill:null}))};
+  s={...s,pendingDestroy:null};
+  s=addLog(s,`Round ${s.round} begins. Crown: ${s.players[s.crown].name}`);
+  return runAIDraft(s);
+}
+
+// Returns list of all human player slot IDs in current game
+function humanSlots(state){return state.players.filter(p=>!p.ai).map(p=>p.id);}
+
+// Core herald advance — requires all human players to have acked the current beat
+function heraldAck(state,slotId){
+  const acks=[...new Set([...(state.heraldAcks||[]),slotId])];
+  const humans=humanSlots(state);
+  const allAcked=humans.every(id=>acks.includes(id));
+  if(!allAcked)return{...state,heraldAcks:acks}; // waiting for others
+  // All acked — advance to next beat
+  const next=state.heraldIdx+1;
+  if(next<state.heraldQueue.length)return{...state,heraldIdx:next,heraldAcks:[]};
+  const cleared={...state,heraldQueue:[],heraldIdx:0,heraldAcks:[]};
+  if(cleared.heraldAfter==='end_round'){
+    const newState=endRound(cleared);
+    // Force broadcast after round transition so peers don't get stuck
+    if(NET.mode==='host')setTimeout(()=>broadcastState(),50);
+    return newState;
+  }
+  if(cleared.heraldAfter==='peer_act')return{...cleared,phase:'action',sub:'idle'};
+  return{...cleared,phase:'action',sub:'choose',collected:false,builtCount:0,drawOpts:[],selCards:[]};
+}
+
+// Solo convenience wrapper — slot 0 is the only human
+function heraldNext(state){return heraldAck(state,0);}
+
+// ── HUMAN ACTIONS ──────────────────────────────────────────────────────────────
+function humanCollectGold(state){return addLog({...state,collected:true,players:state.players.map(p=>p.id===0?{...p,gold:p.gold+2}:p)},'You collect 2✦.');}
+function humanCollectCards(state){
+  if(!state.deck.length&&!state.trash.length)return state;
+  let deck=[...state.deck];let trash=[...state.trash];
+  if(!deck.length){deck=shuffle(trash);trash=[];}
+  const me=state.players[0];
+  const hasObs=me.city.some(d=>d.id==='observatory');
+  const cnt=hasObs?Math.min(3,deck.length):Math.min(2,deck.length);
+  const drawn=deck.slice(0,cnt);const newDeck=deck.slice(cnt);
+  if(me.city.some(d=>d.id==='library')&&cnt===2)
+    return addLog({...state,collected:true,deck:newDeck,trash,players:state.players.map(p=>p.id===0?{...p,hand:[...p.hand,...drawn]}:p)},`Library: you keep both cards (${drawn.map(d=>d.name).join(', ')}).`);
+  return{...state,deck:newDeck,trash,sub:'draw_pick',drawOpts:drawn};
+}
+function humanKeepCard(state,uid){
+  const kept=state.drawOpts.find(d=>d.uid===uid);const disc=state.drawOpts.filter(d=>d.uid!==uid);
+  return addLog({...state,sub:'choose',collected:true,drawOpts:[],trash:[...state.trash,...disc],
+    players:state.players.map(p=>p.id===0?{...p,hand:[...p.hand,kept]}:p)},`You keep ${kept.name}.`);
+}
+function humanBuild(state,uid){
+  const p=state.players[0];const maxB=p.char===7?3:1;if(state.builtCount>=maxB)return state;
+  const card=p.hand.find(d=>d.uid===uid);if(!card)return state;
+  const cost=buildCost(p,card);if(cost>p.gold||p.city.some(c=>c.id===card.id))return state;
+  let s={...state,builtCount:state.builtCount+1,
+    players:state.players.map(q=>q.id===0?{...q,gold:q.gold-cost,hand:q.hand.filter(d=>d.uid!==uid),city:[...q.city,card]}:q)};
+  s=addLog(s,`You build ${card.name} (${cost}✦${card.cost>cost?' — Factory discount':''}).`);
+  if(s.players[0].city.length>=8&&s.firstCompleter===null){
+    s={...s,firstCompleter:s.players[0].id};
+    s=addLog(s,`🏰 ${s.players[0].name} completes 8 districts! Final round!`);
+  }
+  return s;
+}
+function humanUseSmithy(state){
+  const me=state.players[0];
+  if(!me.city.some(d=>d.id==='smithy')||me.smithyUsed||me.gold<2||!state.deck.length)return state;
+  const drawn=state.deck.slice(0,Math.min(3,state.deck.length));
+  return addLog({...state,deck:state.deck.slice(drawn.length),
+    players:state.players.map(p=>p.id===0?{...p,gold:p.gold-2,hand:[...p.hand,...drawn],smithyUsed:true}:p)},`Smithy: pay 2✦, draw ${drawn.length} cards.`);
+}
+function humanEndTurn(state){
+  let s={...state};
+  // Apply pending warlord destruction
+  const demolishEvent=[];
+  if(s.pendingDestroy){
+    // Destruction was already applied in humanWarlord — just record for herald summary
+    const{cost:c1,name:dname,tpName}=s.pendingDestroy;
+    demolishEvent.push({icon:'💥',text:`Demolished ${tpName}'s ${dname} (−${c1}✦).`,color:'#d45a5a'});
+    s={...s,pendingDestroy:null};
+  }
+  const me=s.players[0];const charId=me.char;const humanEvents=[];
+  if(s.collected)humanEvents.push({icon:'✦',text:'Collected income.',color:'#d4a843'});
+  if(me.smithyUsed)humanEvents.push({icon:'⚒️',text:'Used the Smithy.',color:'#c084fc'});
+  humanEvents.push(...demolishEvent);
+  const built=s.builtCount;
+  if(built>0)me.city.slice(-built).forEach(d=>humanEvents.push({icon:DEMOJI[d.id]||'🏛️',text:`Built ${d.name} (${buildCost(me,d)}✦).`,color:CS[d.color].txt}));
+  else humanEvents.push({icon:'—',text:'Did not build.',color:'#4a3e2a'});
+  s={...s,heraldQueue:[...s.heraldQueue,{charId,holderName:me.name,events:humanEvents,isHuman:true}],callIdx:s.callIdx+1,sub:'idle'};
+  return advanceCall(s,_applyLocalSlot);
+}
+function humanKill(s,tc){
+  // Store pending kill — applied when that char is called by the Herald
+  return addLog({...s,sub:'choose',players:s.players.map(p=>p.id===0?{...p,pendingKill:tc}:p)},
+    `You (Assassin) target the ${CHARS[tc-1].name}.`);
+}
+function humanSteal(s,tc){return addLog({...s,sub:'choose',players:s.players.map(p=>p.id===0?{...p,stolenTarget:tc}:p)},`You target the ${CHARS[tc-1].name} for theft.`);}
+function humanMagSwap(s,tid){const o=s.players.find(p=>p.id===tid),me=s.players[0];
+  return addLog({...s,sub:'choose',players:s.players.map(p=>{if(p.id===0)return{...p,hand:[...o.hand]};if(p.id===tid)return{...p,hand:[...me.hand]};return p;})},`You swap hands with ${o.name}!`);}
+function humanMagDiscard(s,uids){
+  if(!uids.length)return{...s,sub:'choose',selCards:[]};
+  const disc=s.players[0].hand.filter(d=>uids.includes(d.uid));
+  // If deck doesn't have enough cards, shuffle trash back in first
+  let deck=[...s.deck];let trash=[...s.trash];
+  if(deck.length<uids.length&&trash.length>0){
+    deck=[...deck,...shuffle(trash)];trash=[];
+  }
+  const drawn=deck.splice(0,Math.min(uids.length,deck.length));
+  return addLog({...s,sub:'choose',selCards:[],deck,trash:[...trash,...disc],
+    players:s.players.map(p=>p.id===0?{...p,hand:[...p.hand.filter(d=>!uids.includes(d.uid)),...drawn]}:p)},
+    `You discard ${uids.length}, draw ${drawn.length}.`);
+}
+function humanWarlord(s,tpid,duid){
+  const me=s.players[0],tp=s.players.find(p=>p.id===tpid);
+  if(!tp||(tp.char===5&&!tp.dead))return{...s,sub:'choose'};
+  const dist=tp.city.find(d=>d.uid===duid);if(!dist||dist.id==='keep')return{...s,sub:'choose'};
+  const wallBonus=tp.city.some(d=>d.id==='great_wall');
+  const c1=wallBonus?dist.cost:Math.max(0,dist.cost-1);if(c1>me.gold)return{...s,sub:'choose'};
+  // Apply destruction immediately — store full district for undo
+  let ns={...s,pendingDestroy:{pid:tpid,duid,cost:c1,name:dist.name,tpName:tp.name,distObj:dist},
+    players:s.players.map(p=>{
+      if(p.id===0)return{...p,gold:p.gold-c1};
+      if(p.id===tpid)return{...p,city:p.city.filter(d=>d.uid!==duid)};
+      return p;
+    })};
+  return addLog({...ns,sub:'choose'},`You destroy ${tp.name}'s ${dist.name} for ${c1}✦!`);
+}
+
+// ── DOM HELPERS ────────────────────────────────────────────────────────────────
+function el(tag,attrs,text){
+  const e=document.createElement(tag);
+  if(attrs)for(const[k,v]of Object.entries(attrs)){if(k==='style')e.style.cssText=v;else if(k==='class')e.className=v;else e.setAttribute(k,v);}
+  if(text!==undefined)e.textContent=text;return e;
+}
+function gbtn(label,color,onClick,extra){
+  const b=el('button',{class:'gbtn',style:`background:${color}20;border-color:${color}55;color:${color};${extra||''}`},label);
+  b.onmouseenter=()=>b.style.background=color+'40';b.onmouseleave=()=>b.style.background=color+'20';b.onclick=onClick;return b;
+}
+
+// District card — landscape orientation (emoji left, info right)
+function mkCard(d,opts){
+  opts=opts||{};
+  const c=CS[d.color];
+  const cost=opts.player?buildCost(opts.player,d):d.cost;
+  const disc=opts.player&&cost<d.cost;
+  const portrait=opts.portrait; // tall card for hand/draw-pick
+  const small=opts.small;       // tiny compact tag for build picker / city secondary
+
+  const div=el('div');
+  let cls='dcard';
+  if(opts.onClick&&!opts.disabled)cls+=' clickable';
+  if(opts.selected)cls+=' selected';
+  if(portrait)cls+=' portrait';
+  div.className=cls;
+
+  if(portrait){
+    // Portrait: auto height, 130px wide — set only bg/border/opacity
+    div.style.cssText=`background:${c.bg};border-color:${opts.selected?c.txt:c.bdr};opacity:${opts.disabled?0.4:1}`;
+  }else{
+    // Landscape: fixed height
+    const h=small?42:54;const ew=small?30:42;const iw=small?62:96;
+    div.style.cssText=`background:${c.bg};border-color:${opts.selected?c.txt:c.bdr};opacity:${opts.disabled?0.4:1};height:${h}px;width:${ew+iw}px`;
+  }
+
+  // Emoji col
+  const emojiCol=el('div',{class:'dcard-emoji-col'});
+  emojiCol.style.cssText=`background:${c.bdr}33;border-color:${c.bdr}`;
+  if(!portrait){
+    const ew=small?30:42;
+    emojiCol.style.width=ew+'px';
+    emojiCol.style.fontSize=(small?14:22)+'px';
+  }
+  // portrait sizing handled by CSS
+  emojiCol.textContent=DEMOJI[d.id]||'🏛';
+  div.appendChild(emojiCol);
+
+  // Info col
+  const infoCol=el('div',{class:'dcard-info-col'});
+  const costEl=el('div',{class:'dcard-cost'});
+  costEl.style.color=disc?'#e0975c':c.txt;
+  costEl.textContent=disc?`${cost}✦ (${d.cost}✦)`:`${cost}✦`;
+  const nm=el('div',{class:'dcard-name'});nm.style.color=c.txt;nm.textContent=d.name;
+  const tp=el('div',{class:'dcard-type'});tp.style.color=c.txt;tp.textContent=c.label;
+  infoCol.append(costEl,nm,tp);
+
+  // Show description: always in portrait (unless noDesc), only for special in landscape non-small
+  const showDesc=!opts.noDesc&&(portrait||(!small&&d.special))&&d.special&&SDESC[d.special];
+  if(showDesc){
+    const desc=el('div',{class:'dcard-desc'});
+    desc.style.color=c.txt;
+    desc.textContent=SDESC[d.special];
+    infoCol.appendChild(desc);
+  }
+
+  div.appendChild(infoCol);
+  if(opts.onClick&&!opts.disabled)div.onclick=opts.onClick;
+  return div;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MULTIPLAYER — Firebase Realtime Database (free, anonymous, no server needed)
+// Each room is a 6-char code. State syncs every action. My hand = local secret.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════════════════════════════════════════
+
+let S=null; // initialized by lobby
+
+function render(){
+  // If not yet in a game, show lobby
+  if(!S){renderLobby({screen:"home"});return;}
+
+  const app=document.getElementById('app');app.innerHTML='';
+  if(S.phase==='gameover'){app.appendChild(renderGameOver());return;}
+
+  const wrap=el('div',{style:'display:flex;flex-direction:column;height:100vh;overflow:hidden'});
+
+  // ── TOP BAR — 4-column grid ──────────────────────────────────────────────────
+  const topbar=el('div',{id:'topbar'});
+  // Header row
+  const tbHdr=el('div',{class:'tb-header'});
+  tbHdr.appendChild(el('span',{class:'tb-title'},'⚜ Citadels'));
+  tbHdr.appendChild(el('span',{class:'tb-meta'},`Round ${S.round} · Crown: ${S.players[S.crown].name}`));
+  if((S.phase==='action'||S.phase==='herald')&&S.callIdx<=8){
+    const c=CHARS[S.callIdx-1];
+    tbHdr.appendChild(el('span',{class:'tb-calling',style:`color:${c.clr}`},`${c.emoji} Calling: ${c.name}`));
+  }
+  // End Game button — always visible during play
+  const endBtn=el('button',{style:'margin-left:auto;background:#2a0a0a;border:1px solid #6a2020;color:#cc6666;border-radius:5px;padding:4px 11px;font-size:11px;font-family:Cinzel,serif;cursor:pointer;transition:background .15s'},'✕ End Game');
+  endBtn.onmouseenter=()=>endBtn.style.background='#3a1010';
+  endBtn.onmouseleave=()=>endBtn.style.background='#2a0a0a';
+  endBtn.onclick=()=>{S={...S,_confirmEnd:true};render();};
+  tbHdr.appendChild(endBtn);
+  topbar.appendChild(tbHdr);
+  // 4-column player grid
+  const tbGrid=el('div',{class:'tb-grid'});
+  // Show players in draft/turn order (crown order), consistent on all screens
+  const displayOrder=[...S.players].sort((a,b)=>{
+    const ai=S.draftOrder.indexOf(a.id);const bi=S.draftOrder.indexOf(b.id);
+    return(ai===-1?99:ai)-(bi===-1?99:bi);
+  });
+  displayOrder.forEach(p=>{
+    const isActive=(S.phase==='action')&&p.char===S.callIdx&&!p.dead;
+    const isMe=p.id===0; // slot 0 = local player after swapSlots
+    const pDiv=el('div',{class:'tb-player'+(isActive?' active':'')+(isMe?' me':'')});
+    if(isMe)pDiv.style.cssText+='border-color:#4a7a4a;background:#0d1a0d;';
+    // Name + char badge
+    const r1=el('div',{class:'tb-player-row1'});
+    if(S.crown===p.id)r1.appendChild(el('span',null,'👑'));
+    r1.appendChild(el('span',{class:'tb-player-name'},p.name));
+    if(isMe)r1.appendChild(el('span',{style:'background:#2a4a2a;color:#4db87a;font-size:9px;padding:1px 5px;border-radius:8px;font-family:Cinzel,serif;border:1px solid #3a6a3a'},'YOU'));
+    if(p.dead)r1.appendChild(el('span',{style:'color:#cc4444;font-size:11px'},'☠️'));
+    // A char is revealed when its herald beat has been displayed and acked past
+    // During herald phase: only beats before heraldIdx have been seen
+    // During action phase: all chars with number < callIdx have had their turn shown
+    let charRevealed=isMe;
+    if(!charRevealed&&p.char){
+      if(S.phase==='action'){
+        charRevealed=p.char<S.callIdx;
+      }else if(S.phase==='herald'){
+        // Find if this char's beat has already been shown (heraldIdx has passed it)
+        const beatIdx=S.heraldQueue.findIndex(b=>b.charId===p.char);
+        charRevealed=beatIdx>=0&&beatIdx<S.heraldIdx;
+      }
+    }
+    if(p.char && charRevealed){const c=CHARS[p.char-1];
+      const badge=el('span',{class:'tb-player-char',style:`color:${c.clr};border-color:${c.clr}44;background:${c.clr}12`});
+      badge.textContent=`${c.emoji} ${c.name}`;r1.appendChild(badge);}
+    else if(p.char && !charRevealed && !isMe){
+      const badge=el('span',{class:'tb-player-char',style:'color:#3a3560;border-color:#2a2445;background:#1a1535'});
+      badge.textContent='🎭 Hidden';r1.appendChild(badge);
+    }
+    pDiv.appendChild(r1);
+    // Stats row
+    const r2=el('div',{class:'tb-player-stats'});
+    r2.innerHTML=`<span>💰<span class="tb-stat-val"> ${p.gold}✦</span></span>`+
+      `<span>🏰<span class="tb-stat-val"> ${p.city.length}/8</span></span>`+
+      `<span>🃏<span class="tb-stat-val"> ${p.hand.length}</span></span>`+
+      `<span>📊<span class="tb-stat-val"> ${calcScore(p,S.firstCompleter===p.id)}pts</span></span>`;
+    pDiv.appendChild(r2);
+    // City chips — always show pts; dashed border + tooltip only for unique specials
+    if(p.city.length){
+      const cityDiv=el('div',{class:'tb-city'});
+      p.city.forEach(d=>{
+        const c=CS[d.color];
+        const isUnique=d.color==='purple'&&d.special&&SDESC[d.special];
+        const chip=el('div',{class:'tb-chip'+(isUnique?' has-tip':'')});
+        const label=el('span',{class:'tb-chip-label',style:`background:${c.bg};border-color:${c.bdr};color:${c.txt}`});
+        // emoji + name always
+        label.appendChild(document.createTextNode(`${DEMOJI[d.id]||'🏛'} ${d.name} `));
+        // pts always visible
+        const ptsSpan=el('span',{class:'tb-chip-pts'});
+        ptsSpan.textContent=`${d.cost}✦`;
+        ptsSpan.style.color=c.txt;
+        label.appendChild(ptsSpan);
+        chip.appendChild(label);
+        // Tooltip only for unique specials
+        if(isUnique){
+          const tip=el('div',{class:'tb-chip-tip'});
+          tip.textContent=`✨ ${d.name}\n${SDESC[d.special]}`;
+          chip.appendChild(tip);
+        }
+        cityDiv.appendChild(chip);
+      });
+      pDiv.appendChild(cityDiv);
+    }
+    tbGrid.appendChild(pDiv);
+  });
+  topbar.appendChild(tbGrid);
+  wrap.appendChild(topbar);
+
+  // ── CENTER ───────────────────────────────────────────────────────────────────
+  const main=el('div',{id:'main'});
+  const center=el('div',{id:'center'});
+  if(S.phase==='draft'){
+    const currentDrafter=S.draftOrder[S.draftIdx];
+    const draftingPlayer=S.players[currentDrafter];
+    if(currentDrafter===0)center.appendChild(renderDraft());
+    else{
+      const msg=draftingPlayer&&!draftingPlayer.ai
+        ?`⏳ Waiting for ${draftingPlayer.name} to choose their character...`
+        :'⏳ Others are choosing characters...';
+      center.appendChild(el('div',{style:'text-align:center;padding:20px;color:#3a3060;font-family:Cinzel,serif;font-size:14px'},msg));
+    }
+  }else if(S.phase==='herald'){
+    center.appendChild(renderHerald());
+  }else if(S.phase==='action'){
+    const me=S.players[0];
+    const humanIsNow=me&&me.char===S.callIdx&&!me.dead&&S.sub!=='idle';
+    if(humanIsNow)center.appendChild(renderAction());
+    else{
+      const activePlayer=S.players.find(p=>p.char===S.callIdx&&!p.dead&&!p.ai);
+      const waitMsg=activePlayer&&activePlayer.id!==0
+        ?`⏳ Waiting for ${activePlayer.name}...`:'⏳ Waiting...';
+      center.appendChild(el('div',{style:'text-align:center;padding:20px;color:#3a3060;font-family:Cinzel,serif;font-size:14px'},waitMsg));
+    }
+  }
+  main.appendChild(center);wrap.appendChild(main);
+
+  // ── BOTTOM PANEL ─────────────────────────────────────────────────────────────
+  const bottom=el('div',{id:'bottom'});
+  const me=S.players[0];const myScore=calcScore(me,S.firstCompleter===me.id);
+
+  // Hand panel
+  const botHand=el('div',{id:'bot-hand'});
+  const handLabel=el('div',{class:'bot-label'});
+  handLabel.innerHTML=`<span>YOUR HAND</span><span class="bot-label-right">💰 ${me.gold}✦ &nbsp;🃏 ${me.hand.length} cards</span>`;
+  botHand.appendChild(handLabel);
+  if(me.char){const c=CHARS[me.char-1];
+    botHand.appendChild(el('div',{style:`font-size:12px;color:${c.clr};font-family:Cinzel,serif;margin-bottom:6px`},`${c.emoji} Playing as ${c.name}`));}
+  const handWrap=el('div',{class:'cards-wrap'});
+  if(me.hand.length)me.hand.forEach(d=>handWrap.appendChild(mkCard(d,{portrait:true,player:me})));
+  else handWrap.appendChild(el('span',{style:'color:#2e2818;font-size:13px;padding:4px'},'No cards in hand'));
+  botHand.appendChild(handWrap);
+
+  // City panel
+  const botCity=el('div',{id:'bot-city'});
+  const cityLabel=el('div',{class:'bot-label'});
+  cityLabel.innerHTML=`<span>YOUR CITY (${me.city.length}/8)</span><span class="bot-label-right">📊 ~${myScore} pts</span>`;
+  botCity.appendChild(cityLabel);
+  const cityWrap=el('div',{class:'cards-wrap'});
+  if(me.city.length){
+    ['yellow','blue','green','red','purple'].forEach(col=>{
+      me.city.filter(d=>d.color===col).forEach(d=>cityWrap.appendChild(mkCard(d,{portrait:true,player:me})));
+    });
+  }else cityWrap.appendChild(el('span',{style:'color:#2e2818;font-size:13px;padding:4px'},'Nothing built yet'));
+  botCity.appendChild(cityWrap);
+
+  bottom.append(botHand,botCity);wrap.appendChild(bottom);
+
+  // Confirmation modal for ending the game
+  if(S._confirmEnd){
+    const overlay=el('div',{class:'confirm-overlay'});
+    const box=el('div',{class:'confirm-box'});
+    box.appendChild(el('h3',null,'End the Game?'));
+    box.appendChild(el('p',null,'This will immediately end the current game and return to the home screen. All progress will be lost.'));
+    const btns=el('div',{class:'confirm-btns'});
+    const cancelBtn=el('button',{style:'background:#1a1e35;border-color:#2a2f55;color:#a89878'},'Keep Playing');
+    cancelBtn.onmouseenter=()=>cancelBtn.style.background='#252a45';
+    cancelBtn.onmouseleave=()=>cancelBtn.style.background='#1a1e35';
+    cancelBtn.onclick=()=>{S={...S,_confirmEnd:false};render();};
+    const confirmBtn=el('button',{style:'background:#2a0a0a;border-color:#8a2020;color:#e07070'},'End Game');
+    confirmBtn.onmouseenter=()=>confirmBtn.style.background='#3a1010';
+    confirmBtn.onmouseleave=()=>confirmBtn.style.background='#2a0a0a';
+    confirmBtn.onclick=()=>{
+      try{NET.peer?.destroy();}catch(e){}
+      NET.mode='solo';NET.peer=null;NET.hostConn=null;NET.conns={};
+      S=null;renderLobby({screen:'home'});
+    };
+    btns.append(cancelBtn,confirmBtn);box.appendChild(btns);
+    overlay.appendChild(box);wrap.appendChild(overlay);
+  }
+
+  app.appendChild(wrap);
+}
+
+// ── HERALD ─────────────────────────────────────────────────────────────────────
+function renderHerald(){
+  const beat=S.heraldQueue[S.heraldIdx];if(!beat)return el('div',null,'');
+  const c=CHARS[beat.charId-1];const total=S.heraldQueue.length;
+  const isLast=S.heraldIdx===total-1;
+  const nextLabel=isLast?(S.heraldAfter==='end_round'?'End Round ›':'Your Turn ›'):'Next ›';
+  const wrap=el('div',{class:'herald-wrap'});
+  const pips=el('div',{class:'herald-pips'});
+  for(let i=0;i<total;i++){const q=S.heraldQueue[i];const qc=CHARS[q.charId-1];
+    const pip=el('div',{class:'herald-pip'});
+    pip.style.background=i===S.heraldIdx?qc.clr:(i<S.heraldIdx?qc.clr+'55':'#1e2245');
+    pip.title=`${q.charId}. ${qc.name}`;pips.appendChild(pip);}
+  wrap.appendChild(pips);
+  const card=el('div',{class:'herald-card'});
+  card.appendChild(el('div',{class:'herald-char-num'},`Character ${beat.charId} of 8`));
+  // Emoji icon
+  const iconRow=el('div',{style:'display:flex;align-items:center;gap:12px;margin-bottom:6px'});
+  iconRow.appendChild(el('span',{style:'font-size:48px;line-height:1'},c.emoji));
+  const titleBlock=el('div');
+  const titleEl=el('div',{class:'herald-title'});titleEl.style.color=c.clr;titleEl.textContent=c.name;titleBlock.appendChild(titleEl);
+  titleBlock.appendChild(el('div',{style:'font-size:10px;color:#3a3060;margin-top:2px'},c.ability));
+  iconRow.appendChild(titleBlock);card.appendChild(iconRow);
+  if(!beat.holderName){
+    card.appendChild(el('div',{class:'herald-empty'},'No one answered this call.'));
+  }else{
+    const who=el('div',{class:'herald-sub'});
+    // Always show the real player name; mark if it's the local player's turn
+    const isMyBeat=beat.isHuman&&(beat.isStartOnly||beat.isHuman);
+    if(beat.isStartOnly){
+      who.textContent=`${beat.holderName}`;
+    }else if(beat.isHuman){
+      // Show player name + "(You)" marker only for local player
+      const localName=S.players[0]?.name||'You';
+      const isMe=beat.holderName===localName;
+      who.textContent=isMe?`${beat.holderName} (You) — turn summary:`:`${beat.holderName} — turn summary:`;
+    }else{
+      who.textContent=`${beat.holderName} plays as ${c.name}.`;
+    }
+    card.appendChild(who);
+    if(beat.events.length){
+      const evts=el('div',{class:'herald-events'});
+      beat.events.forEach(ev=>{const row=el('div',{class:'herald-event'});row.style.borderLeftColor=ev.color;
+        const icon=el('div',{class:'herald-ev-icon'});icon.textContent=ev.icon;
+        const txt=el('div',{class:'herald-ev-text'});txt.textContent=ev.text;row.append(icon,txt);evts.appendChild(row);});
+      card.appendChild(evts);
+    }else card.appendChild(el('div',{class:'herald-empty'},'No actions taken.'));
+  }
+  const cb=el('button',{class:'herald-cont'});cb.style.cssText+=`background:${c.clr}18;border-color:${c.clr}55;color:${c.clr};`;
+  // Show who has/hasn't acked in multiplayer
+  const humans=humanSlots(S);
+  // heraldAcks stores original slot IDs; NET.mySlot is 0 for host/solo, peer's real slot for peer
+  const myOrigSlot=NET.mode==='peer'?NET.mySlot:0;
+  const iHaveAcked=(S.heraldAcks||[]).includes(myOrigSlot);
+  if(humans.length>1){
+    const ackedCount=(S.heraldAcks||[]).length;
+    const totalHumans=humans.length;
+    if(iHaveAcked){
+      cb.textContent=`✓ Ready (${ackedCount}/${totalHumans} players ready)`;
+      cb.style.opacity='0.5';cb.style.cursor='default';
+      cb.onclick=null; // already clicked
+    }else{
+      cb.textContent=`${nextLabel} (${ackedCount}/${totalHumans} ready)`;
+      cb.onclick=()=>{{const _nr=heraldNext(S);if(_nr)S=_nr;render();};};
+    }
+  }else{
+    cb.textContent=nextLabel;
+    cb.onclick=()=>{{const _nr=heraldNext(S);if(_nr)S=_nr;render();};};
+  }
+  cb.onmouseenter=()=>{if(!iHaveAcked||humans.length===1)cb.style.background=c.clr+'35';};
+  cb.onmouseleave=()=>cb.style.background=c.clr+(iHaveAcked&&humans.length>1?'08':'18');
+  card.appendChild(cb);wrap.appendChild(card);return wrap;
+}
+
+// ── DRAFT ──────────────────────────────────────────────────────────────────────
+function renderDraft(){
+  const wrap=el('div',null);
+  wrap.appendChild(el('div',{style:'font-family:Cinzel,serif;color:#d4a843;font-size:15px;margin-bottom:14px'},'Choose your character for this round:'));
+  const grid=el('div',{style:'display:grid;grid-template-columns:repeat(4,1fr);gap:10px'});
+  CHARS.forEach(c=>{
+    const avail=S.avail.includes(c.id);
+    const card=el('div',{class:'charcard',style:`border-color:${avail?c.clr+'55':'#1e1e2e'};background:${avail?'#141830':'#0e1020'};opacity:${avail?1:0.28};cursor:${avail?'pointer':'default'}`});
+    card.appendChild(el('div',{class:'charcard-emoji'},c.emoji));
+    card.appendChild(el('div',{class:'charcard-name',style:`color:${c.clr}`},`${c.id}. ${c.name}`));
+    card.appendChild(el('div',{class:'charcard-ability'},c.ability));
+    if(avail){card.onclick=()=>{
+      const result=humanDraft(S,c.id);
+      if(result)S=result; // only update S if result is truthy (solo/host); peer mode returns undefined
+      render();
+    };
+      card.onmouseenter=()=>card.style.background='#1c2040';card.onmouseleave=()=>card.style.background='#141830';}
+    grid.appendChild(card);
+  });
+  wrap.appendChild(grid);return wrap;
+}
+
+// ── ACTION ─────────────────────────────────────────────────────────────────────
+function renderAction(){
+  const me=S.players[0];const charId=me.char;const c=CHARS[charId-1];const maxB=charId===7?3:1;
+  const wrap=el('div',null);
+  // Banner
+  const banner=el('div',{class:'action-banner',style:`background:${c.clr}10;border-color:${c.clr}33`});
+  banner.appendChild(el('div',{class:'action-banner-emoji'},c.emoji));
+  const bInfo=el('div',{class:'action-banner-info'});
+  bInfo.appendChild(el('div',{style:`font-family:Cinzel,serif;color:${c.clr};font-size:15px;font-weight:700`},`${c.id}. ${c.name}`));
+  bInfo.appendChild(el('div',{style:'font-size:11px;color:#5a4e3a;margin-top:3px'},c.ability));
+  if(charId===7)bInfo.appendChild(el('div',{style:'font-size:10px;color:#e0975c;margin-top:5px'},`✓ +2 cards already drawn (${me.hand.length} in hand). Build up to 3 districts.`));
+  banner.appendChild(bInfo);wrap.appendChild(banner);
+
+  if(S.sub==='draw_pick'){
+    wrap.appendChild(el('div',{style:'font-family:Cinzel,serif;color:#d4a843;margin-bottom:12px;font-size:13px'},`Choose one card to keep${me.city.some(d=>d.id==='observatory')?' (Observatory: 3 shown)':''}:`));
+    const row=el('div',{style:'display:flex;gap:10px;flex-wrap:wrap'});
+    S.drawOpts.forEach(d=>row.appendChild(mkCard(d,{portrait:true,onClick:()=>{{const _nr=humanKeepCard(S,d.uid);if(_nr)S=_nr;render();};}})));
+    wrap.appendChild(row);return wrap;
+  }
+
+  // Income
+  if(!S.collected){
+    wrap.appendChild(el('div',{class:'sect-label'},'COLLECT INCOME'));
+    const row=el('div',{style:'display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap'});
+    row.appendChild(gbtn('💰 Take 2 Gold','#d4a843',()=>{{const _nr=humanCollectGold(S);if(_nr)S=_nr;render();};},'padding:10px 18px;font-size:12px;font-family:Cinzel,serif'));
+    if(S.deck.length){
+      const label=me.city.some(d=>d.id==='library')?'📚 Draw 2, Keep BOTH (Library)':
+                  me.city.some(d=>d.id==='observatory')?'🔭 Draw 3, Keep 1 (Observatory)':'🃏 Draw 2, Keep 1';
+      row.appendChild(gbtn(label,'#5a9fd4',()=>{{const _nr=humanCollectCards(S);if(_nr)S=_nr;render();};},'padding:10px 18px;font-size:12px;font-family:Cinzel,serif'));
+    }
+    wrap.appendChild(row);
+  }
+
+  // Special — show always after banner (even before income, so Assassin/Thief can choose early)
+  if(S.sub==='choose'||S.sub==='assassin_pick'||S.sub==='thief_pick'||S.sub==='warlord_pick'){
+    wrap.appendChild(el('div',{class:'sect-label'},'SPECIAL ABILITY'));
+    wrap.appendChild(renderSpecial(charId));
+  }
+
+  // Magician sub-screens (multi-step, shown inline)
+  if(S.sub==='mag_swap'){
+    wrap.appendChild(el('div',{style:'color:#9b6fff;font-size:12px;margin-bottom:8px;font-family:Cinzel,serif'},'Swap your hand with:'));
+    const r=el('div',{style:'display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px'});
+    S.players.filter(p=>p.id!==0).forEach(p=>r.appendChild(gbtn(`${p.name} (${p.hand.length} cards)`,'#9b6fff',()=>{{const _nr=humanMagSwap(S,p.id);if(_nr)S=_nr;render();};})));
+    r.appendChild(gbtn('Cancel','#555',()=>{S={...S,sub:'choose'};render();}));wrap.appendChild(r);
+  }
+  if(S.sub==='mag_discard'){
+    wrap.appendChild(el('div',{style:'color:#9b6fff;font-size:12px;margin-bottom:8px;font-family:Cinzel,serif'},'Select cards to discard & redraw:'));
+    const r=el('div',{style:'display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px'});
+    me.hand.forEach(d=>{const sel=S.selCards.includes(d.uid);r.appendChild(mkCard(d,{portrait:true,selected:sel,onClick:()=>{
+      const sc=S.selCards.includes(d.uid)?S.selCards.filter(x=>x!==d.uid):[...S.selCards,d.uid];S={...S,selCards:sc};render();}}));});
+    wrap.appendChild(r);
+    const r2=el('div',{style:'display:flex;gap:6px'});
+    if(S.selCards.length)r2.appendChild(gbtn(`Discard ${S.selCards.length} → Draw ${S.selCards.length}`,'#9b6fff',()=>{{const _nr=humanMagDiscard(S,S.selCards);if(_nr)S=_nr;render();};}));
+    r2.appendChild(gbtn('Cancel','#555',()=>{S={...S,sub:'choose',selCards:[]};render();}));wrap.appendChild(r2);
+  }
+
+  // Active buildings (Smithy) — shown after income for any character
+  if(S.collected&&S.sub==='choose'&&me.city.some(d=>d.id==='smithy')&&!me.smithyUsed&&me.gold>=2&&S.deck.length){
+    wrap.appendChild(el('div',{class:'sect-label'},'ACTIVE BUILDINGS'));
+    const smithyRow=el('div',{style:'display:flex;align-items:center;gap:10px;background:#1a0830;border:1px solid #4a1a7a44;border-radius:6px;padding:7px 11px;margin-bottom:10px'});
+    smithyRow.appendChild(el('span',{style:'font-size:20px'},'⚒️'));
+    const smithyInfo=el('div',{style:'flex:1'});
+    smithyInfo.appendChild(el('div',{style:'font-family:Cinzel,serif;font-size:11px;color:#c084fc'},'Smithy'));
+    smithyInfo.appendChild(el('div',{style:'font-size:10px;color:#7a5a9a'},'Pay 2✦ to draw 3 district cards (once per turn)'));
+    smithyRow.appendChild(smithyInfo);
+    smithyRow.appendChild(gbtn('Use (−2✦)','#c084fc',()=>{{const _nr=humanUseSmithy(S);if(_nr)S=_nr;render();};}));
+    wrap.appendChild(smithyRow);
+  }
+
+  // Build section
+  if(S.collected&&S.sub==='choose'){
+    wrap.appendChild(el('div',{class:'sect-label'},`BUILD DISTRICT (${S.builtCount}/${maxB})`));
+    const canBuild=S.builtCount<maxB;
+    const affordable=me.hand.filter(d=>{const cost=buildCost(me,d);return cost<=me.gold&&!me.city.some(c=>c.id===d.id);});
+    const rest=me.hand.filter(d=>!affordable.includes(d));
+    if(!me.hand.length)wrap.appendChild(el('div',{style:'color:#2e2818;font-size:12px;margin-bottom:8px'},'No cards in hand.'));
+    else{
+      if(affordable.length){
+        const row=el('div',{class:'cards-wrap',style:'margin-bottom:10px'});
+        affordable.forEach(d=>row.appendChild(mkCard(d,{player:me,noDesc:true,onClick:canBuild?()=>{{const _nr=humanBuild(S,d.uid);if(_nr)S=_nr;render();};}:null,disabled:!canBuild})));
+        wrap.appendChild(row);
+      }
+      if(rest.length){
+        wrap.appendChild(el('div',{style:'font-size:10px;color:#2e2818;margin-bottom:5px'},'Too costly or already built:'));
+        const row2=el('div',{class:'cards-wrap',style:'margin-bottom:10px'});
+        rest.forEach(d=>row2.appendChild(mkCard(d,{player:me,disabled:true,noDesc:true})));wrap.appendChild(row2);
+      }
+      if(!affordable.length)wrap.appendChild(el('div',{style:'color:#2e2818;font-size:12px;margin-bottom:8px'},'Cannot afford to build.'));
+    }
+    wrap.appendChild(gbtn('End Turn →','#4db87a',()=>{{const _nr=humanEndTurn(S);if(_nr)S=_nr;render();};},'padding:11px 20px;font-size:12px;font-family:Cinzel,serif;margin-top:10px;width:100%'));
+  }
+  return wrap;
+}
+
+function renderSpecial(charId){
+  const me=S.players[0];const wrap=el('div',{style:'margin-bottom:6px'});
+
+  // ── Assassin ──
+  if(charId===1){
+    if(S.sub==='assassin_pick'){
+      wrap.appendChild(el('div',{style:'color:#cc7777;font-size:12px;margin-bottom:8px;font-family:Cinzel,serif'},'Choose a character to assassinate:'));
+      const r=el('div',{style:'display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px'});
+      CHARS.filter(ch=>ch.id!==1).forEach(ch=>r.appendChild(gbtn(`${ch.emoji} ${ch.id}. ${ch.name}`,'#cc7777',()=>{{const _nr=humanKill(S,ch.id);if(_nr)S=_nr;render();};})));
+      r.appendChild(gbtn('Cancel','#555',()=>{S={...S,sub:'choose'};render();}));
+      wrap.appendChild(r);
+    }else if(me.pendingKill){
+      // Show confirmed choice
+      const c=CHARS[me.pendingKill-1];
+      const box=el('div',{style:'display:flex;align-items:center;gap:10px;background:#2a0a0a;border:1px solid #8a2020;border-radius:7px;padding:8px 12px'});
+      box.appendChild(el('span',{style:'font-size:20px'},'☠️'));
+      const info=el('div',{style:'flex:1'});
+      info.appendChild(el('div',{style:'font-family:Cinzel,serif;font-size:11px;color:#cc7777'},'Will assassinate:'));
+      info.appendChild(el('div',{style:'font-size:13px;color:#e8dfc8'},`${c.emoji} ${c.name}`));
+      box.appendChild(info);
+      box.appendChild(gbtn('Change','#886',()=>{S={...S,sub:'assassin_pick'};render();}));
+      wrap.appendChild(box);
+    }else{
+      wrap.appendChild(gbtn('🗡️ Assassinate','#cc7777',()=>{S={...S,sub:'assassin_pick'};render();}));
+    }
+    return wrap;
+  }
+
+  // ── Thief ──
+  if(charId===2){
+    if(S.sub==='thief_pick'){
+      wrap.appendChild(el('div',{style:'color:#b0b0b0;font-size:12px;margin-bottom:8px;font-family:Cinzel,serif'},'Steal from which character?'));
+      const r=el('div',{style:'display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px'});
+      CHARS.filter(ch=>ch.id!==1&&ch.id!==2).forEach(ch=>r.appendChild(gbtn(`${ch.emoji} ${ch.id}. ${ch.name}`,'#b0b0b0',()=>{{const _nr=humanSteal(S,ch.id);if(_nr)S=_nr;render();};})));
+      r.appendChild(gbtn('Cancel','#555',()=>{S={...S,sub:'choose'};render();}));
+      wrap.appendChild(r);
+    }else if(me.stolenTarget){
+      const c=CHARS[me.stolenTarget-1];
+      const box=el('div',{style:'display:flex;align-items:center;gap:10px;background:#1a1a20;border:1px solid #606060;border-radius:7px;padding:8px 12px'});
+      box.appendChild(el('span',{style:'font-size:20px'},'🕵️'));
+      const info=el('div',{style:'flex:1'});
+      info.appendChild(el('div',{style:'font-family:Cinzel,serif;font-size:11px;color:#b0b0b0'},'Will steal from:'));
+      info.appendChild(el('div',{style:'font-size:13px;color:#e8dfc8'},`${c.emoji} ${c.name}`));
+      box.appendChild(info);
+      box.appendChild(gbtn('Change','#886',()=>{
+        S={...S,sub:'thief_pick',players:S.players.map(p=>p.id===0?{...p,stolenTarget:null}:p)};render();
+      }));
+      wrap.appendChild(box);
+    }else{
+      wrap.appendChild(gbtn('🦹 Declare Theft','#b0b0b0',()=>{S={...S,sub:'thief_pick'};render();}));
+    }
+    return wrap;
+  }
+
+  // ── Magician ──
+  if(charId===3){
+    const r=el('div',{style:'display:flex;gap:8px;flex-wrap:wrap'});
+    r.appendChild(gbtn('🔄 Swap Hand','#9b6fff',()=>{S={...S,sub:'mag_swap'};render();}));
+    r.appendChild(gbtn('🗑️ Discard & Redraw','#9b6fff',()=>{S={...S,sub:'mag_discard',selCards:[]};render();}));
+    wrap.appendChild(r);return wrap;
+  }
+
+  // ── King ──
+  if(charId===4){
+    const yellows=me.city.filter(d=>d.color==='yellow').length;
+    const txt=yellows>0?`👑 Crown taken — you pick roles first next round. +${yellows}✦ from ${yellows} Noble district${yellows>1?'s':''} added.`:`👑 Crown taken — you pick roles first next round. Build Noble (yellow) districts to earn gold each round as King.`;
+    wrap.appendChild(el('div',{style:'color:#d4a843;font-size:12px;background:#1c1608;border:1px solid #6a4e1044;border-radius:5px;padding:6px 10px'},txt));return wrap;
+  }
+
+  // ── Bishop ──
+  if(charId===5){wrap.appendChild(el('div',{style:'color:#5a4e3a;font-size:12px'},`⛪ Protected from Warlord. +${me.city.filter(d=>d.color==='blue').length}✦ from Religious applied.`));return wrap;}
+
+  // ── Merchant ──
+  if(charId===6){wrap.appendChild(el('div',{style:'color:#5a4e3a;font-size:12px'},`💰 +1✦ Merchant bonus + Trade income applied.`));return wrap;}
+
+  // ── Architect ──
+  if(charId===7){
+    wrap.appendChild(el('div',{style:'color:#5a4e3a;font-size:12px'},'🏗️ +2 cards drawn. Build up to 3 districts this turn.'));
+    return wrap;
+  }
+
+  // ── Warlord ──
+  if(charId===8){
+    if(S.sub==='warlord_pick'){
+      wrap.appendChild(el('div',{style:'color:#d45a5a;font-size:12px;margin-bottom:8px;font-family:Cinzel,serif'},'Destroy which district?'));
+      const targets=[];
+      S.players.forEach(p=>{if(p.char===5&&!p.dead)return;
+        const wall=p.city.some(w=>w.id==='great_wall');
+        p.city.forEach(d=>{if(d.id==='keep')return;const c1=wall?d.cost:Math.max(0,d.cost-1);
+          if(c1<=me.gold)targets.push({pid:p.id,pname:p.name,d,c1,wall});});});
+      const r=el('div',{style:'display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px'});
+      if(!targets.length)r.appendChild(el('span',{style:'color:#4a2020;font-size:12px'},'No valid targets.'));
+      targets.forEach(t=>r.appendChild(gbtn(`${DEMOJI[t.d.id]||'🏛'} ${t.pname}: ${t.d.name} (${t.c1}✦${t.wall?' 🧱':''})`, '#d45a5a',()=>{{const _nr=humanWarlord(S,t.pid,t.d.uid);if(_nr)S=_nr;render();};})));
+      r.appendChild(gbtn('Cancel','#555',()=>{S={...S,sub:'choose'};render();}));
+      wrap.appendChild(r);
+    }else if(S.pendingDestroy){
+      const pd=S.pendingDestroy;
+      // Building is already removed from city; use stored names for display
+      const box=el('div',{style:'display:flex;align-items:center;gap:10px;background:#2a0808;border:1px solid #8a2020;border-radius:7px;padding:8px 12px'});
+      box.appendChild(el('span',{style:'font-size:20px'},'💥'));
+      const info=el('div',{style:'flex:1'});
+      info.appendChild(el('div',{style:'font-family:Cinzel,serif;font-size:11px;color:#d45a5a'},'Destroyed:'));
+      info.appendChild(el('div',{style:'font-size:13px;color:#e8dfc8'},`${pd.tpName}'s ${pd.name} (−${pd.cost}✦)`));
+      box.appendChild(info);
+      box.appendChild(gbtn('Undo ↩','#886',()=>{
+        // Restore the building and refund gold
+        const pd=S.pendingDestroy;
+        S={...S,pendingDestroy:null,sub:'choose',players:S.players.map(p=>{
+          if(p.id===0)return{...p,gold:p.gold+pd.cost};
+          if(p.id===pd.pid)return{...p,city:[...p.city,pd.distObj]};
+          return p;
+        })};
+        render();
+      }));
+      wrap.appendChild(box);
+    }else{
+      wrap.appendChild(gbtn('⚔️ Destroy a District','#d45a5a',()=>{S={...S,sub:'warlord_pick'};render();}));
+    }
+    return wrap;
+  }
+
+  return wrap;
+}
+
+function renderGameOver(){
+  const fp=S.firstCompleter;
+  const scores=S.players.map(p=>({p,score:calcScore(p,fp===p.id)})).sort((a,b)=>b.score-a.score);
+  const wrap=el('div',{style:'min-height:100vh;display:flex;align-items:center;justify-content:center;background:#090c18'});
+  const box=el('div',{style:'background:#111530;border:1px solid #5a3f10;border-radius:14px;padding:28px 32px;max-width:520px;width:92%'});
+  box.append(el('div',{style:'font-family:Cinzel,serif;font-size:22px;color:#d4a843;text-align:center;margin-bottom:6px'},'🏆 Game Over'),
+             el('div',{style:'color:#4a3e2a;text-align:center;margin-bottom:20px;font-size:12px'},`Round ${S.round} complete`));
+  scores.forEach((sc,i)=>{
+    const medals=['🥇','🥈','🥉','🏅'];
+    const row=el('div',{style:`display:flex;align-items:flex-start;gap:12px;margin-bottom:9px;background:${i===0?'rgba(212,168,67,0.08)':'rgba(255,255,255,0.02)'};border:1px solid ${i===0?'#5a3f10':'#252945'};border-radius:8px;padding:10px 14px`});
+    const info=el('div',{style:'flex:1'});
+    info.append(el('div',{style:'font-family:Cinzel,serif;color:#d4a843;font-size:13px'},sc.p.name),
+                el('div',{style:'font-size:11px;color:#4a3e2a;margin-top:2px'},`${sc.p.city.length} districts built`));
+    if(sc.p.city.some(d=>d.color==='purple')){
+      const purps=el('div',{style:'font-size:10px;color:#9060c0;margin-top:3px;display:flex;flex-wrap:wrap;gap:4px'});
+      sc.p.city.filter(d=>d.color==='purple').forEach(d=>{
+        purps.appendChild(el('span',{style:'background:#1a0830;border:1px solid #4a1a7a;border-radius:3px;padding:1px 5px'},`${DEMOJI[d.id]||'✨'} ${d.name}`));
+      });info.appendChild(purps);}
+    row.append(el('span',{style:'font-size:20px'},medals[i]||`${i+1}`),info,
+               el('span',{style:'font-family:Cinzel,serif;color:#d4a843;font-size:20px'},`${sc.score}✦`));
+    box.appendChild(row);
+  });
+  box.appendChild(gbtn('🎲 Play Again','#d4a843',()=>{S=runAIDraft(newGame());render();},'width:100%;margin-top:18px;padding:12px;font-family:Cinzel,serif;font-size:14px'));
+  wrap.appendChild(box);return wrap;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MULTIPLAYER LAYER — PeerJS peer-to-peer, free hosted signaling at peerjs.com
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// Architecture:
+//   Host  — creates room, holds authoritative state, runs all AI, pushes full
+//            state JSON to all connected peers after every change.
+//   Peer  — receives state from host, renders it, sends action messages back.
+//           Never mutates state locally.
+//   Solo  — original single-player mode, no network at all.
+
+const NET={
+  mode:'solo', peer:null, roomId:null, mySlot:0,
+  conns:{}, hostConn:null, slots:[], loaded:false,
+};
+
+function loadPeerJS(cb){
+  if(NET.loaded){cb();return;}
+  const s=document.createElement('script');
+  s.src='https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js';
+  s.onload=()=>{NET.loaded=true;cb();};
+  s.onerror=()=>lobbyError('Could not load networking library. Check your internet connection.');
+  document.head.appendChild(s);
+}
+function mkRoomId(){const c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';let id='';for(let i=0;i<6;i++)id+=c[0|Math.random()*c.length];return id;}
+
+// ── HOST ──────────────────────────────────────────────────────────────────────
+function hostRoom(slots){
+  loadPeerJS(()=>{
+    NET.roomId=mkRoomId();NET.mode='host';NET.mySlot=0;NET.slots=slots;
+    NET.peer=new Peer('citadels-host-'+NET.roomId,{debug:0});
+    NET.peer.on('open',()=>{
+      S=null; // don't build game yet — wait for Start
+      renderLobby({screen:'hosting'});
+    });
+    NET.peer.on('connection',conn=>{
+      conn.on('open',()=>{
+        NET.conns[conn.peer]=conn;
+        conn.on('data',msg=>onPeerMsg(conn.peer,msg));
+        conn.on('close',()=>{
+          delete NET.conns[conn.peer];
+          const sl=NET.slots.find(s=>s.peerId===conn.peer);
+          if(sl){sl.peerId=null;sl.ai=true;sl.name=['Lady Mira','Duke Arven','Baron Selt'][sl.slot-1]||'AI '+(sl.slot);}
+          broadcastAll({type:'slots',slots:NET.slots});
+          if(!S)renderLobby({screen:'hosting'}); // still in lobby
+        });
+        // Send lobby state only — no game state yet
+        conn.send({type:'hello',slots:NET.slots,state:null});
+      });
+    });
+    NET.peer.on('error',e=>lobbyError(e.message));
+  });
+}
+function onPeerMsg(peerId,msg){
+  if(msg.type==='join'){
+    const open=NET.slots.find(sl=>sl.ai&&sl.slot!==0&&!sl.peerId);
+    if(open){open.name=msg.name||'Guest';open.ai=false;open.peerId=peerId;}
+    broadcastAll({type:'slots',slots:NET.slots});broadcastState();renderLobby({screen:'hosting'});return;
+  }
+  if(msg.type==='action'){
+    const sl=NET.slots.find(s=>s.peerId===peerId);if(!sl)return;
+    // heraldAck is always allowed regardless of whose turn it is
+    if(msg.action==='heraldAck'){applyAction(sl.slot,'heraldAck',{});return;}
+    if(!isTurn(sl.slot)&&!(msg.action==='draft'&&isDraftTurn(sl.slot)))return;
+    applyAction(sl.slot,msg.action,msg.data);return;
+  }
+}
+function broadcastState(){if(NET.mode!=='host')return;const m={type:'state',slots:NET.slots,state:S};Object.values(NET.conns).forEach(c=>{try{c.send(m);}catch(e){}});}
+function broadcastAll(m){Object.values(NET.conns).forEach(c=>{try{c.send(m);}catch(e){}});}
+
+// ── PEER ──────────────────────────────────────────────────────────────────────
+function joinRoom(roomId,myName){
+  loadPeerJS(()=>{
+    NET.mode='peer';NET.roomId=roomId.toUpperCase().trim();
+    const pid='citadels-p-'+Date.now().toString(36);
+    NET.peer=new Peer(pid,{debug:0});
+    NET.peer.on('open',()=>{
+      const conn=NET.peer.connect('citadels-host-'+NET.roomId,{reliable:true});
+      NET.hostConn=conn;
+      conn.on('open',()=>conn.send({type:'join',name:myName}));
+      conn.on('data',msg=>onHostMsg(msg));
+      conn.on('error',e=>lobbyError('Connection error: '+e.message));
+      conn.on('close',()=>lobbyError('Disconnected from host.'));
+    });
+    NET.peer.on('error',e=>{
+      if(e.type==='peer-unavailable')lobbyError('Room "'+NET.roomId+'" not found. Check the code.');
+      else lobbyError(e.message);
+    });
+    renderLobby({screen:'connecting'});
+  });
+}
+function onHostMsg(msg){
+  if(msg.type==='hello'||msg.type==='state'){
+    if(msg.slots)NET.slots=msg.slots;
+    const me=NET.slots.find(sl=>NET.peer&&sl.peerId===NET.peer.id);
+    if(me){NET.mySlot=me.slot;}
+    if(msg.state){
+      if(!S)_patchActionsForPeer(); // patch once on first game state
+      S=msg.state;render();
+    }
+    else renderLobby({screen:'waiting'});
+    return;
+  }
+  if(msg.type==='slots'){
+    NET.slots=msg.slots;
+    const me=NET.slots.find(sl=>NET.peer&&sl.peerId===NET.peer.id);
+    if(me)NET.mySlot=me.slot;
+    if(!S)renderLobby({screen:'waiting'});
+    return;
+  }
+}
+function peerSend(action,data){if(NET.mode==='peer'&&NET.hostConn)try{NET.hostConn.send({type:'action',action,data});}catch(e){}}
+
+// ── DISPATCH ─────────────────────────────────────────────────────────────────
+function isTurn(pid){
+  if(S.phase!=='action')return false;
+  const p=S.players[pid];
+  // It's this player's turn if their character is currently being called
+  // (sub can be anything — 'idle' means waiting for peer, other subs are mid-action)
+  return !!(p&&!p.dead&&p.char===S.callIdx);
+}
+function isDraftTurn(pid){
+  // In applyAction, pid is swapped to 0 before calling, so check ===0
+  // In host context (no swap), pid is the real slot id
+  return S.phase==='draft'&&S.draftOrder[S.draftIdx]===pid;
+}
+
+function applyAction(pid,action,data){
+  // Swap acting player to slot 0 so all human* functions work correctly
+  // heraldAck doesn't need slot swap — uses original pid directly
+  if(action==='heraldAck'){
+    const out=heraldAck(S,pid);
+    if(out){S=out;broadcastState();render();}
+    _applyLocalSlot=0;return;
+  }
+  let ns=pid!==0?swapSlots(S,0,pid):S;
+  // After swap, the host (originally slot 0) is now at slot pid.
+  // advanceCall needs to know which slot is the local (host) player.
+  // We pass this via a global so humanEndTurn can forward it.
+  _applyLocalSlot=pid; // host is now at slot 'pid' in swapped state
+  let out;
+  if(action==='collectGold')out=humanCollectGold(ns);
+  else if(action==='collectCards')out=humanCollectCards(ns);
+  else if(action==='keepCard')out=humanKeepCard(ns,data.uid);
+  else if(action==='build')out=humanBuild(ns,data.uid);
+  else if(action==='useSmithy')out=humanUseSmithy(ns);
+  else if(action==='endTurn')out=humanEndTurn(ns);
+  else if(action==='kill')out=humanKill(ns,data.tc);
+  else if(action==='steal')out=humanSteal(ns,data.tc);
+  else if(action==='magSwap')out=humanMagSwap(ns,data.tid);
+  else if(action==='magDiscard')out=humanMagDiscard(ns,data.uids);
+  else if(action==='warlord')out=humanWarlord(ns,data.tpid,data.duid);
+  else if(action==='draft')out=humanDraft(ns,data.charId);
+  else if(action==='setSub')out={...ns,sub:data.sub,selCards:data.selCards||[]};
+  else{_applyLocalSlot=0;return;}
+  _applyLocalSlot=0;
+  if(pid!==0)out=swapSlots(out,0,pid);
+  S=out;broadcastState();render();
+}
+let _applyLocalSlot=0; // which slot is the "local human" during applyAction processing
+
+function swapSlots(state,a,b){
+  const players=[...state.players];
+  const pa={...players[a]};const pb={...players[b]};
+  players[a]={...pb,id:a};players[b]={...pa,id:b};
+  let crown=state.crown;if(crown===a)crown=b;else if(crown===b)crown=a;
+  let fc=state.firstCompleter;if(fc===a)fc=b;else if(fc===b)fc=a;
+  // Remap draftOrder so slot references stay consistent after the swap
+  const draftOrder=state.draftOrder.map(id=>id===a?b:id===b?a:id);
+  return{...state,players,crown,firstCompleter:fc,draftOrder};
+}
+
+function buildGameFromConfig(slots){
+  const deck=shuffle(mkDeck());const n=slots.length;
+  // slots array is in display/draft order as set by host in lobby
+  // crown = slot id of the first player in that order
+  const crown=slots[0].slot;
+  // Build players sorted by slot id (array index = slot id)
+  const players=slots.map(sl=>({id:sl.slot,name:sl.name,ai:sl.ai,gold:2,hand:[],city:[],char:null,dead:false,stolenTarget:null,smithyUsed:false,pendingKill:null}));
+  players.sort((a,b)=>a.id-b.id);
+  const d=[...deck];players.forEach(p=>{p.hand=d.splice(0,4);});
+  // draftOrder follows the lobby display order
+  const draftOrder=slots.map(sl=>sl.slot);
+  return{phase:'draft',sub:'idle',round:1,deck:d,trash:[],players,crown,
+    draftOrder,draftIdx:0,
+    avail:[1,2,3,4,5,6,7,8],heraldQueue:[],heraldIdx:0,heraldAfter:'action',heraldAcks:[],callIdx:1,
+    log:['The game begins!'],firstCompleter:null,collected:false,builtCount:0,drawOpts:[],selCards:[],pendingDestroy:null,_confirmEnd:false,heraldAcks:[]};
+}
+
+// ── RENDER ROUTING ────────────────────────────────────────────────────────────
+// _origRender = the base render function (no networking)
+// renderGame = the multiplayer-aware wrapper; always use this after actions
+const _origRender=render;
+
+// Override window.render so all action callbacks (which call render()) automatically
+// go through renderGame() and get broadcasting/peer-swap behavior
+window.render=function renderGame(){
+  if(NET.mode==='peer'){
+    _renderWithPeerActions();
+  }else if(NET.mode==='host'){
+    _origRender();
+    broadcastState();
+  }else{
+    _origRender();
+  }
+};
+// Called ONCE when peer enters a game — permanently replaces all human action
+// functions so they send to the host instead of mutating local state.
+function _patchActionsForPeer(){
+  humanCollectGold=()=>{peerSend('collectGold',{});};
+  humanCollectCards=()=>{peerSend('collectCards',{});};
+  humanKeepCard=(_s,uid)=>{peerSend('keepCard',{uid});};
+  humanBuild=(_s,uid)=>{peerSend('build',{uid});};
+  humanUseSmithy=()=>{peerSend('useSmithy',{});};
+  humanEndTurn=()=>{peerSend('endTurn',{});};
+  humanKill=(_s,tc)=>{peerSend('kill',{tc});};
+  humanSteal=(_s,tc)=>{peerSend('steal',{tc});};
+  humanMagSwap=(_s,tid)=>{peerSend('magSwap',{tid});};
+  humanMagDiscard=(_s,uids)=>{peerSend('magDiscard',{uids});};
+  humanWarlord=(_s,tpid,duid)=>{peerSend('warlord',{tpid,duid});};
+  humanDraft=(_s,charId)=>{peerSend('draft',{charId});};
+  heraldNext=(_s)=>{peerSend('heraldAck',{});}; // peer sends ack instead of advancing locally
+}
+function _renderWithPeerActions(){
+  // Swap so the local peer appears at slot 0 for all render logic
+  const view=NET.mySlot===0?S:swapSlots(S,0,NET.mySlot);
+  const me=view.players[0];
+  const isMyActionTurn=view.phase==='action'&&me&&me.char===view.callIdx&&!me.dead;
+  const isMyDraftTurn=view.phase==='draft'&&view.draftOrder[view.draftIdx]===0;
+  // If host set sub:'idle' waiting for us, promote to 'choose' so action UI shows
+  if(view.sub==='idle'&&(isMyActionTurn||isMyDraftTurn)){
+    view.sub='choose';
+  }
+  const saved=S;S=view;
+  _origRender();
+  S=saved;
+}
+
+// ── LOBBY UI ──────────────────────────────────────────────────────────────────
+let LS={screen:'home',hostSlots:null,hostName:'',joinName:'',joinCode:'',error:null};
+
+function lobbyError(msg){
+  NET.mode='solo';try{NET.peer?.destroy();}catch(e){}NET.peer=null;NET.hostConn=null;NET.conns={};
+  LS.error=msg;renderLobby(LS);
+}
+
+function renderLobby(opts){
+  LS={...LS,...opts};
+  const app=document.getElementById('app');app.innerHTML='';
+  const page=el('div',{style:'min-height:100vh;display:flex;align-items:center;justify-content:center;background:#090c18;padding:20px'});
+  const box=el('div',{style:'background:#111530;border:1px solid #2a2f55;border-radius:16px;padding:28px 32px;max-width:600px;width:100%'});
+
+  box.appendChild(el('div',{style:'font-family:Cinzel,serif;font-size:26px;color:#d4a843;text-align:center;margin-bottom:4px'},'⚜ Citadels'));
+  box.appendChild(el('div',{style:'font-size:12px;color:#4a3e2a;text-align:center;margin-bottom:22px'},'The medieval city-building card game'));
+
+  if(LS.error){
+    box.appendChild(el('div',{style:'background:#2a0808;border:1px solid #6a2020;border-radius:7px;padding:10px 14px;color:#e07070;font-size:13px;margin-bottom:14px;text-align:center'},'⚠ '+LS.error));
+    const clrBtn=gbtn('✕ Dismiss','#886',()=>{LS.error=null;renderLobby({});});
+    clrBtn.style.display='block';clrBtn.style.margin='0 auto 8px';box.appendChild(clrBtn);
+  }
+
+  if(LS.screen==='home'){
+    box.appendChild(el('div',{style:'font-family:Cinzel,serif;font-size:13px;color:#5a4e38;text-align:center;margin-bottom:18px'},'How would you like to play?'));
+    const grid=el('div',{style:'display:grid;grid-template-columns:repeat(3,1fr);gap:12px'});
+    [
+      {icon:'🤖',title:'Solo',desc:'1 human vs 3 AI opponents',fn:()=>{NET.mode="solo";S=runAIDraft(newGame());render();}},
+      {icon:'🏠',title:'Host Room',desc:'Create a room and share the code with friends',fn:()=>{LS.screen='host_config';renderLobby({});}},
+      {icon:'🚪',title:'Join Room',desc:"Enter a friend's room code to play together",fn:()=>{LS.screen='join';renderLobby({});}},
+    ].forEach(m=>{
+      const c=el('div',{style:'background:#0d1128;border:1px solid #2a2f55;border-radius:10px;padding:16px;text-align:center;cursor:pointer;transition:all .15s'});
+      c.appendChild(el('div',{style:'font-size:30px;margin-bottom:8px'},m.icon));
+      c.appendChild(el('div',{style:'font-family:Cinzel,serif;font-size:13px;color:#d4a843;margin-bottom:5px'},m.title));
+      c.appendChild(el('div',{style:'font-size:11px;color:#4a3e2a;line-height:1.45'},m.desc));
+      c.onmouseenter=()=>c.style.background='#1a2040';c.onmouseleave=()=>c.style.background='#0d1128';
+      c.onclick=m.fn;grid.appendChild(c);
+    });
+    box.appendChild(grid);
+  }
+
+  else if(LS.screen==='host_config'){
+    if(!LS.hostSlots)LS.hostSlots=[
+      {slot:0,name:'Host',ai:false,locked:true},
+      {slot:1,name:'Lady Mira',ai:true},
+      {slot:2,name:'Duke Arven',ai:true},
+      {slot:3,name:'Baron Selt',ai:true},
+    ];
+    box.appendChild(el('div',{style:'font-family:Cinzel,serif;font-size:15px;color:#d4a843;margin-bottom:8px'},'🏠 Configure Room'));
+
+    // Host name
+    const hnRow=el('div',{style:'margin-bottom:16px'});
+    hnRow.appendChild(el('div',{style:'font-size:11px;color:#5a4e3a;margin-bottom:5px;letter-spacing:.5px'},'YOUR NAME'));
+    const hnIn=document.createElement('input');
+    hnIn.value=LS.hostName||'';hnIn.placeholder='Your display name (e.g. Alex)';
+    hnIn.style.cssText='width:100%;background:#0d1128;border:1px solid #2a2f55;border-radius:7px;padding:9px 13px;color:#e8dfc8;font-size:14px;font-family:Cinzel,serif;outline:none';
+    hnRow.appendChild(hnIn);box.appendChild(hnRow);
+
+    // Slots — only toggle AI/Human, no name editing for non-host
+    box.appendChild(el('div',{style:'font-size:11px;color:#5a4e3a;margin-bottom:8px;letter-spacing:.5px'},'PLAYER SLOTS'));
+    box.appendChild(el('div',{style:'font-size:11px;color:#4a3e2a;margin-bottom:10px;line-height:1.5'},'Set each slot to AI or Human. Human players join with the room code and choose their own name when they connect.'));
+    const slotList=el('div',{style:'display:flex;flex-direction:column;gap:7px;margin-bottom:18px'});
+    let hostNameEl=null;
+    LS.hostSlots.forEach((sl,i)=>{
+      const row=el('div',{style:'display:flex;align-items:center;gap:12px;background:#0d1128;border:1px solid #1e2245;border-radius:8px;padding:10px 14px'});
+      row.appendChild(el('span',{style:'font-size:20px'},sl.locked?'👤':sl.ai?'🤖':'👥'));
+      if(sl.locked){
+        // Host — name shown as static text (driven by the name input above)
+        const nameEl=el('span',{style:'flex:1;font-family:Cinzel,serif;font-size:13px;color:#d4a843'});
+        nameEl.textContent=LS.hostSlots[0].name||'Host';
+        hostNameEl=nameEl;
+        row.appendChild(nameEl);
+        row.appendChild(el('span',{style:'font-size:11px;color:#4a3e2a;padding:4px 8px'},'You (Host)'));
+      }else if(sl.ai){
+        // AI slot — editable name + toggle button
+        const ni=document.createElement('input');
+        ni.value=sl.name;ni.placeholder='AI name';
+        ni.style.cssText='flex:1;background:#1a1e35;border:1px solid #2a2f55;border-radius:5px;padding:6px 10px;color:#e8dfc8;font-size:13px;font-family:Georgia,serif;outline:none';
+        ni.oninput=()=>{LS.hostSlots[i].name=ni.value;};
+        row.appendChild(ni);
+        const tb=gbtn('🤖 AI','#6a5a8a',()=>{LS.hostSlots[i].ai=false;renderLobby({});},'min-width:90px;text-align:center');
+        row.appendChild(tb);
+      }else{
+        // Human slot — waiting placeholder + toggle button
+        const nameEl=el('span',{style:'flex:1;font-family:Cinzel,serif;font-size:13px;color:#4db87a'},'(waits for player to join)');
+        row.appendChild(nameEl);
+        const tb=gbtn('👥 Human','#4db87a',()=>{LS.hostSlots[i].ai=true;LS.hostSlots[i].name=['Lady Mira','Duke Arven','Baron Selt'][i-1]||'AI '+(i+1);renderLobby({});},'min-width:90px;text-align:center');
+        row.appendChild(tb);
+      }
+      slotList.appendChild(row);
+    });
+    // Wire name input AFTER hostNameEl is created so it can update the DOM span live
+    hnIn.oninput=()=>{
+      LS.hostName=hnIn.value;
+      LS.hostSlots[0].name=hnIn.value.trim()||'Host';
+      if(hostNameEl)hostNameEl.textContent=LS.hostSlots[0].name;
+    };
+    box.appendChild(slotList);
+    const br=el('div',{style:'display:flex;gap:10px'});
+    br.appendChild(gbtn('← Back','#555',()=>{LS.screen='home';LS.hostSlots=null;renderLobby({});}));
+    br.appendChild(gbtn('Create Room →','#d4a843',()=>{
+      const slots=LS.hostSlots.map(sl=>({...sl,name:sl.slot===0?(LS.hostName.trim()||'Host'):sl.name}));
+      const allAI=slots.every(sl=>sl.ai||sl.slot===0);
+      if(allAI){
+        // All AI — just start solo immediately, no need for a room
+        NET.mode='solo';
+        S=runAIDraft(buildGameFromConfig(slots));
+        render();
+      }else{
+        hostRoom(slots);
+      }
+    },'flex:1;padding:10px;font-family:Cinzel,serif;font-size:13px;text-align:center'));
+    box.appendChild(br);
+  }
+
+  else if(LS.screen==='hosting'){
+    box.appendChild(el('div',{style:'font-family:Cinzel,serif;font-size:15px;color:#d4a843;margin-bottom:12px'},'🏠 Room Ready — Waiting for Players'));
+
+    // Room code display
+    const cCard=el('div',{style:'background:#0d1128;border:2px solid #d4a843;border-radius:12px;padding:16px 20px;margin-bottom:14px'});
+    cCard.appendChild(el('div',{style:'font-size:10px;color:#5a4e3a;letter-spacing:2px;margin-bottom:6px;text-align:center'},'ROOM CODE'));
+    cCard.appendChild(el('div',{style:'font-family:Cinzel,serif;font-size:44px;color:#d4a843;letter-spacing:10px;font-weight:700;text-align:center'},NET.roomId));
+
+    // Sharing instructions
+    const shareBox=el('div',{style:'background:#0a0c1a;border-radius:8px;padding:10px 12px;margin-top:10px;font-size:11px;color:#5a4e3a;line-height:1.7'});
+    shareBox.innerHTML='<span style="color:#7a6848">How friends join:</span><br>'
+      +'1. Send them <strong style="color:#c8b080">this same HTML file</strong> (email, WeChat, AirDrop, etc.)<br>'
+      +'2. They open it in their browser and click <strong style="color:#c8b080">Join Room</strong><br>'
+      +`3. They type the code <strong style="color:#d4a843;letter-spacing:3px">${NET.roomId}</strong> and their name`;
+    cCard.appendChild(shareBox);
+
+    // Copy invite button
+    const copyBtn=gbtn('📋 Copy Invite Instructions','#5a9fd4',()=>{
+      const txt=`Join my Citadels game!\n1. Open the Citadels HTML file in your browser\n2. Click "Join Room"\n3. Enter code: ${NET.roomId}\n4. Enter your name and join!`;
+      navigator.clipboard.writeText(txt).then(()=>{copyBtn.textContent='✓ Copied!';setTimeout(()=>copyBtn.textContent='📋 Copy Invite Instructions',2000);}).catch(()=>{copyBtn.textContent='(Copy failed — share manually)';});
+    },'width:100%;margin-top:10px;padding:8px;font-size:11px;text-align:center');
+    cCard.appendChild(copyBtn);
+    box.appendChild(cCard);
+
+    // Player list with reorder buttons
+    box.appendChild(el('div',{style:'font-size:11px;color:#5a4e3a;letter-spacing:.5px;margin-bottom:4px'},'PLAYERS & TURN ORDER'));
+    box.appendChild(el('div',{style:'font-size:11px;color:#4a3e2a;margin-bottom:8px'},'Drag or use ↑↓ to set the order players choose characters each round.'));
+    const sl2=el('div',{style:'display:flex;flex-direction:column;gap:6px;margin-bottom:16px'});
+    NET.slots.forEach((sl,i)=>{
+      const isHost=sl.slot===0;
+      const isConnectedPeer=!!sl.peerId;
+      const icon=isHost?'👤':isConnectedPeer?'🟢':sl.ai?'🤖':'⏳';
+      const nameColor=isHost?'#d4a843':isConnectedPeer?'#d4a843':sl.ai?'#8878a8':'#5a5a9a';
+      const statusColor=isHost?'#4db87a':isConnectedPeer?'#4db87a':sl.ai?'#5a4878':'#4a4a7a';
+      const statusText=isHost?'Host (You)':isConnectedPeer?'Connected ✓':sl.ai?'AI Bot':'Waiting for player…';
+      const displayName=isHost?sl.name:isConnectedPeer?sl.name:sl.ai?sl.name:'(open slot)';
+      const borderColor=isHost?'#2a5a2a':isConnectedPeer?'#2a5a2a':sl.ai?'#1e2245':'#2a2a5a';
+
+      const row=el('div',{style:`display:flex;align-items:center;gap:8px;background:#0d1128;border:1px solid ${borderColor};border-radius:7px;padding:8px 12px`});
+      row.appendChild(el('span',{style:'font-family:Cinzel,serif;font-size:12px;color:#4a3e2a;min-width:18px;text-align:center'},`${i+1}.`));
+      row.appendChild(el('span',{style:'font-size:16px'},icon));
+      const nameSpan=el('span',{style:`font-family:Cinzel,serif;font-size:13px;flex:1;color:${nameColor}`});
+      nameSpan.textContent=displayName;
+      row.appendChild(nameSpan);
+      row.appendChild(el('span',{style:`font-size:10px;color:${statusColor}`},statusText));
+      // Up/Down reorder buttons
+      const upBtn=el('button',{style:'background:#1a1e35;border:1px solid #2a2f55;color:#7a6848;border-radius:4px;padding:2px 7px;cursor:pointer;font-size:12px'},'↑');
+      const dnBtn=el('button',{style:'background:#1a1e35;border:1px solid #2a2f55;color:#7a6848;border-radius:4px;padding:2px 7px;cursor:pointer;font-size:12px'},'↓');
+      upBtn.disabled=i===0;dnBtn.disabled=i===NET.slots.length-1;
+      upBtn.style.opacity=i===0?'0.3':'1';dnBtn.style.opacity=i===NET.slots.length-1?'0.3':'1';
+      upBtn.onclick=()=>{
+        // Swap display order in NET.slots array (visual only — slot ids stay stable)
+        const tmp=NET.slots[i];NET.slots[i]=NET.slots[i-1];NET.slots[i-1]=tmp;
+        broadcastAll({type:'slots',slots:NET.slots});renderLobby({screen:'hosting'});
+      };
+      dnBtn.onclick=()=>{
+        const tmp=NET.slots[i];NET.slots[i]=NET.slots[i+1];NET.slots[i+1]=tmp;
+        broadcastAll({type:'slots',slots:NET.slots});renderLobby({screen:'hosting'});
+      };
+      row.append(upBtn,dnBtn);
+      sl2.appendChild(row);
+    });
+    box.appendChild(sl2);
+
+    const br=el('div',{style:'display:flex;gap:10px'});
+    br.appendChild(gbtn('← Cancel','#555',()=>{try{NET.peer?.destroy();}catch(e){}NET.peer=null;NET.mode='solo';LS.screen='home';LS.hostSlots=null;renderLobby({});}));
+    br.appendChild(gbtn('▶ Start Game','#4db87a',()=>{
+      NET.slots.forEach(sl=>{if(!sl.ai&&sl.slot!==0&&!sl.peerId){sl.ai=true;}});
+      S=buildGameFromConfig(NET.slots);S=runAIDraft(S);broadcastState();render();
+      if(NET.mode==='host')broadcastState();
+    },'flex:1;padding:11px;font-family:Cinzel,serif;font-size:14px;text-align:center'));
+    box.appendChild(br);
+    box.appendChild(el('div',{style:'font-size:11px;color:#4a3e2a;text-align:center;margin-top:8px'},'Unfilled human slots become AI when you start.'));
+  }
+
+  else if(LS.screen==='join'){
+    box.appendChild(el('div',{style:'font-family:Cinzel,serif;font-size:15px;color:#d4a843;margin-bottom:10px'},'🚪 Join a Room'));
+    const nRow=el('div',{style:'margin-bottom:12px'});
+    nRow.appendChild(el('div',{style:'font-size:11px;color:#5a4e3a;margin-bottom:5px'},'YOUR NAME'));
+    const nIn=document.createElement('input');nIn.value=LS.joinName;nIn.placeholder='Your display name';
+    nIn.style.cssText='width:100%;background:#0d1128;border:1px solid #2a2f55;border-radius:7px;padding:9px 13px;color:#e8dfc8;font-size:14px;font-family:Georgia,serif;outline:none';
+    nIn.oninput=()=>LS.joinName=nIn.value;nRow.appendChild(nIn);box.appendChild(nRow);
+    const cRow=el('div',{style:'margin-bottom:20px'});
+    cRow.appendChild(el('div',{style:'font-size:11px;color:#5a4e3a;margin-bottom:5px'},'ROOM CODE'));
+    const cIn=document.createElement('input');cIn.value=LS.joinCode;cIn.placeholder='XXXXXX';cIn.maxLength=6;
+    cIn.style.cssText='width:100%;background:#0d1128;border:1px solid #2a2f55;border-radius:7px;padding:12px;color:#d4a843;font-size:28px;font-family:Cinzel,serif;letter-spacing:8px;text-align:center;outline:none;text-transform:uppercase';
+    cIn.oninput=()=>LS.joinCode=cIn.value.toUpperCase();cRow.appendChild(cIn);box.appendChild(cRow);
+    const br=el('div',{style:'display:flex;gap:10px'});
+    br.appendChild(gbtn('← Back','#555',()=>{LS.screen='home';renderLobby({});}));
+    br.appendChild(gbtn('Join ▶','#4db87a',()=>{
+      const name=(LS.joinName||'').trim()||'Guest';
+      const code=(LS.joinCode||'').trim();
+      if(code.length<4){LS.error='Please enter a valid room code.';renderLobby({});return;}
+      joinRoom(code,name);
+    },'flex:1;padding:10px;font-family:Cinzel,serif;font-size:13px;text-align:center'));
+    box.appendChild(br);
+  }
+
+  else if(LS.screen==='connecting'||LS.screen==='waiting'){
+    box.appendChild(el('div',{style:'font-size:42px;text-align:center;margin-bottom:10px'},'⏳'));
+    box.appendChild(el('div',{style:'font-family:Cinzel,serif;font-size:16px;color:#d4a843;text-align:center;margin-bottom:6px'},
+      LS.screen==='connecting'?'Connecting…':'Waiting for host to start…'));
+    box.appendChild(el('div',{style:'font-size:12px;color:#4a3e2a;text-align:center;margin-bottom:16px'},
+      LS.screen==='connecting'?'Joining room '+NET.roomId+'…':"You're in! The host will start the game shortly."));
+    // Show current player slots if we have them
+    if(NET.slots&&NET.slots.length){
+      box.appendChild(el('div',{style:'font-size:11px;color:#5a4e3a;letter-spacing:.5px;margin-bottom:8px'},'PLAYERS IN ROOM'));
+      const slList=el('div',{style:'display:flex;flex-direction:column;gap:5px;margin-bottom:16px'});
+      NET.slots.forEach(sl=>{
+        const isMe=NET.peer&&sl.peerId===NET.peer.id;
+        const row=el('div',{style:`display:flex;align-items:center;gap:10px;background:#0d1128;border:1px solid ${isMe?'#2a5a2a':'#1e2245'};border-radius:6px;padding:8px 12px`});
+        const icon=sl.slot===0?'👤':sl.peerId?'🟢':sl.ai?'🤖':'⏳';
+        row.appendChild(el('span',{style:'font-size:16px'},icon));
+        const nameEl=el('span',{style:`font-family:Cinzel,serif;font-size:13px;flex:1;color:${isMe?'#4db87a':'#d4a843'}`});
+        nameEl.textContent=(sl.peerId||sl.slot===0)?sl.name:sl.ai?sl.name:'Waiting…';
+        row.appendChild(nameEl);
+        if(isMe)row.appendChild(el('span',{style:'font-size:10px;color:#4db87a;font-family:Cinzel,serif'},'(You)'));
+        else if(sl.slot===0)row.appendChild(el('span',{style:'font-size:10px;color:#4a3e2a'},'Host'));
+        slList.appendChild(row);
+      });
+      box.appendChild(slList);
+    }
+    const lb=gbtn('← Leave','#555',()=>{try{NET.peer?.destroy();}catch(e){}NET.peer=null;NET.mode='solo';LS.screen='home';renderLobby({});});
+    lb.style.display='block';lb.style.margin='0 auto';box.appendChild(lb);
+  }
+
+  page.appendChild(box);app.appendChild(page);
+}
+
+// ── BOOT ──────────────────────────────────────────────────────────────────────
+renderLobby({screen:'home'});
+
+</script>
+</body>
+</html>
