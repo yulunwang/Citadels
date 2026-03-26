@@ -15,6 +15,66 @@ function autoPreset(n){
   if(n<=4)return 'standard';
   return 'extended';
 }
+
+// ── CHARACTER TOOLTIP ──────────────────────────────────────────────────────────
+function _ensureCharTooltip(){
+  let tip=document.getElementById('char-tooltip');
+  if(!tip){
+    tip=document.createElement('div');
+    tip.id='char-tooltip';
+    tip.style.cssText='position:fixed;z-index:9999;pointer-events:none;display:none;max-width:270px;min-width:210px;'+
+      'background:#0e1228;border:1px solid #3a2f6a;border-radius:10px;padding:13px 15px;'+
+      'box-shadow:0 8px 32px #000c;font-family:Georgia,serif;transition:opacity .1s';
+    document.body.appendChild(tip);
+  }
+  return tip;
+}
+function showCharTooltip(ch,triggerEl){
+  const tip=_ensureCharTooltip();
+  tip.innerHTML='';
+
+  // Header row: emoji + name + rank
+  const hdr=document.createElement('div');
+  hdr.style.cssText=`display:flex;align-items:center;gap:9px;margin-bottom:9px;padding-bottom:9px;border-bottom:1px solid ${ch.clr}44`;
+  const emo=document.createElement('span');
+  emo.style.cssText='font-size:30px;line-height:1;flex-shrink:0';emo.textContent=ch.emoji;
+  const nameBlock=document.createElement('div');
+  const nm=document.createElement('div');
+  nm.style.cssText=`font-family:Cinzel,serif;font-size:14px;font-weight:700;color:${ch.clr}`;nm.textContent=ch.name;
+  const rankEl=document.createElement('div');
+  rankEl.style.cssText='font-size:10px;color:#6a6080;margin-top:3px;font-family:Cinzel,serif;letter-spacing:.5px';
+  rankEl.textContent=`RANK ${ch.rank}`;
+  nameBlock.append(nm,rankEl);hdr.append(emo,nameBlock);tip.appendChild(hdr);
+
+  // Ability text
+  const ab=document.createElement('div');
+  ab.style.cssText='font-size:12px;color:#c8bfa8;line-height:1.65';ab.textContent=ch.ability;tip.appendChild(ab);
+
+  // Alternatives note (other chars at same rank)
+  const alts=CHARS.filter(q=>q.rank===ch.rank&&q.id!==ch.id);
+  if(alts.length){
+    const altRow=document.createElement('div');
+    altRow.style.cssText='margin-top:9px;padding-top:8px;border-top:1px solid #2a2450;font-size:10px;color:#5a5070';
+    altRow.textContent='Replaces: '+alts.map(q=>`${q.emoji} ${q.name}`).join(', ')+' at this rank';
+    tip.appendChild(altRow);
+  }
+
+  // Position: below button, clamped to viewport
+  tip.style.display='block';
+  const rect=triggerEl.getBoundingClientRect();
+  const tw=tip.offsetWidth||270;const th=tip.offsetHeight||130;
+  const vw=window.innerWidth;const vh=window.innerHeight;
+  let left=rect.left;let top=rect.bottom+8;
+  if(top+th>vh-10)top=rect.top-th-8;
+  if(left+tw>vw-10)left=vw-tw-10;
+  if(left<10)left=10;
+  tip.style.left=left+'px';tip.style.top=top+'px';
+  tip.style.borderColor=ch.clr+'66';
+}
+function hideCharTooltip(){
+  const tip=document.getElementById('char-tooltip');
+  if(tip)tip.style.display='none';
+}
 function renderCharSelect(mode){
   const wrap=el('div',null);
   const charSet=mode==='solo'?LS.soloCharSet:LS.hostCharSet;
@@ -52,11 +112,13 @@ function renderCharSelect(mode){
     row.appendChild(el('span',{style:'font-size:10px;color:#3a3060;min-width:48px;font-family:Cinzel,serif'},`Rank ${r}`));
     charsAtRank.forEach(ch=>{
       const active=selected===ch.id;
-      const btn=el('button',{style:`background:${active?ch.clr+'33':'transparent'};border:1px solid ${active?ch.clr+'88':'#2a2f55'};border-radius:5px;padding:4px 10px;cursor:pointer;color:${active?ch.clr:'#5a4e3a'};font-family:Cinzel,serif;font-size:11px;transition:all .15s`},`${ch.emoji} ${ch.name}${ch.id>=9?' ✦':''}`);
+      const btn=el('button',{style:`background:${active?ch.clr+'33':'transparent'};border:1px solid ${active?ch.clr+'88':'#2a2f55'};border-radius:5px;padding:4px 10px;cursor:pointer;color:${active?ch.clr:'#5a4e3a'};font-family:Cinzel,serif;font-size:11px;transition:all .15s;position:relative`},`${ch.emoji} ${ch.name}${ch.id>=9?' ✦':''}`);
       btn.onclick=()=>{
         const newSet=charSet.filter(id=>CHARS.find(c=>c.id===id)?.rank!==r);
         setCharSet([...newSet,ch.id]);
       };
+      btn.onmouseenter=()=>showCharTooltip(ch,btn);
+      btn.onmouseleave=()=>hideCharTooltip();
       row.appendChild(btn);
     });
     wrap.appendChild(row);
@@ -77,6 +139,8 @@ function renderCharSelect(mode){
       const newSet=charSet.filter(id=>CHARS.find(c=>c.id===id)?.rank!==9);
       setCharSet([...newSet,ch.id]);
     };
+    btn.onmouseenter=()=>showCharTooltip(ch,btn);
+    btn.onmouseleave=()=>hideCharTooltip();
     r9row.appendChild(btn);
   });
   wrap.appendChild(r9row);
@@ -86,6 +150,7 @@ function renderCharSelect(mode){
 
 function renderLobby(opts){
   LS={...LS,...opts};
+  hideCharTooltip();
   const app=document.getElementById('app');app.innerHTML='';
   const page=el('div',{style:'min-height:100vh;display:flex;align-items:center;justify-content:center;background:#090c18;padding:20px'});
   const box=el('div',{style:'background:#111530;border:1px solid #2a2f55;border-radius:16px;padding:28px 32px;max-width:600px;width:100%'});
