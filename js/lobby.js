@@ -119,6 +119,8 @@ function renderCharSelect(mode){
       };
       btn.onmouseenter=()=>showCharTooltip(ch,btn);
       btn.onmouseleave=()=>hideCharTooltip();
+      btn.onfocus=()=>showCharTooltip(ch,btn);
+      btn.onblur=()=>hideCharTooltip();
       row.appendChild(btn);
     });
     wrap.appendChild(row);
