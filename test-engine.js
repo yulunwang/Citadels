@@ -533,10 +533,9 @@ test('Scholar AI: draws 7 keeps best, builds up to 2', () => {
   assert(state.deck.length <= deckBefore, 'Deck shrank after Scholar draw');
 });
 
-test('Full game with all 16 chars completes', () => {
-  let s = newGame({numAI:6, charPool:[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]});
-  // But charPool can only have 1 per rank — use one valid set of 9 ranks
-  s = newGame({numAI:6, charPool:[1,2,15,12,13,16,10,8,9]});
+test('Full game with Full Mix charPool completes', () => {
+  // One char per rank (ranks 1-9), using expansion chars
+  let s = newGame({numAI:6, charPool:[1,2,15,12,13,16,10,8,9]});
   s = { ...s, players: s.players.map(p => ({...p, ai:true})) };
   ctx._applyLocalSlot = -1;
   s = runAIDraft(s);

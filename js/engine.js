@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 // ENGINE — Core game logic: state factory, AI, draft, action phase, human actions
 //
-// All humanXxx functions are declared as `let` so net.js can reassign them
-// via _patchActionsForPeer() for peer-mode players without a build step.
+// All humanXxx functions are `function` declarations so net.js can reassign
+// them on `window` via _patchActionsForPeer() for peer-mode players.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 // Callback set by net.js after load; called after a round ends so the host can
@@ -260,7 +260,6 @@ function doAITurn(state,pid,charId){
   let s={...state};const events=[];
   const sotR=applyStartOfTurn(s,charId,pid);s=sotR.state;events.push(...sotR.events);
   const p=()=>s.players.find(q=>q.id===pid);
-  const rank=charRank(charId);
   // If this player was assassinated during start-of-turn (via human pendingKill), skip their turn
   if(p().dead){return{state:s,events};}
   // Navigator: replace normal income, cannot build
@@ -336,7 +335,7 @@ function doAITurn(state,pid,charId){
       s={...s,players:s.players.map(q=>q.id===target.id?{...q,hand:q.hand.filter(d=>d.uid!==card.uid)}:q)};
       const myP=s.players.find(q=>q.id===pid);
       const cost=buildCost(myP,card);
-      if(cost<=myP.gold&&!myP.city.some(c=>c.id===card.id)){
+      if(cost<=myP.gold&&canBuildDistrict(myP,card)){
         s={...s,players:s.players.map(q=>q.id===pid?{...q,gold:q.gold-cost,city:[...q.city,card]}:q)};
         events.push({icon:'🔮',text:`${p().name} (Wizard) takes and builds ${card.name} from ${target.name}! (${cost}✦)`,color:'#9b6fff'});
         s=addLog(s,`${p().name} builds ${card.name}.`);
