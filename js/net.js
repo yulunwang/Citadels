@@ -172,10 +172,11 @@ function buildGameFromConfig(slots,charPool){
   players.sort((a,b)=>a.id-b.id);
   const d=[...deck];players.forEach(p=>{p.hand=d.splice(0,4);});
   const draftOrder=slots.map(sl=>sl.slot);
+  const dealt=dealDraft(charPool,n);
   return{phase:'draft',sub:'idle',round:1,deck:d,trash:[],players,crown,
     charPool:[...charPool],
     draftOrder,draftIdx:0,
-    avail:[...charPool],heraldQueue:[],heraldIdx:0,heraldAfter:'action',heraldAcks:[],callIdx:1,
+    avail:dealt.avail,faceDown:dealt.faceDown,faceUp:dealt.faceUp,heraldQueue:[],heraldIdx:0,heraldAfter:'action',heraldAcks:[],callIdx:1,
     log:['The game begins!'],firstCompleter:null,collected:false,builtCount:0,noBuild:false,drawOpts:[],selCards:[],pendingDestroy:null,_confirmEnd:false,
     wizardTargetId:null};
 }

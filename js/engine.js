@@ -38,6 +38,7 @@ function newGame(cfg){
   const deck=shuffle(mkDeck());
   const n=1+numAI;
   const crown=0|Math.random()*n;
+  const dealt=dealDraft(charPool,n);
   const players=[
     {id:0,name:'You',ai:false,gold:2,hand:[],city:[],char:null,dead:false,stolenTarget:null,smithyUsed:false,seerUsed:false,pendingKill:null},
     ...Array.from({length:numAI},(_,i)=>({id:i+1,name:AI_NAMES[i]||'AI '+(i+2),ai:true,gold:2,hand:[],city:[],char:null,dead:false,stolenTarget:null,smithyUsed:false,seerUsed:false,pendingKill:null}))
@@ -45,13 +46,43 @@ function newGame(cfg){
   const d=[...deck];players.forEach(p=>{p.hand=d.splice(0,4);});
   return{phase:'draft',sub:'idle',round:1,deck:d,trash:[],players,crown,
     charPool:[...charPool],
-    draftOrder:draftSeq(crown,n),draftIdx:0,avail:[...charPool],
+    draftOrder:draftSeq(crown,n),draftIdx:0,avail:dealt.avail,faceDown:dealt.faceDown,faceUp:dealt.faceUp,
     heraldQueue:[],heraldIdx:0,heraldAfter:'action',heraldAcks:[],
     callIdx:1,log:['The game begins!'],firstCompleter:null,
     collected:false,builtCount:0,noBuild:false,drawOpts:[],selCards:[],pendingDestroy:null,_confirmEnd:false,
     wizardTargetId:null};
 }
 function draftSeq(crown,n){return Array.from({length:n},(_,i)=>(crown+i)%n);}
+function dealDraft(charPool,numPlayers){
+  // Official rules: 1 face-down (hidden from all), max(0, pool-players-2) face-up (visible, unavailable).
+  // King/Patrician (rank 4) may never appear face-up — swap them to avail/faceDown if drawn.
+  const nFaceDown=charPool.length>numPlayers?1:0;
+  const nFaceUp=Math.max(0,charPool.length-numPlayers-2);
+  // Shuffle full pool once, then:
+  // 1) draw face-down from the full pool (may be rank 4),
+  // 2) draw face-up from the remainder, never allowing rank 4 to be face-up.
+  const pool=shuffle([...charPool]);
+  const faceDown=[];
+  let remainingPool=pool;
+  if(nFaceDown>0){
+    faceDown.push(remainingPool[0]);
+    remainingPool=remainingPool.slice(1);
+  }
+  const faceUp=[];
+  const avail=[];
+  for(const id of remainingPool){
+    const c=CHARS.find(q=>q.id===id);
+    const isRank4=c&&c.rank===4;
+    if(faceUp.length<nFaceUp && !isRank4){
+      // Non-rank-4 card can be turned face-up while we still need more face-up cards.
+      faceUp.push(id);
+    }else{
+      // Either we've filled the face-up quota, or this is rank-4 which must not be face-up.
+      avail.push(id);
+    }
+  }
+  return{avail,faceDown,faceUp};
+}
 function charRank(id){const c=CHARS.find(q=>q.id===id);return c?c.rank:id;}
 function charById(id){return CHARS.find(q=>q.id===id)||{id,rank:id,name:'?',clr:'#888',emoji:'?',ability:''};}
 
@@ -81,8 +112,25 @@ function aiPickChar(p,avail,state){
   for(const c of [...pref,6,16,4,12,5,13,3,11,15,2,1,8,7,14,10,9])if(avail.includes(c))return c;
   return avail[0|Math.random()*avail.length];
 }
-function aiBestBuild(p){
-  const can=p.hand.filter(d=>{const cost=buildCost(p,d);return cost<=p.gold&&canBuildDistrict(p,d);});
+function aiBestBuild(p,state){
+  let can=p.hand.filter(d=>{const cost=buildCost(p,d);return cost<=p.gold&&canBuildDistrict(p,d);});
+  // Don't trigger game end (build 8th district) if clearly losing — first-completer bonus (+4)
+  // won't overcome the deficit, so let the game continue for more scoring opportunities.
+  if(can.length&&p.city.length===7&&state&&state.firstCompleter===null){
+    const maxOther=Math.max(0,...state.players.filter(q=>q.id!==p.id).map(q=>calcScore(q,false)));
+    // Simulate each possible 8th-district build and see the best score we could reach.
+    let bestSimScore=0;
+    for(const d of can){
+      // Remove exactly one instance of the district from hand to model spending the card.
+      const handCopy=p.hand.slice();
+      const idx=handCopy.indexOf(d);
+      if(idx!==-1)handCopy.splice(idx,1);
+      const simPlayer={...p,city:[...p.city,d],hand:handCopy};
+      const s=calcScore(simPlayer,true); // assume we become first completer
+      if(s>bestSimScore)bestSimScore=s;
+    }
+    if(bestSimScore<maxOther)can=[];// skip building 8th — not worth triggering end while losing
+  }
   return can.length?can.sort((a,b)=>buildCost(p,a)-buildCost(p,b))[0]:null;
 }
 function addLog(s,msg){return{...s,log:[...s.log,msg]};}
@@ -382,7 +430,7 @@ function doAITurn(state,pid,charId){
   // Build
   const maxB=charId===7?3:(charId===14||charId===15||charId===16)?2:1;let built=0;
   for(let i=0;i<maxB;i++){
-    const dist=aiBestBuild(p());if(!dist)break;built++;
+    const dist=aiBestBuild(p(),s);if(!dist)break;built++;
     const cost=buildCost(p(),dist);
     s={...s,players:s.players.map(q=>q.id===pid?{...q,gold:q.gold-cost,hand:q.hand.filter(c=>c.uid!==dist.uid),city:[...q.city,dist]}:q)};
     events.push({icon:DEMOJI[dist.id]||'🏛️',text:`${p().name} builds ${dist.name} (${cost}✦ — ${CS[dist.color].label}).`,color:CS[dist.color].txt});
@@ -401,8 +449,9 @@ function endRound(state){
   const newDraftOrder=crownIdx>=0
     ?[...s.draftOrder.slice(crownIdx),...s.draftOrder.slice(0,crownIdx)]
     :s.draftOrder;
+  const dealt=dealDraft(s.charPool,s.players.length);
   s={...s,round:s.round+1,phase:'draft',sub:'idle',draftIdx:0,callIdx:1,heraldQueue:[],heraldIdx:0,heraldAcks:[],
-    draftOrder:newDraftOrder,avail:[...s.charPool],
+    draftOrder:newDraftOrder,avail:dealt.avail,faceDown:dealt.faceDown,faceUp:dealt.faceUp,
     players:s.players.map(p=>({...p,char:null,dead:false,stolenTarget:null,pendingKill:null}))};
   s={...s,pendingDestroy:null};
   s=addLog(s,`Round ${s.round} begins. Crown: ${s.players[s.crown].name}`);
