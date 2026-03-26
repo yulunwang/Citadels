@@ -10,7 +10,7 @@ body{font-family:Georgia,serif;background:#090c18;color:#e8dfc8;font-size:14px}
 #topbar{background:#0d1128;border-bottom:1px solid #2a2f55;flex-shrink:0;overflow-y:auto;max-height:52vh;padding:9px 10px}
 .tb-header{display:flex;align-items:center;gap:10px;margin-bottom:9px;padding-bottom:7px;border-bottom:1px solid #1e2245}
 .tb-title{font-family:Cinzel,serif;font-size:16px;color:#d4a843;font-weight:700}
-.tb-meta{font-size:12px;color:#4a3e2a}
+.tb-meta{font-size:12px;color:#7a6a4a}
 .tb-calling{font-size:12px;font-family:Cinzel,serif;margin-left:auto}
 /* Confirmation modal */
 .confirm-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.72);display:flex;align-items:center;justify-content:center;z-index:9999}
@@ -53,7 +53,7 @@ body{font-family:Georgia,serif;background:#090c18;color:#e8dfc8;font-size:14px}
 #bottom{display:flex;background:#0d1128;border-top:1px solid #2a2f55;flex:1;min-height:300px}
 #bot-hand{width:50%;border-right:1px solid #1e2245;padding:10px 12px;overflow-y:auto;display:flex;flex-direction:column}
 #bot-city{width:50%;padding:10px 12px;overflow-y:auto;display:flex;flex-direction:column}
-.bot-label{font-family:Cinzel,serif;font-size:11px;color:#3a3020;letter-spacing:1px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.bot-label{font-family:Cinzel,serif;font-size:11px;color:#5a4e32;letter-spacing:1px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
 .bot-label-right{font-size:13px;color:#d4a843;letter-spacing:0;font-family:Georgia,serif}
 .cards-wrap{display:flex;flex-wrap:wrap;gap:8px;align-content:flex-start}
 
@@ -91,10 +91,10 @@ body{font-family:Georgia,serif;background:#090c18;color:#e8dfc8;font-size:14px}
 .herald-pips{display:flex;gap:4px;margin-bottom:14px;flex-wrap:wrap}
 .herald-pip{height:4px;border-radius:2px;flex:1;min-width:14px;max-width:34px;transition:background .2s}
 .herald-card{background:#111530;border:1px solid #2a2855;border-radius:12px;padding:20px 24px}
-.herald-char-num{font-family:Cinzel,serif;font-size:10px;letter-spacing:2px;color:#3a3060;margin-bottom:4px;text-transform:uppercase}
+.herald-char-num{font-family:Cinzel,serif;font-size:10px;letter-spacing:2px;color:#5a5080;margin-bottom:4px;text-transform:uppercase}
 .herald-title{font-family:Cinzel,serif;font-size:22px;font-weight:700;margin-bottom:4px}
 .herald-sub{font-size:12px;color:#6858a0;margin-bottom:10px}
-.herald-empty{font-size:13px;color:#3a3060;font-style:italic;margin:10px 0 14px}
+.herald-empty{font-size:13px;color:#5a5080;font-style:italic;margin:10px 0 14px}
 .herald-events{display:flex;flex-direction:column;gap:5px;margin:10px 0 16px}
 .herald-event{display:flex;align-items:flex-start;gap:10px;background:rgba(255,255,255,.03);border-radius:6px;padding:8px 10px;border-left:3px solid}
 .herald-ev-icon{font-size:16px;line-height:1;flex-shrink:0;margin-top:1px}
@@ -105,7 +105,7 @@ body{font-family:Georgia,serif;background:#090c18;color:#e8dfc8;font-size:14px}
 .gbtn{border-radius:5px;border:1px solid;cursor:pointer;font-family:Georgia,serif;font-size:12px;padding:7px 14px;transition:background .15s;display:inline-block}
 
 /* ── MISC ── */
-.sect-label{font-family:Cinzel,serif;font-size:11px;color:#2e2818;letter-spacing:1px;margin-bottom:8px;margin-top:4px}
+.sect-label{font-family:Cinzel,serif;font-size:11px;color:#7a6a4a;letter-spacing:1px;margin-bottom:8px;margin-top:4px}
 .action-banner{border-radius:9px;border:1px solid;padding:12px 16px;margin-bottom:14px;display:flex;align-items:flex-start;gap:14px}
 .action-banner-emoji{font-size:44px;line-height:1;flex-shrink:0}
 .action-banner-info{flex:1}

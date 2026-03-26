@@ -234,6 +234,8 @@ function applyStartOfTurn(state,charId,pid,defer){
       events.push({icon:'💰',text:`${thief.name} (Thief) steals ${stolen}✦ from ${p().name}!`,color:'#b0b0b0'});
       s={...s,players:s.players.map(q=>{if(q.id===thief.id)return{...q,gold:q.gold+stolen};if(q.id===pid)return{...q,gold:0};return q;})};}}
   }
+  // If assassinated this turn, skip all income/crown bonuses
+  if(p().dead)return{state:s,events};
   let bonus=0,newCrown=s.crown;
   if(charId===4||charId===12){
     newCrown=pid;
@@ -259,7 +261,7 @@ function applyStartOfTurn(state,charId,pid,defer){
   }else if(charId===13){
     // Abbot: +1 gold per religious + steal 1 from richest
     bonus=p().city.filter(d=>d.color==='blue').length;
-    const richest=s.players.filter(q=>q.id!==pid&&q.gold>0).sort((a,b)=>b.gold-a.gold)[0];
+    const richest=s.players.filter(q=>q.id!==pid&&!q.dead&&q.gold>0).sort((a,b)=>b.gold-a.gold)[0];
     if(bonus>0||richest){
       let msg=bonus>0?`${p().name} (Abbot) earns ${bonus}✦ from Religious districts`:'';
       if(bonus>0)s={...s,players:s.players.map(q=>q.id===pid?{...q,gold:q.gold+bonus}:q)};
@@ -279,7 +281,7 @@ function applyStartOfTurn(state,charId,pid,defer){
     if(bonus>0){events.push({icon:'⚔️',text:`${p().name} earns ${bonus}✦ from Military districts.`,color:'#d45a5a'});
       s={...s,players:s.players.map(q=>q.id===pid?{...q,gold:q.gold+bonus}:q)};}
   }else if(charId===9){
-    const king=s.players.find(q=>q.char===4||q.char===12);
+    const king=s.players.find(q=>(q.char===4||q.char===12)&&!q.dead);
     if(king){
       const sorted=[...s.players].sort((a,b)=>a.id-b.id);
       const n=sorted.length;
@@ -424,7 +426,7 @@ function doAITurn(state,pid,charId){
       events.push({icon:'🔯',text:`${p().name} (Seer) takes ${taken.length} card${taken.length>1?'s':''} from opponents.`,color:'#9b6fff'});
     }else events.push({icon:'🔯',text:`${p().name} (Seer): no opponents had cards.`,color:'#9b6fff'});
   }else if(charId===8){
-    const humanTargets=s.players.filter(q=>q.id!==pid&&!q.ai&&!(charRank(q.char)===5&&!q.dead)&&q.city.length>0);
+    const humanTargets=s.players.filter(q=>q.id!==pid&&!(q.char===5&&!q.dead)&&q.city.length>0);
     const target=humanTargets.sort((a,b)=>b.city.length-a.city.length)[0]||null;
     if(target){
       const wallBonus=target.city.some(d=>d.id==='great_wall');
@@ -432,7 +434,12 @@ function doAITurn(state,pid,charId){
       if(destructible.length){const t=destructible.sort((a,b)=>b.cost-a.cost)[0];
         const c1=wallBonus?t.cost:Math.max(0,t.cost-1);
         s={...s,players:s.players.map(q=>{if(q.id===pid)return{...q,gold:q.gold-c1};if(q.id===target.id)return{...q,city:q.city.filter(d=>d.uid!==t.uid)};return q;})};
-        events.push({icon:'💥',text:`${p().name} destroys ${target.name}'s ${t.name}! (paid ${c1}✦)`,color:'#d45a5a'});}
+        events.push({icon:'💥',text:`${p().name} destroys ${target.name}'s ${t.name}! (paid ${c1}✦)`,color:'#d45a5a'});
+        const gv=s.players.find(q=>q.id===target.id);
+        if(gv&&t.id!=='graveyard'&&gv.city.some(d=>d.id==='graveyard')&&gv.gold>=1){
+          s={...s,players:s.players.map(q=>q.id===target.id?{...q,gold:q.gold-1,hand:[...q.hand,t]}:q)};
+          events.push({icon:'⚰️',text:`${target.name}'s Graveyard recovers ${t.name}! (−1✦)`,color:'#c084fc'});
+        }}
     }
   }else if(EXT._aiHooks[charId]){
     // Extension AI hook for expansion characters
@@ -601,9 +608,14 @@ function humanEndTurn(state){
   let s={...state};
   const demolishEvent=[];
   if(s.pendingDestroy){
-    const{cost:c1,name:dname,tpName}=s.pendingDestroy;
+    const{cost:c1,name:dname,tpName,pid:tpid,distObj}=s.pendingDestroy;
     demolishEvent.push({icon:'💥',text:`Demolished ${tpName}'s ${dname} (−${c1}✦).`,color:'#d45a5a'});
     s={...s,pendingDestroy:null};
+    const gv=s.players.find(q=>q.id===tpid);
+    if(gv&&distObj&&distObj.id!=='graveyard'&&gv.city.some(d=>d.id==='graveyard')&&gv.gold>=1){
+      s={...s,players:s.players.map(q=>q.id===tpid?{...q,gold:q.gold-1,hand:[...q.hand,distObj]}:q)};
+      demolishEvent.push({icon:'⚰️',text:`${gv.name}'s Graveyard recovers ${distObj.name}! (−1✦)`,color:'#c084fc'});
+    }
   }
   const me=s.players[0];const charId=me.char;const humanEvents=[];
   if(s.collected)humanEvents.push({icon:'✦',text:'Collected income.',color:'#d4a843'});
@@ -642,7 +654,7 @@ function humanMagDiscard(s,uids){
 
 function humanWarlord(s,tpid,duid){
   const me=s.players[0],tp=s.players.find(p=>p.id===tpid);
-  if(!tp||(charRank(tp.char)===5&&!tp.dead))return{...s,sub:'choose'};
+  if(!tp||tp.id===0||(tp.char===5&&!tp.dead))return{...s,sub:'choose'};
   const dist=tp.city.find(d=>d.uid===duid);if(!dist||dist.id==='keep')return{...s,sub:'choose'};
   const wallBonus=tp.city.some(d=>d.id==='great_wall');
   const c1=wallBonus?dist.cost:Math.max(0,dist.cost-1);if(c1>me.gold)return{...s,sub:'choose'};
