@@ -116,7 +116,7 @@ function peerSend(action,data){if(NET.mode==='peer'&&NET.hostConn)try{NET.hostCo
 function isTurn(pid){
   if(S.phase!=='action')return false;
   const p=S.players[pid];
-  return !!(p&&!p.dead&&p.char===S.callIdx);
+  return !!(p&&!p.dead&&charRank(p.char)===S.callIdx);
 }
 function isDraftTurn(pid){
   return S.phase==='draft'&&S.draftOrder[S.draftIdx]===pid;
@@ -142,6 +142,10 @@ function applyAction(pid,action,data){
   else if(action==='magSwap')out=humanMagSwap(ns,data.tid);
   else if(action==='magDiscard')out=humanMagDiscard(ns,data.uids);
   else if(action==='warlord')out=humanWarlord(ns,data.tpid,data.duid);
+  else if(action==='navigator')out=humanNavigator(ns,data.choice);
+  else if(action==='seer')out=humanSeer(ns);
+  else if(action==='wizardTarget')out=humanWizardTarget(ns,data.targetId);
+  else if(action==='wizardTake')out=humanWizardTake(ns,data.uid,data.doBuild);
   else if(action==='draft')out=humanDraft(ns,data.charId);
   else if(action==='setSub')out={...ns,sub:data.sub,selCards:data.selCards||[]};
   else{_applyLocalSlot=0;return;}
@@ -160,17 +164,20 @@ function swapSlots(state,a,b){
   return{...state,players,crown,firstCompleter:fc,draftOrder};
 }
 
-function buildGameFromConfig(slots){
+function buildGameFromConfig(slots,charPool){
+  charPool=charPool||[1,2,3,4,5,6,7,8];
   const deck=shuffle(mkDeck());const n=slots.length;
   const crown=slots[0].slot;
-  const players=slots.map(sl=>({id:sl.slot,name:sl.name,ai:sl.ai,gold:2,hand:[],city:[],char:null,dead:false,stolenTarget:null,smithyUsed:false,pendingKill:null}));
+  const players=slots.map(sl=>({id:sl.slot,name:sl.name,ai:sl.ai,gold:2,hand:[],city:[],char:null,dead:false,stolenTarget:null,smithyUsed:false,seerUsed:false,pendingKill:null}));
   players.sort((a,b)=>a.id-b.id);
   const d=[...deck];players.forEach(p=>{p.hand=d.splice(0,4);});
   const draftOrder=slots.map(sl=>sl.slot);
   return{phase:'draft',sub:'idle',round:1,deck:d,trash:[],players,crown,
+    charPool:[...charPool],
     draftOrder,draftIdx:0,
-    avail:[1,2,3,4,5,6,7,8],heraldQueue:[],heraldIdx:0,heraldAfter:'action',heraldAcks:[],callIdx:1,
-    log:['The game begins!'],firstCompleter:null,collected:false,builtCount:0,drawOpts:[],selCards:[],pendingDestroy:null,_confirmEnd:false};
+    avail:[...charPool],heraldQueue:[],heraldIdx:0,heraldAfter:'action',heraldAcks:[],callIdx:1,
+    log:['The game begins!'],firstCompleter:null,collected:false,builtCount:0,noBuild:false,drawOpts:[],selCards:[],pendingDestroy:null,_confirmEnd:false,
+    wizardTargetId:null};
 }
 
 // ── RENDER ROUTING ────────────────────────────────────────────────────────────
@@ -203,6 +210,10 @@ function _patchActionsForPeer(){
   humanMagSwap=(_s,tid)=>{peerSend('magSwap',{tid});};
   humanMagDiscard=(_s,uids)=>{peerSend('magDiscard',{uids});};
   humanWarlord=(_s,tpid,duid)=>{peerSend('warlord',{tpid,duid});};
+  humanNavigator=(_s,choice)=>{peerSend('navigator',{choice});};
+  humanSeer=()=>{peerSend('seer',{});};
+  humanWizardTarget=(_s,targetId)=>{peerSend('wizardTarget',{targetId});};
+  humanWizardTake=(_s,uid,doBuild)=>{peerSend('wizardTake',{uid,doBuild});};
   humanDraft=(_s,charId)=>{peerSend('draft',{charId});};
   heraldNext=(_s)=>{peerSend('heraldAck',{});};
 }
@@ -210,7 +221,7 @@ function _patchActionsForPeer(){
 function _renderWithPeerActions(){
   const view=NET.mySlot===0?S:swapSlots(S,0,NET.mySlot);
   const me=view.players[0];
-  const isMyActionTurn=view.phase==='action'&&me&&me.char===view.callIdx&&!me.dead;
+  const isMyActionTurn=view.phase==='action'&&me&&charRank(me.char)===view.callIdx&&!me.dead;
   const isMyDraftTurn=view.phase==='draft'&&view.draftOrder[view.draftIdx]===0;
   if(view.sub==='idle'&&(isMyActionTurn||isMyDraftTurn)){
     view.sub='choose';

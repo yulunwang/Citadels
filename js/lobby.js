@@ -2,11 +2,86 @@
 // LOBBY — Home screen, room creation, join flow
 // ═══════════════════════════════════════════════════════════════════════════════
 
-var LS={screen:'home',hostSlots:null,hostName:'',joinName:'',joinCode:'',error:null};
+var LS={screen:'home',hostSlots:null,hostName:'',joinName:'',joinCode:'',error:null,
+  soloNumAI:3,soloCharPreset:'standard',soloCharSet:[1,2,3,4,5,6,7,8],
+  hostCharPreset:'standard',hostCharSet:[1,2,3,4,5,6,7,8]};
 
 function lobbyError(msg){
   NET.mode='solo';try{NET.peer?.destroy();}catch(e){}NET.peer=null;NET.hostConn=null;NET.conns={};
   LS.error=msg;renderLobby(LS);
+}
+
+function autoPreset(n){
+  if(n<=4)return 'standard';
+  return 'extended';
+}
+function renderCharSelect(mode){
+  const wrap=el('div',null);
+  const charSet=mode==='solo'?LS.soloCharSet:LS.hostCharSet;
+  const setCharSet=(newSet)=>{
+    if(mode==='solo'){LS.soloCharSet=newSet;LS.soloCharPreset='custom';}
+    else{LS.hostCharSet=newSet;LS.hostCharPreset='custom';}
+    renderLobby({});
+  };
+
+  wrap.appendChild(el('div',{style:'font-size:11px;color:#5a4e3a;margin-bottom:8px;letter-spacing:.5px'},'CHARACTERS (one per rank)'));
+
+  // Quick preset buttons
+  const presetRow=el('div',{style:'display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px'});
+  [
+    {label:'Standard',chars:[1,2,3,4,5,6,7,8]},
+    {label:'+ Queen',  chars:[1,2,3,4,5,6,7,8,9]},
+    {label:'Expanded', chars:[1,2,11,12,13,6,14,8,9]},
+    {label:'Full Mix', chars:[1,2,15,12,13,16,10,8,9]},
+  ].forEach(opt=>{
+    const active=JSON.stringify(charSet.slice().sort((a,b)=>a-b))===JSON.stringify(opt.chars.slice().sort((a,b)=>a-b));
+    presetRow.appendChild(gbtn(opt.label,active?'#d4a843':'#555',()=>{
+      if(mode==='solo'){LS.soloCharSet=[...opt.chars];LS.soloCharPreset=opt.label;}
+      else{LS.hostCharSet=[...opt.chars];LS.hostCharPreset=opt.label;}
+      renderLobby({});
+    },'font-size:11px;padding:5px 10px'));
+  });
+  wrap.appendChild(presetRow);
+
+  // Per-rank radio groups (ranks 1-8)
+  const ranks=[1,2,3,4,5,6,7,8];
+  ranks.forEach(r=>{
+    const charsAtRank=CHARS.filter(c=>c.rank===r);
+    const selected=charSet.find(id=>CHARS.find(c=>c.id===id)?.rank===r);
+    const row=el('div',{style:'display:flex;align-items:center;gap:8px;margin-bottom:5px;padding:5px 8px;background:#0a0d1e;border-radius:6px'});
+    row.appendChild(el('span',{style:'font-size:10px;color:#3a3060;min-width:48px;font-family:Cinzel,serif'},`Rank ${r}`));
+    charsAtRank.forEach(ch=>{
+      const active=selected===ch.id;
+      const btn=el('button',{style:`background:${active?ch.clr+'33':'transparent'};border:1px solid ${active?ch.clr+'88':'#2a2f55'};border-radius:5px;padding:4px 10px;cursor:pointer;color:${active?ch.clr:'#5a4e3a'};font-family:Cinzel,serif;font-size:11px;transition:all .15s`},`${ch.emoji} ${ch.name}${ch.id>=9?' ✦':''}`);
+      btn.onclick=()=>{
+        const newSet=charSet.filter(id=>CHARS.find(c=>c.id===id)?.rank!==r);
+        setCharSet([...newSet,ch.id]);
+      };
+      row.appendChild(btn);
+    });
+    wrap.appendChild(row);
+  });
+
+  // Rank 9 toggle (optional)
+  const has9=charSet.some(id=>CHARS.find(c=>c.id===id)?.rank===9);
+  const rank9chars=CHARS.filter(c=>c.rank===9);
+  const r9row=el('div',{style:'display:flex;align-items:center;gap:8px;margin-bottom:5px;padding:5px 8px;background:#0a0d1e;border-radius:6px'});
+  r9row.appendChild(el('span',{style:'font-size:10px;color:#3a3060;min-width:48px;font-family:Cinzel,serif'},'Rank 9'));
+  const noBtn=el('button',{style:`background:${!has9?'#33303033':'transparent'};border:1px solid ${!has9?'#4a4a4a':'#2a2f55'};border-radius:5px;padding:4px 10px;cursor:pointer;color:${!has9?'#7a7a7a':'#3a3060'};font-family:Cinzel,serif;font-size:11px`},'None');
+  noBtn.onclick=()=>setCharSet(charSet.filter(id=>CHARS.find(c=>c.id===id)?.rank!==9));
+  r9row.appendChild(noBtn);
+  rank9chars.forEach(ch=>{
+    const active=has9&&charSet.includes(ch.id);
+    const btn=el('button',{style:`background:${active?ch.clr+'33':'transparent'};border:1px solid ${active?ch.clr+'88':'#2a2f55'};border-radius:5px;padding:4px 10px;cursor:pointer;color:${active?ch.clr:'#5a4e3a'};font-family:Cinzel,serif;font-size:11px;transition:all .15s`},`${ch.emoji} ${ch.name} ✦`);
+    btn.onclick=()=>{
+      const newSet=charSet.filter(id=>CHARS.find(c=>c.id===id)?.rank!==9);
+      setCharSet([...newSet,ch.id]);
+    };
+    r9row.appendChild(btn);
+  });
+  wrap.appendChild(r9row);
+
+  return wrap;
 }
 
 function renderLobby(opts){
@@ -28,7 +103,7 @@ function renderLobby(opts){
     box.appendChild(el('div',{style:'font-family:Cinzel,serif;font-size:13px;color:#5a4e38;text-align:center;margin-bottom:18px'},'How would you like to play?'));
     const grid=el('div',{style:'display:grid;grid-template-columns:repeat(3,1fr);gap:12px'});
     [
-      {icon:'🤖',title:'Solo',desc:'1 human vs 3 AI opponents',fn:()=>{NET.mode="solo";S=runAIDraft(newGame());render();}},
+      {icon:'🤖',title:'Solo',desc:'Configure your opponents and characters',fn:()=>{LS.screen='solo_config';renderLobby({});}},
       {icon:'🏠',title:'Host Room',desc:'Create a room and share the code with friends',fn:()=>{LS.screen='host_config';renderLobby({});}},
       {icon:'🚪',title:'Join Room',desc:"Enter a friend's room code to play together",fn:()=>{LS.screen='join';renderLobby({});}},
     ].forEach(m=>{
@@ -40,6 +115,23 @@ function renderLobby(opts){
       c.onclick=m.fn;grid.appendChild(c);
     });
     box.appendChild(grid);
+  }
+
+  else if(LS.screen==='solo_config'){
+    box.appendChild(el('div',{style:'font-family:Cinzel,serif;font-size:15px;color:#d4a843;margin-bottom:14px'},'🤖 Solo Game Setup'));
+    box.appendChild(el('div',{style:'font-size:11px;color:#5a4e3a;margin-bottom:8px;letter-spacing:.5px'},'NUMBER OF OPPONENTS'));
+    const cntRow=el('div',{style:'display:flex;align-items:center;gap:12px;margin-bottom:16px'});
+    const decBtn=gbtn('−','#555',()=>{if(LS.soloNumAI>1){LS.soloNumAI--;const p=autoPreset(1+LS.soloNumAI);LS.soloCharPreset=p;LS.soloCharSet=[...(CHAR_PRESETS[1+LS.soloNumAI]||[1,2,3,4,5,6,7,8])];renderLobby({});}},'width:36px;height:36px;text-align:center;padding:0;font-size:18px;border-radius:50%');
+    const cntLabel=el('div',{style:'font-family:Cinzel,serif;font-size:15px;color:#e8dfc8;flex:1;text-align:center'},`${LS.soloNumAI} AI opponent${LS.soloNumAI>1?'s':''}`);
+    const incBtn=gbtn('+','#555',()=>{if(LS.soloNumAI<6){LS.soloNumAI++;const p=autoPreset(1+LS.soloNumAI);LS.soloCharPreset=p;LS.soloCharSet=[...(CHAR_PRESETS[1+LS.soloNumAI]||[1,2,3,4,5,6,7,8])];renderLobby({});}},'width:36px;height:36px;text-align:center;padding:0;font-size:18px;border-radius:50%');
+    cntRow.append(decBtn,cntLabel,incBtn);box.appendChild(cntRow);
+    box.appendChild(renderCharSelect('solo'));
+    const br=el('div',{style:'display:flex;gap:10px;margin-top:16px'});
+    br.appendChild(gbtn('← Back','#555',()=>{LS.screen='home';renderLobby({});}));
+    br.appendChild(gbtn('▶ Start Game','#4db87a',()=>{
+      NET.mode='solo';S=runAIDraft(newGame({numAI:LS.soloNumAI,charPool:LS.soloCharSet}));render();
+    },'flex:1;padding:10px;font-family:Cinzel,serif;font-size:13px;text-align:center'));
+    box.appendChild(br);
   }
 
   else if(LS.screen==='host_config'){
@@ -60,6 +152,12 @@ function renderLobby(opts){
 
     box.appendChild(el('div',{style:'font-size:11px;color:#5a4e3a;margin-bottom:8px;letter-spacing:.5px'},'PLAYER SLOTS'));
     box.appendChild(el('div',{style:'font-size:11px;color:#4a3e2a;margin-bottom:10px;line-height:1.5'},'Set each slot to AI or Human. Human players join with the room code and choose their own name when they connect.'));
+    const AI_NAMES=['Lady Mira','Duke Arven','Baron Selt','Countess Vael','Lord Draven','Dame Isolde'];
+    const slotHdr=el('div',{style:'display:flex;align-items:center;gap:8px;margin-bottom:8px'});
+    slotHdr.appendChild(el('span',{style:'font-family:Cinzel,serif;font-size:12px;color:#7a6848;flex:1'},`${LS.hostSlots.length} players`));
+    slotHdr.appendChild(gbtn('− Remove','#555',()=>{if(LS.hostSlots.length>2){LS.hostSlots=LS.hostSlots.slice(0,-1);renderLobby({});}},'font-size:11px;padding:4px 10px'));
+    slotHdr.appendChild(gbtn('+ Add Player','#5a9fd4',()=>{if(LS.hostSlots.length<7){const i=LS.hostSlots.length;LS.hostSlots.push({slot:i,name:AI_NAMES[i-1]||'AI '+(i+1),ai:true});renderLobby({});}},'font-size:11px;padding:4px 10px'));
+    box.appendChild(slotHdr);
     const slotList=el('div',{style:'display:flex;flex-direction:column;gap:7px;margin-bottom:18px'});
     let hostNameEl=null;
     LS.hostSlots.forEach((sl,i)=>{
@@ -82,7 +180,7 @@ function renderLobby(opts){
       }else{
         const nameEl=el('span',{style:'flex:1;font-family:Cinzel,serif;font-size:13px;color:#4db87a'},'(waits for player to join)');
         row.appendChild(nameEl);
-        const tb=gbtn('👥 Human','#4db87a',()=>{LS.hostSlots[i].ai=true;LS.hostSlots[i].name=['Lady Mira','Duke Arven','Baron Selt'][i-1]||'AI '+(i+1);renderLobby({});},'min-width:90px;text-align:center');
+        const tb=gbtn('👥 Human','#4db87a',()=>{LS.hostSlots[i].ai=true;LS.hostSlots[i].name=['Lady Mira','Duke Arven','Baron Selt','Countess Vael','Lord Draven','Dame Isolde'][i-1]||'AI '+(i+1);renderLobby({});},'min-width:90px;text-align:center');
         row.appendChild(tb);
       }
       slotList.appendChild(row);
@@ -93,6 +191,7 @@ function renderLobby(opts){
       if(hostNameEl)hostNameEl.textContent=LS.hostSlots[0].name;
     };
     box.appendChild(slotList);
+    box.appendChild(renderCharSelect('host'));
     const br=el('div',{style:'display:flex;gap:10px'});
     br.appendChild(gbtn('← Back','#555',()=>{LS.screen='home';LS.hostSlots=null;renderLobby({});}));
     br.appendChild(gbtn('Create Room →','#d4a843',()=>{
@@ -100,7 +199,7 @@ function renderLobby(opts){
       const allAI=slots.every(sl=>sl.ai||sl.slot===0);
       if(allAI){
         NET.mode='solo';
-        S=runAIDraft(buildGameFromConfig(slots));
+        S=runAIDraft(buildGameFromConfig(slots,LS.hostCharSet));
         render();
       }else{
         hostRoom(slots);
@@ -172,7 +271,7 @@ function renderLobby(opts){
     br.appendChild(gbtn('← Cancel','#555',()=>{try{NET.peer?.destroy();}catch(e){}NET.peer=null;NET.mode='solo';LS.screen='home';LS.hostSlots=null;renderLobby({});}));
     br.appendChild(gbtn('▶ Start Game','#4db87a',()=>{
       NET.slots.forEach(sl=>{if(!sl.ai&&sl.slot!==0&&!sl.peerId){sl.ai=true;}});
-      S=buildGameFromConfig(NET.slots);S=runAIDraft(S);broadcastState();render();
+      S=buildGameFromConfig(NET.slots,LS.hostCharSet);S=runAIDraft(S);broadcastState();render();
       if(NET.mode==='host')broadcastState();
     },'flex:1;padding:11px;font-family:Cinzel,serif;font-size:14px;text-align:center'));
     box.appendChild(br);

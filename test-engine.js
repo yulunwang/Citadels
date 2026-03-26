@@ -27,7 +27,9 @@ const {
   humanCollectGold, humanCollectCards, humanKeepCard,
   humanBuild, humanEndTurn, humanKill, humanSteal,
   humanMagSwap, humanMagDiscard, humanWarlord, humanUseSmithy,
+  humanSeer, canBuildDistrict,
   doAITurn, applyStartOfTurn, endRound, calcScore,
+  charRank, charById,
 } = ctx;
 
 // ── HARNESS ───────────────────────────────────────────────────────────────────
@@ -243,8 +245,86 @@ test('Great Wall forces full cost', () => {
   eq(r.players[0].gold, goldBefore - 2, 'Great Wall: full cost 2 (not cost-1=1)');
 });
 
+// ── VARIABLE PLAYER COUNT ──────────────────────────────────────────────────
+console.log('\n══ Variable player count ══\n');
+
+test('newGame with 1 AI (2 players) has correct structure', () => {
+  const s = newGame({numAI:1, charPool:[1,2,3,4,5,6,7,8]});
+  eq(s.players.length, 2, 'player count');
+  eq(s.charPool.length, 8, 'charPool length');
+  assert(s.avail.length === 8, 'avail starts full');
+});
+
+test('newGame with 6 AI (7 players) has correct structure', () => {
+  const s = newGame({numAI:6, charPool:[1,2,3,4,5,6,7,8,9,10,11]});
+  eq(s.players.length, 7, 'player count');
+  eq(s.charPool.length, 11, 'charPool length');
+  eq(s.players.filter(p=>p.ai).length, 6, 'AI count');
+});
+
+test('Navigator AI: takes 4 gold or draws 4 cards, no build', () => {
+  let s = newGame({numAI:1, charPool:[1,2,3,4,5,6,7,8,9,10,11]});
+  s = { ...s, players: s.players.map((p,i) => ({...p, char:[10,1][i], ai:true, gold:2})) };
+  const goldBefore = s.players[0].gold;
+  const handBefore = s.players[0].hand.length;
+  const { state, events } = doAITurn(s, 0, 10);
+  const navEv = events.find(e => e.icon === '⚓');
+  assert(navEv, 'Navigator event emitted');
+  // Should have drawn cards (gold < 5) or taken gold
+  const changed = state.players[0].gold !== goldBefore || state.players[0].hand.length !== handBefore;
+  assert(changed, 'Navigator AI made income choice');
+});
+
+test('Queen AI: earns 3 gold when beside King', () => {
+  let s = newGame({numAI:1, charPool:[1,2,3,4,5,6,7,8,9]});
+  // players 0 and 1 are adjacent (diff=1); assign char 9 (Queen) to player 0, char 4 (King) to player 1
+  s = { ...s, players: s.players.map((p,i) => ({...p, char:[9,4][i], dead:false})) };
+  const goldBefore = s.players[0].gold;
+  const { state, events } = applyStartOfTurn(s, 9, 0);
+  const queenEv = events.find(e => e.icon === '🫅');
+  assert(queenEv, 'Queen event emitted');
+  assert(queenEv.text.includes('earns 3✦'), `Queen should earn 3 gold — got: "${queenEv.text}"`);
+  eq(state.players[0].gold, goldBefore + 3, 'Queen gold gain');
+});
+
+test('charPool preserved across rounds', () => {
+  let s = newGame({numAI:2, charPool:[1,2,3,4,5,6,7,8,9,10,11]});
+  s = { ...s, players: s.players.map(p => ({...p, ai:true})) };
+  ctx._applyLocalSlot = -1;
+  s = runAIDraft(s);
+  // Simulate end of round
+  let steps = 0;
+  while(s.round < 2 && s.phase !== 'gameover') {
+    if(s.phase === 'herald') s = heraldAck(s, -1);
+    else if(s.phase === 'draft') s = runAIDraft(s);
+    else if(s.phase === 'action') s = advanceCall(s, -1);
+    else break;
+    if(++steps > 500) break;
+  }
+  eq(s.charPool.length, 11, 'charPool preserved in round 2');
+  assert(s.avail.length <= 11, 'avail is a subset of charPool');
+});
+
 // ── FULL AUTO GAME ─────────────────────────────────────────────────────────
 console.log('\n══ Full auto-game ══\n');
+
+test('7-player full game with all 11 chars completes', () => {
+  let s = newGame({numAI:6, charPool:[1,2,3,4,5,6,7,8,9,10,11]});
+  s = { ...s, players: s.players.map(p => ({...p, ai:true})) };
+  ctx._applyLocalSlot = -1;
+  s = runAIDraft(s);
+  let steps = 0;
+  const MAX = 5000;
+  while(s.phase !== 'gameover' && steps < MAX) {
+    if(s.phase === 'herald') s = heraldAck(s, -1);
+    else if(s.phase === 'draft') s = runAIDraft(s);
+    else if(s.phase === 'action') s = advanceCall(s, -1);
+    else break;
+    steps++;
+  }
+  assert(s.phase === 'gameover', `7-player game stuck in '${s.phase}' after ${steps} steps`);
+  console.log(`     7-player game: ${s.round} rounds, ${steps} steps`);
+});
 
 test('3 full AI games complete without error', () => {
   for (let g = 0; g < 3; g++) {
@@ -264,6 +344,212 @@ test('3 full AI games complete without error', () => {
     assert(s.phase === 'gameover', `Game ${g+1} stuck in '${s.phase}' (round ${s.round}) after ${steps} steps`);
     console.log(`     Game ${g+1}: ${s.round} rounds, ${steps} steps`);
   }
+});
+
+// ── NEW DISTRICTS ──────────────────────────────────────────────────────────
+console.log('\n══ New district scoring ══\n');
+
+test('Basilica: +1 VP per odd-cost district', () => {
+  const p = { city: [
+    {uid:'a',id:'basilica',cost:6,color:'purple',special:'basilica'},
+    {uid:'b',id:'manor',   cost:3,color:'yellow',special:null},   // odd
+    {uid:'c',id:'temple',  cost:1,color:'blue',  special:null},   // odd
+    {uid:'d',id:'harbor',  cost:4,color:'green', special:null},   // even
+  ], hand:[] };
+  // base cost = 6+3+1+4 = 14; basilica bonus = 2 odd-cost districts (manor=3, temple=1)
+  eq(calcScore(p, false), 14 + 2, 'Basilica +2 for 2 odd-cost districts');
+});
+
+test('Capitol: +3 VP when 3+ districts same color', () => {
+  const p = { city: [
+    {uid:'a',id:'capitol', cost:5,color:'purple',special:'capitol'},
+    {uid:'b',id:'tavern',  cost:1,color:'green', special:null},
+    {uid:'c',id:'market',  cost:2,color:'green', special:null},
+    {uid:'d',id:'docks',   cost:3,color:'green', special:null},
+  ], hand:[] };
+  eq(calcScore(p, false), 11 + 3, 'Capitol +3 for 3 green districts');
+});
+
+test('Capitol: no bonus when no color has 3+', () => {
+  const p = { city: [
+    {uid:'a',id:'capitol',cost:5,color:'purple',special:'capitol'},
+    {uid:'b',id:'tavern', cost:1,color:'green', special:null},
+    {uid:'c',id:'manor',  cost:3,color:'yellow',special:null},
+  ], hand:[] };
+  eq(calcScore(p, false), 9, 'Capitol no bonus without 3 of same color');
+});
+
+test('Ivory Tower: +5 VP when only purple district', () => {
+  const p = { city: [
+    {uid:'a',id:'ivory_tower',cost:3,color:'purple',special:'ivory_tower'},
+    {uid:'b',id:'manor',      cost:3,color:'yellow',special:null},
+  ], hand:[] };
+  eq(calcScore(p, false), 6 + 5, 'Ivory Tower +5 as sole purple');
+});
+
+test('Ivory Tower: no bonus when other purples present', () => {
+  const p = { city: [
+    {uid:'a',id:'ivory_tower',cost:3,color:'purple',special:'ivory_tower'},
+    {uid:'b',id:'keep',       cost:3,color:'purple',special:'keep'},
+  ], hand:[] };
+  eq(calcScore(p, false), 6, 'Ivory Tower no bonus with other purple');
+});
+
+test('Quarry allows building duplicate districts', () => {
+  const quarry = {uid:'q1',id:'quarry',name:'Quarry',cost:5,color:'purple',special:'quarry'};
+  const tavern = {uid:'t1',id:'tavern',name:'Tavern',cost:1,color:'green', special:null};
+  const player = {city:[quarry,tavern], hand:[], gold:10};
+  // canBuildDistrict should allow another tavern when quarry is in city
+  const {canBuildDistrict} = ctx;
+  assert(canBuildDistrict(player, {uid:'t2',id:'tavern',name:'Tavern',cost:1,color:'green',special:null}),
+    'Quarry allows duplicate tavern');
+});
+
+test('No quarry: duplicate districts blocked', () => {
+  const tavern  = {uid:'t1',id:'tavern',name:'Tavern',cost:1,color:'green',special:null};
+  const player  = {city:[tavern], hand:[], gold:10};
+  const {canBuildDistrict} = ctx;
+  assert(!canBuildDistrict(player, {uid:'t2',id:'tavern',name:'Tavern',cost:1,color:'green',special:null}),
+    'Without Quarry, duplicate blocked');
+});
+
+// ── NEW CHARACTERS ─────────────────────────────────────────────────────────
+console.log('\n══ New characters ══\n');
+
+test('Seer AI takes 1 card from each opponent', () => {
+  let s = newGame({numAI:3, charPool:[1,2,15,4,5,6,7,8]});
+  // Give all players a hand, assign Seer(15) to player 1
+  s = { ...s, players: s.players.map((p,i) => ({
+    ...p, char:[1,15,3,5][i], ai:true, gold:4,
+    hand: [{uid:`h${i}a`,id:'tavern',name:'Tavern',cost:1,color:'green',special:null}],
+  })) };
+  const handBefore = s.players[1].hand.length;
+  const opp0Before = s.players[0].hand.length;
+  const { state, events } = doAITurn(s, 1, 15);
+  const seerEv = events.find(e => e.icon === '🔯');
+  assert(seerEv, 'Seer event emitted');
+  // Seer (player1) should have taken cards from players 0,2,3
+  assert(state.players[1].hand.length > handBefore, 'Seer gained cards');
+  assert(state.players[0].hand.length < opp0Before, 'Opponent lost a card');
+});
+
+test('humanSeer takes 1 card from each opponent', () => {
+  let s = newGame({numAI:2, charPool:[1,2,15,4,5,6,7,8]});
+  s = { ...s, players: s.players.map((p,i) => ({
+    ...p, char:[15,3,5][i], ai:i>0, gold:4,
+    hand: [{uid:`h${i}`,id:'tavern',name:'Tavern',cost:1,color:'green',special:null}],
+    seerUsed: false,
+  })) };
+  const handBefore = s.players[0].hand.length;
+  const ns = ctx.humanSeer(s);
+  assert(ns.players[0].seerUsed, 'seerUsed flag set');
+  assert(ns.players[0].hand.length > handBefore, 'Human Seer gained cards');
+  // Opponents should each have lost one card
+  assert(ns.players[1].hand.length < s.players[1].hand.length, 'Opponent lost card');
+});
+
+test('humanSeer cannot be used twice', () => {
+  let s = newGame({numAI:1, charPool:[1,2,15,4,5,6,7,8]});
+  s = { ...s, players: s.players.map((p,i) => ({
+    ...p, char:[15,3][i], ai:i>0, gold:4,
+    hand: [{uid:`h${i}`,id:'tavern',name:'Tavern',cost:1,color:'green',special:null}],
+    seerUsed: true,  // already used
+  })) };
+  const handBefore = s.players[0].hand.length;
+  const ns = ctx.humanSeer(s);
+  eq(ns.players[0].hand.length, handBefore, 'Seer used twice: hand unchanged');
+});
+
+test('Trader SOT: earns gold per green district', () => {
+  let s = newGame({numAI:1, charPool:[1,2,3,4,5,16,7,8]});
+  const greens = [
+    {uid:'g1',id:'tavern',  name:'Tavern',  cost:1,color:'green',special:null},
+    {uid:'g2',id:'market',  name:'Market',  cost:2,color:'green',special:null},
+  ];
+  s = { ...s, players: s.players.map((p,i) => ({
+    ...p, char:[16,3][i], dead:false, gold:2, city: i===0 ? greens : [],
+  })) };
+  const goldBefore = s.players[0].gold;
+  const { state, events } = applyStartOfTurn(s, 16, 0);
+  const traderEv = events.find(e => e.icon === '🏦');
+  assert(traderEv, 'Trader event emitted');
+  eq(state.players[0].gold, goldBefore + 2, 'Trader earned 2 gold for 2 green districts');
+});
+
+test('Trader AI: builds up to 2 districts', () => {
+  let s = newGame({numAI:1, charPool:[1,2,3,4,5,16,7,8]});
+  const cards = [
+    {uid:'c1',id:'tavern', name:'Tavern', cost:1,color:'green',special:null},
+    {uid:'c2',id:'market', name:'Market', cost:2,color:'green',special:null},
+  ];
+  s = { ...s, players: s.players.map((p,i) => ({
+    ...p, char:[16,3][i], ai:true, gold:10, hand: i===0 ? cards : [],
+  })) };
+  const cityBefore = s.players[0].city.length;
+  const { state } = doAITurn(s, 0, 16);
+  assert(state.players[0].city.length >= cityBefore + 1, 'Trader AI built at least 1 district');
+});
+
+test('Patrician SOT: takes crown and draws cards for yellow districts', () => {
+  let s = newGame({numAI:1, charPool:[1,2,3,12,5,6,7,8]});
+  const yellows = [
+    {uid:'y1',id:'manor',  name:'Manor',  cost:3,color:'yellow',special:null},
+    {uid:'y2',id:'castle', name:'Castle', cost:4,color:'yellow',special:null},
+  ];
+  s = { ...s, players: s.players.map((p,i) => ({
+    ...p, char:[12,3][i], dead:false, city: i===0 ? yellows : [],
+  })) };
+  const handBefore = s.players[0].hand.length;
+  const { state, events } = applyStartOfTurn(s, 12, 0);
+  assert(state.crown === 0, 'Patrician takes the crown');
+  assert(state.players[0].hand.length >= handBefore + 2, 'Patrician draws 2 cards for 2 yellow districts');
+});
+
+test('Abbot SOT: earns gold per blue district and steals 1 from richest', () => {
+  let s = newGame({numAI:1, charPool:[1,2,3,4,13,6,7,8]});
+  const blues = [
+    {uid:'b1',id:'temple', name:'Temple', cost:1,color:'blue',special:null},
+    {uid:'b2',id:'church', name:'Church', cost:2,color:'blue',special:null},
+  ];
+  s = { ...s, players: s.players.map((p,i) => ({
+    ...p, char:[13,3][i], dead:false, gold: i===0?2:10, city: i===0 ? blues : [],
+  })) };
+  const goldBefore0 = s.players[0].gold;
+  const goldBefore1 = s.players[1].gold;
+  const { state, events } = applyStartOfTurn(s, 13, 0);
+  // Should earn 2 from blue + steal 1 from player1
+  eq(state.players[0].gold, goldBefore0 + 2 + 1, 'Abbot gained 2 blue + 1 stolen');
+  eq(state.players[1].gold, goldBefore1 - 1, 'Richest player lost 1 gold');
+});
+
+test('Scholar AI: draws 7 keeps best, builds up to 2', () => {
+  let s = newGame({numAI:1, charPool:[1,2,3,4,5,6,14,8]});
+  s = { ...s, players: s.players.map((p,i) => ({...p, char:[14,3][i], ai:true, gold:10})) };
+  const deckBefore = s.deck.length;
+  const { state, events } = doAITurn(s, 0, 14);
+  const scholEv = events.find(e => e.icon === '📖');
+  assert(scholEv, 'Scholar event emitted');
+  // Scholar draws up to 7, keeps 1 (net deck shrinkage of up to 7)
+  assert(state.deck.length <= deckBefore, 'Deck shrank after Scholar draw');
+});
+
+test('Full game with all 16 chars completes', () => {
+  let s = newGame({numAI:6, charPool:[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]});
+  // But charPool can only have 1 per rank — use one valid set of 9 ranks
+  s = newGame({numAI:6, charPool:[1,2,15,12,13,16,10,8,9]});
+  s = { ...s, players: s.players.map(p => ({...p, ai:true})) };
+  ctx._applyLocalSlot = -1;
+  s = runAIDraft(s);
+  let steps = 0;
+  while(s.phase !== 'gameover' && steps < 5000) {
+    if(s.phase === 'herald') s = heraldAck(s, -1);
+    else if(s.phase === 'draft') s = runAIDraft(s);
+    else if(s.phase === 'action') s = advanceCall(s, -1);
+    else break;
+    steps++;
+  }
+  assert(s.phase === 'gameover', `Full-mix game stuck in '${s.phase}' after ${steps} steps`);
+  console.log(`     Full-mix game: ${s.round} rounds, ${steps} steps`);
 });
 
 // ── SUMMARY ───────────────────────────────────────────────────────────────

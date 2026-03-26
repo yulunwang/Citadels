@@ -84,8 +84,9 @@ function render(){
   const tbHdr=el('div',{class:'tb-header'});
   tbHdr.appendChild(el('span',{class:'tb-title'},'⚜ Citadels'));
   tbHdr.appendChild(el('span',{class:'tb-meta'},`Round ${S.round} · Crown: ${S.players[S.crown].name}`));
-  if((S.phase==='action'||S.phase==='herald')&&S.callIdx<=8){
-    const c=CHARS[S.callIdx-1];
+  if((S.phase==='action'||S.phase==='herald')&&S.callIdx<=Math.max(0,...S.charPool.map(charRank))){
+    const activeChar=S.players.find(p=>charRank(p.char)===S.callIdx);
+    const c=activeChar?charById(activeChar.char):CHARS.find(ch=>ch.rank===S.callIdx)||{emoji:'?',name:'?',clr:'#888'};
     tbHdr.appendChild(el('span',{class:'tb-calling',style:`color:${c.clr}`},`${c.emoji} Calling: ${c.name}`));
   }
   const endBtn=el('button',{style:'margin-left:auto;background:#2a0a0a;border:1px solid #6a2020;color:#cc6666;border-radius:5px;padding:4px 11px;font-size:11px;font-family:Cinzel,serif;cursor:pointer;transition:background .15s'},'✕ End Game');
@@ -101,7 +102,7 @@ function render(){
     return(ai===-1?99:ai)-(bi===-1?99:bi);
   });
   displayOrder.forEach(p=>{
-    const isActive=(S.phase==='action')&&p.char===S.callIdx&&!p.dead;
+    const isActive=(S.phase==='action')&&charRank(p.char)===S.callIdx&&!p.dead;
     const isMe=p.id===0;
     const pDiv=el('div',{class:'tb-player'+(isActive?' active':'')+(isMe?' me':'')});
     if(isMe)pDiv.style.cssText+='border-color:#4a7a4a;background:#0d1a0d;';
@@ -113,13 +114,13 @@ function render(){
     let charRevealed=isMe;
     if(!charRevealed&&p.char){
       if(S.phase==='action'){
-        charRevealed=p.char<S.callIdx;
+        charRevealed=charRank(p.char)<S.callIdx;
       }else if(S.phase==='herald'){
         const beatIdx=S.heraldQueue.findIndex(b=>b.charId===p.char);
         charRevealed=beatIdx>=0&&beatIdx<S.heraldIdx;
       }
     }
-    if(p.char && charRevealed){const c=CHARS[p.char-1];
+    if(p.char && charRevealed){const c=charById(p.char);
       const badge=el('span',{class:'tb-player-char',style:`color:${c.clr};border-color:${c.clr}44;background:${c.clr}12`});
       badge.textContent=`${c.emoji} ${c.name}`;r1.appendChild(badge);}
     else if(p.char && !charRevealed && !isMe){
@@ -171,19 +172,19 @@ function render(){
       const msg=draftingPlayer&&!draftingPlayer.ai
         ?`⏳ Waiting for ${draftingPlayer.name} to choose their character...`
         :'⏳ Others are choosing characters...';
-      center.appendChild(el('div',{style:'text-align:center;padding:20px;color:#3a3060;font-family:Cinzel,serif;font-size:14px'},msg));
+      center.appendChild(el('div',{style:'text-align:center;padding:20px;color:#6060a0;font-family:Cinzel,serif;font-size:14px'},msg));
     }
   }else if(S.phase==='herald'){
     center.appendChild(renderHerald());
   }else if(S.phase==='action'){
     const me=S.players[0];
-    const humanIsNow=me&&me.char===S.callIdx&&!me.dead&&S.sub!=='idle';
+    const humanIsNow=me&&charRank(me.char)===S.callIdx&&!me.dead&&S.sub!=='idle';
     if(humanIsNow)center.appendChild(renderAction());
     else{
-      const activePlayer=S.players.find(p=>p.char===S.callIdx&&!p.dead&&!p.ai);
+      const activePlayer=S.players.find(p=>charRank(p.char)===S.callIdx&&!p.dead&&!p.ai);
       const waitMsg=activePlayer&&activePlayer.id!==0
         ?`⏳ Waiting for ${activePlayer.name}...`:'⏳ Waiting...';
-      center.appendChild(el('div',{style:'text-align:center;padding:20px;color:#3a3060;font-family:Cinzel,serif;font-size:14px'},waitMsg));
+      center.appendChild(el('div',{style:'text-align:center;padding:20px;color:#6060a0;font-family:Cinzel,serif;font-size:14px'},waitMsg));
     }
   }
   main.appendChild(center);wrap.appendChild(main);
@@ -196,11 +197,11 @@ function render(){
   const handLabel=el('div',{class:'bot-label'});
   handLabel.innerHTML=`<span>YOUR HAND</span><span class="bot-label-right">💰 ${me.gold}✦ &nbsp;🃏 ${me.hand.length} cards</span>`;
   botHand.appendChild(handLabel);
-  if(me.char){const c=CHARS[me.char-1];
+  if(me.char){const c=charById(me.char);
     botHand.appendChild(el('div',{style:`font-size:12px;color:${c.clr};font-family:Cinzel,serif;margin-bottom:6px`},`${c.emoji} Playing as ${c.name}`));}
   const handWrap=el('div',{class:'cards-wrap'});
   if(me.hand.length)me.hand.forEach(d=>handWrap.appendChild(mkCard(d,{portrait:true,player:me})));
-  else handWrap.appendChild(el('span',{style:'color:#2e2818;font-size:13px;padding:4px'},'No cards in hand'));
+  else handWrap.appendChild(el('span',{style:'color:#9a8a64;font-size:13px;padding:4px'},'No cards in hand'));
   botHand.appendChild(handWrap);
 
   const botCity=el('div',{id:'bot-city'});
@@ -212,7 +213,7 @@ function render(){
     ['yellow','blue','green','red','purple'].forEach(col=>{
       me.city.filter(d=>d.color===col).forEach(d=>cityWrap.appendChild(mkCard(d,{portrait:true,player:me})));
     });
-  }else cityWrap.appendChild(el('span',{style:'color:#2e2818;font-size:13px;padding:4px'},'Nothing built yet'));
+  }else cityWrap.appendChild(el('span',{style:'color:#9a8a64;font-size:13px;padding:4px'},'Nothing built yet'));
   botCity.appendChild(cityWrap);
 
   bottom.append(botHand,botCity);wrap.appendChild(bottom);
@@ -244,25 +245,31 @@ function render(){
 }
 
 // ── HERALD ─────────────────────────────────────────────────────────────────────
+function charByRank(rank){
+  // Find the player who holds a char of that rank (for correct character display in herald)
+  const holder=S.players.find(p=>p.char&&charRank(p.char)===rank);
+  if(holder)return charById(holder.char);
+  return CHARS.find(c=>c.rank===rank)||{emoji:'?',name:'?',clr:'#888',ability:''};
+}
 function renderHerald(){
   const beat=S.heraldQueue[S.heraldIdx];if(!beat)return el('div',null,'');
-  const c=CHARS[beat.charId-1];const total=S.heraldQueue.length;
+  const c=charByRank(beat.charId);const total=S.heraldQueue.length;
   const isLast=S.heraldIdx===total-1;
   const nextLabel=isLast?(S.heraldAfter==='end_round'?'End Round ›':'Your Turn ›'):'Next ›';
   const wrap=el('div',{class:'herald-wrap'});
   const pips=el('div',{class:'herald-pips'});
-  for(let i=0;i<total;i++){const q=S.heraldQueue[i];const qc=CHARS[q.charId-1];
+  for(let i=0;i<total;i++){const q=S.heraldQueue[i];const qc=charByRank(q.charId);
     const pip=el('div',{class:'herald-pip'});
     pip.style.background=i===S.heraldIdx?qc.clr:(i<S.heraldIdx?qc.clr+'55':'#1e2245');
     pip.title=`${q.charId}. ${qc.name}`;pips.appendChild(pip);}
   wrap.appendChild(pips);
   const card=el('div',{class:'herald-card'});
-  card.appendChild(el('div',{class:'herald-char-num'},`Character ${beat.charId} of 8`));
+  card.appendChild(el('div',{class:'herald-char-num'},`Character ${beat.charId} of ${Math.max(0,...S.charPool.map(charRank))}`));
   const iconRow=el('div',{style:'display:flex;align-items:center;gap:12px;margin-bottom:6px'});
   iconRow.appendChild(el('span',{style:'font-size:48px;line-height:1'},c.emoji));
   const titleBlock=el('div');
   const titleEl=el('div',{class:'herald-title'});titleEl.style.color=c.clr;titleEl.textContent=c.name;titleBlock.appendChild(titleEl);
-  titleBlock.appendChild(el('div',{style:'font-size:10px;color:#3a3060;margin-top:2px'},c.ability));
+  titleBlock.appendChild(el('div',{style:'font-size:10px;color:#5858a0;margin-top:2px'},c.ability));
   iconRow.appendChild(titleBlock);card.appendChild(iconRow);
   if(!beat.holderName){
     card.appendChild(el('div',{class:'herald-empty'},'No one answered this call.'));
@@ -314,12 +321,12 @@ function renderHerald(){
 function renderDraft(){
   const wrap=el('div',null);
   wrap.appendChild(el('div',{style:'font-family:Cinzel,serif;color:#d4a843;font-size:15px;margin-bottom:14px'},'Choose your character for this round:'));
-  const grid=el('div',{style:'display:grid;grid-template-columns:repeat(4,1fr);gap:10px'});
-  CHARS.forEach(c=>{
+  const grid=el('div',{style:'display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px'});
+  CHARS.filter(c=>S.charPool.includes(c.id)).forEach(c=>{
     const avail=S.avail.includes(c.id);
     const card=el('div',{class:'charcard',style:`border-color:${avail?c.clr+'55':'#1e1e2e'};background:${avail?'#141830':'#0e1020'};opacity:${avail?1:0.28};cursor:${avail?'pointer':'default'}`});
     card.appendChild(el('div',{class:'charcard-emoji'},c.emoji));
-    card.appendChild(el('div',{class:'charcard-name',style:`color:${c.clr}`},`${c.id}. ${c.name}`));
+    card.appendChild(el('div',{class:'charcard-name',style:`color:${c.clr}`},`${c.rank}. ${c.name}`));
     card.appendChild(el('div',{class:'charcard-ability'},c.ability));
     if(avail){card.onclick=()=>{
       const result=humanDraft(S,c.id);
@@ -334,18 +341,23 @@ function renderDraft(){
 
 // ── ACTION ─────────────────────────────────────────────────────────────────────
 function renderAction(){
-  const me=S.players[0];const charId=me.char;const c=CHARS[charId-1];const maxB=charId===7?3:1;
+  const me=S.players[0];const charId=me.char;const c=charById(charId);const maxB=charId===7?3:(charId===14||charId===15||charId===16)?2:1;
   const wrap=el('div',null);
   const banner=el('div',{class:'action-banner',style:`background:${c.clr}10;border-color:${c.clr}33`});
   banner.appendChild(el('div',{class:'action-banner-emoji'},c.emoji));
   const bInfo=el('div',{class:'action-banner-info'});
-  bInfo.appendChild(el('div',{style:`font-family:Cinzel,serif;color:${c.clr};font-size:15px;font-weight:700`},`${c.id}. ${c.name}`));
-  bInfo.appendChild(el('div',{style:'font-size:11px;color:#5a4e3a;margin-top:3px'},c.ability));
-  if(charId===7)bInfo.appendChild(el('div',{style:'font-size:10px;color:#e0975c;margin-top:5px'},`✓ +2 cards already drawn (${me.hand.length} in hand). Build up to 3 districts.`));
+  bInfo.appendChild(el('div',{style:`font-family:Cinzel,serif;color:${c.clr};font-size:15px;font-weight:700`},`${c.name}`));
+  bInfo.appendChild(el('div',{style:'font-size:11px;color:#8a7a6a;margin-top:3px'},c.ability));
+  if(charId===7)bInfo.appendChild(el('div',{style:'font-size:10px;color:#e0975c;margin-top:5px'},`✓ +2 cards drawn already (${me.hand.length} in hand). Build up to 3 districts.`));
+  if(charId===14)bInfo.appendChild(el('div',{style:'font-size:10px;color:#e0975c;margin-top:5px'},'✓ Scholar: draw 7, keep 1 for income. Build up to 2 districts.'));
+  if(charId===15)bInfo.appendChild(el('div',{style:'font-size:10px;color:#9b6fff;margin-top:5px'},'✓ Seer: use special to take 1 card from each opponent. Build up to 2 districts.'));
+  if(charId===16)bInfo.appendChild(el('div',{style:'font-size:10px;color:#4db87a;margin-top:5px'},`✓ Trader: +${me.city.filter(d=>d.color==='green').length}✦ from Trade districts applied. Build up to 2 districts.`));
   banner.appendChild(bInfo);wrap.appendChild(banner);
 
   if(S.sub==='draw_pick'){
-    wrap.appendChild(el('div',{style:'font-family:Cinzel,serif;color:#d4a843;margin-bottom:12px;font-size:13px'},`Choose one card to keep${me.city.some(d=>d.id==='observatory')?' (Observatory: 3 shown)':''}:`));
+    const drawPickLabel=charId===14?`Choose one card to keep (Scholar: ${S.drawOpts.length} shown):`:
+      `Choose one card to keep${me.city.some(d=>d.id==='observatory')?' (Observatory: 3 shown)':''}:`;
+    wrap.appendChild(el('div',{style:'font-family:Cinzel,serif;color:#d4a843;margin-bottom:12px;font-size:13px'},drawPickLabel));
     const row=el('div',{style:'display:flex;gap:10px;flex-wrap:wrap'});
     S.drawOpts.forEach(d=>row.appendChild(mkCard(d,{portrait:true,onClick:()=>{{const _nr=humanKeepCard(S,d.uid);if(_nr)S=_nr;render();};}})));
     wrap.appendChild(row);return wrap;
@@ -354,17 +366,26 @@ function renderAction(){
   // Income
   if(!S.collected){
     wrap.appendChild(el('div',{class:'sect-label'},'COLLECT INCOME'));
-    const row=el('div',{style:'display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap'});
-    row.appendChild(gbtn('💰 Take 2 Gold','#d4a843',()=>{{const _nr=humanCollectGold(S);if(_nr)S=_nr;render();};},'padding:10px 18px;font-size:12px;font-family:Cinzel,serif'));
-    if(S.deck.length){
-      const label=me.city.some(d=>d.id==='library')?'📚 Draw 2, Keep BOTH (Library)':
-                  me.city.some(d=>d.id==='observatory')?'🔭 Draw 3, Keep 1 (Observatory)':'🃏 Draw 2, Keep 1';
-      row.appendChild(gbtn(label,'#5a9fd4',()=>{{const _nr=humanCollectCards(S);if(_nr)S=_nr;render();};},'padding:10px 18px;font-size:12px;font-family:Cinzel,serif'));
+    if(charId===10){
+      const row=el('div',{style:'display:flex;gap:8px;margin-bottom:6px;flex-wrap:wrap'});
+      row.appendChild(gbtn('⚓ Take 4 Gold','#4a90d9',()=>{{const _nr=humanNavigator(S,'gold');if(_nr)S=_nr;render();};},'padding:10px 18px;font-size:12px;font-family:Cinzel,serif'));
+      if(S.deck.length)row.appendChild(gbtn('⚓ Draw 4 Cards','#4a90d9',()=>{{const _nr=humanNavigator(S,'cards');if(_nr)S=_nr;render();};},'padding:10px 18px;font-size:12px;font-family:Cinzel,serif'));
+      wrap.appendChild(row);
+      wrap.appendChild(el('div',{style:'font-size:10px;color:#8a7a5a;margin-bottom:10px'},'⚠ Navigator cannot build a district this turn.'));
+    }else{
+      const row=el('div',{style:'display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap'});
+      row.appendChild(gbtn('💰 Take 2 Gold','#d4a843',()=>{{const _nr=humanCollectGold(S);if(_nr)S=_nr;render();};},'padding:10px 18px;font-size:12px;font-family:Cinzel,serif'));
+      if(S.deck.length){
+        const label=charId===14?'📖 Draw 7, Keep 1 (Scholar)':
+                    me.city.some(d=>d.id==='library')?'📚 Draw 2, Keep BOTH (Library)':
+                    me.city.some(d=>d.id==='observatory')?'🔭 Draw 3, Keep 1 (Observatory)':'🃏 Draw 2, Keep 1';
+        row.appendChild(gbtn(label,'#5a9fd4',()=>{{const _nr=humanCollectCards(S);if(_nr)S=_nr;render();};},'padding:10px 18px;font-size:12px;font-family:Cinzel,serif'));
+      }
+      wrap.appendChild(row);
     }
-    wrap.appendChild(row);
   }
 
-  if(S.sub==='choose'||S.sub==='assassin_pick'||S.sub==='thief_pick'||S.sub==='warlord_pick'){
+  if(S.sub==='choose'||S.sub==='assassin_pick'||S.sub==='thief_pick'||S.sub==='warlord_pick'||S.sub==='wizard_pick'){
     wrap.appendChild(el('div',{class:'sect-label'},'SPECIAL ABILITY'));
     wrap.appendChild(renderSpecial(charId));
   }
@@ -385,6 +406,32 @@ function renderAction(){
     if(S.selCards.length)r2.appendChild(gbtn(`Discard ${S.selCards.length} → Draw ${S.selCards.length}`,'#9b6fff',()=>{{const _nr=humanMagDiscard(S,S.selCards);if(_nr)S=_nr;render();};}));
     r2.appendChild(gbtn('Cancel','#555',()=>{S={...S,sub:'choose',selCards:[]};render();}));wrap.appendChild(r2);
   }
+  if(S.sub==='wizard_pick'){
+    const target=S.players.find(p=>p.id===S.wizardTargetId);
+    if(target){
+      wrap.appendChild(el('div',{style:'color:#9b6fff;font-size:12px;margin-bottom:8px;font-family:Cinzel,serif'},`${target.name}'s hand — choose a card to take:`));
+      if(!target.hand.length){
+        wrap.appendChild(el('div',{style:'color:#9a8a64;font-size:12px;margin-bottom:8px'},'No cards in their hand.'));
+      }else{
+        const r=el('div',{style:'display:flex;flex-wrap:wrap;gap:10px;margin-bottom:8px'});
+        target.hand.forEach(d=>{
+          const canBuild=buildCost(me,d)<=me.gold&&canBuildDistrict(me,d);
+          const cardWrap=el('div',{style:'display:flex;flex-direction:column;align-items:center;gap:3px'});
+          cardWrap.appendChild(mkCard(d,{portrait:true}));
+          const takeBtn=gbtn('Take','#9b6fff',()=>{{const _nr=humanWizardTake(S,d.uid,false);if(_nr)S=_nr;render();};},'font-size:10px;padding:3px 10px;width:100%');
+          cardWrap.appendChild(takeBtn);
+          if(canBuild){
+            const buildBtn=gbtn(`Build (${buildCost(me,d)}✦)`,'#7a4fcc',()=>{{const _nr=humanWizardTake(S,d.uid,true);if(_nr)S=_nr;render();};},'font-size:10px;padding:3px 8px;width:100%');
+            cardWrap.appendChild(buildBtn);
+          }
+          r.appendChild(cardWrap);
+        });
+        wrap.appendChild(r);
+      }
+      wrap.appendChild(gbtn('Cancel','#555',()=>{S={...S,sub:'choose',wizardTargetId:null};render();}));
+    }
+    return wrap;
+  }
 
   if(S.collected&&S.sub==='choose'&&me.city.some(d=>d.id==='smithy')&&!me.smithyUsed&&me.gold>=2&&S.deck.length){
     wrap.appendChild(el('div',{class:'sect-label'},'ACTIVE BUILDINGS'));
@@ -398,12 +445,12 @@ function renderAction(){
     wrap.appendChild(smithyRow);
   }
 
-  if(S.collected&&S.sub==='choose'){
+  if(S.collected&&S.sub==='choose'&&!S.noBuild){
     wrap.appendChild(el('div',{class:'sect-label'},`BUILD DISTRICT (${S.builtCount}/${maxB})`));
     const canBuild=S.builtCount<maxB;
-    const affordable=me.hand.filter(d=>{const cost=buildCost(me,d);return cost<=me.gold&&!me.city.some(c=>c.id===d.id);});
+    const affordable=me.hand.filter(d=>{const cost=buildCost(me,d);return cost<=me.gold&&canBuildDistrict(me,d);});
     const rest=me.hand.filter(d=>!affordable.includes(d));
-    if(!me.hand.length)wrap.appendChild(el('div',{style:'color:#2e2818;font-size:12px;margin-bottom:8px'},'No cards in hand.'));
+    if(!me.hand.length)wrap.appendChild(el('div',{style:'color:#9a8a64;font-size:12px;margin-bottom:8px'},'No cards in hand.'));
     else{
       if(affordable.length){
         const row=el('div',{class:'cards-wrap',style:'margin-bottom:10px'});
@@ -411,12 +458,17 @@ function renderAction(){
         wrap.appendChild(row);
       }
       if(rest.length){
-        wrap.appendChild(el('div',{style:'font-size:10px;color:#2e2818;margin-bottom:5px'},'Too costly or already built:'));
+        wrap.appendChild(el('div',{style:'font-size:10px;color:#9a8a64;margin-bottom:5px'},'Too costly or already built:'));
         const row2=el('div',{class:'cards-wrap',style:'margin-bottom:10px'});
         rest.forEach(d=>row2.appendChild(mkCard(d,{player:me,disabled:true,noDesc:true})));wrap.appendChild(row2);
       }
-      if(!affordable.length)wrap.appendChild(el('div',{style:'color:#2e2818;font-size:12px;margin-bottom:8px'},'Cannot afford to build.'));
+      if(!affordable.length)wrap.appendChild(el('div',{style:'color:#9a8a64;font-size:12px;margin-bottom:8px'},'Cannot afford to build.'));
     }
+  }
+  if(S.noBuild&&S.collected&&S.sub==='choose'){
+    wrap.appendChild(el('div',{style:'background:#080e18;border:1px solid #1a2540;border-radius:6px;padding:8px 12px;margin-bottom:10px;font-size:11px;color:#6080a0'},'⚓ Navigator: income collected. No district may be built this turn.'));
+  }
+  if(S.collected&&S.sub==='choose'){
     wrap.appendChild(gbtn('End Turn →','#4db87a',()=>{{const _nr=humanEndTurn(S);if(_nr)S=_nr;render();};},'padding:11px 20px;font-size:12px;font-family:Cinzel,serif;margin-top:10px;width:100%'));
   }
   return wrap;
@@ -436,11 +488,13 @@ function renderSpecial(charId){
     if(S.sub==='assassin_pick'){
       wrap.appendChild(el('div',{style:'color:#cc7777;font-size:12px;margin-bottom:8px;font-family:Cinzel,serif'},'Choose a character to assassinate:'));
       const r=el('div',{style:'display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px'});
-      CHARS.filter(ch=>ch.id!==1).forEach(ch=>r.appendChild(gbtn(`${ch.emoji} ${ch.id}. ${ch.name}`,'#cc7777',()=>{{const _nr=humanKill(S,ch.id);if(_nr)S=_nr;render();};})));
+      CHARS.filter(ch=>S.charPool.includes(ch.id)&&ch.rank!==1).forEach(ch=>r.appendChild(gbtn(`${ch.emoji} ${ch.name}`,'#cc7777',()=>{{const _nr=humanKill(S,ch.id);if(_nr)S=_nr;render();};})));
       r.appendChild(gbtn('Cancel','#555',()=>{S={...S,sub:'choose'};render();}));
       wrap.appendChild(r);
     }else if(me.pendingKill){
-      const c=CHARS[me.pendingKill-1];
+      // pendingKill stores rank; find the char in charPool with that rank
+      const pkChar=CHARS.find(ch=>S.charPool.includes(ch.id)&&ch.rank===me.pendingKill);
+      const c=pkChar||{emoji:'?',name:'?'};
       const box=el('div',{style:'display:flex;align-items:center;gap:10px;background:#2a0a0a;border:1px solid #8a2020;border-radius:7px;padding:8px 12px'});
       box.appendChild(el('span',{style:'font-size:20px'},'☠️'));
       const info=el('div',{style:'flex:1'});
@@ -460,11 +514,13 @@ function renderSpecial(charId){
     if(S.sub==='thief_pick'){
       wrap.appendChild(el('div',{style:'color:#b0b0b0;font-size:12px;margin-bottom:8px;font-family:Cinzel,serif'},'Steal from which character?'));
       const r=el('div',{style:'display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px'});
-      CHARS.filter(ch=>ch.id!==1&&ch.id!==2).forEach(ch=>r.appendChild(gbtn(`${ch.emoji} ${ch.id}. ${ch.name}`,'#b0b0b0',()=>{{const _nr=humanSteal(S,ch.id);if(_nr)S=_nr;render();};})));
+      CHARS.filter(ch=>S.charPool.includes(ch.id)&&ch.rank!==1&&ch.rank!==2).forEach(ch=>r.appendChild(gbtn(`${ch.emoji} ${ch.name}`,'#b0b0b0',()=>{{const _nr=humanSteal(S,ch.id);if(_nr)S=_nr;render();};})));
       r.appendChild(gbtn('Cancel','#555',()=>{S={...S,sub:'choose'};render();}));
       wrap.appendChild(r);
     }else if(me.stolenTarget){
-      const c=CHARS[me.stolenTarget-1];
+      // stolenTarget stores rank; find the char in charPool with that rank
+      const stChar=CHARS.find(ch=>S.charPool.includes(ch.id)&&ch.rank===me.stolenTarget);
+      const c=stChar||{emoji:'?',name:'?'};
       const box=el('div',{style:'display:flex;align-items:center;gap:10px;background:#1a1a20;border:1px solid #606060;border-radius:7px;padding:8px 12px'});
       box.appendChild(el('span',{style:'font-size:20px'},'🕵️'));
       const info=el('div',{style:'flex:1'});
@@ -496,8 +552,18 @@ function renderSpecial(charId){
     wrap.appendChild(el('div',{style:'color:#d4a843;font-size:12px;background:#1c1608;border:1px solid #6a4e1044;border-radius:5px;padding:6px 10px'},txt));return wrap;
   }
 
+  // ── Patrician ──
+  if(charId===12){
+    const yellows=me.city.filter(d=>d.color==='yellow').length;
+    const txt=yellows>0?`🏅 Crown taken — you pick roles first next round. Drew ${yellows} card${yellows>1?'s':''} from Noble districts.`:`🏅 Crown taken — you pick roles first next round. Build Noble (yellow) districts to draw cards each round as Patrician.`;
+    wrap.appendChild(el('div',{style:'color:#d4a843;font-size:12px;background:#1c1608;border:1px solid #6a4e1044;border-radius:5px;padding:6px 10px'},txt));return wrap;
+  }
+
   // ── Bishop ──
   if(charId===5){wrap.appendChild(el('div',{style:'color:#5a4e3a;font-size:12px'},`⛪ Protected from Warlord. +${me.city.filter(d=>d.color==='blue').length}✦ from Religious applied.`));return wrap;}
+
+  // ── Abbot ──
+  if(charId===13){wrap.appendChild(el('div',{style:'color:#5a4e3a;font-size:12px'},`🧎 +${me.city.filter(d=>d.color==='blue').length}✦ from Religious applied. Took 1✦ from richest opponent if any.`));return wrap;}
 
   // ── Merchant ──
   if(charId===6){wrap.appendChild(el('div',{style:'color:#5a4e3a;font-size:12px'},`💰 +1✦ Merchant bonus + Trade income applied.`));return wrap;}
@@ -508,12 +574,72 @@ function renderSpecial(charId){
     return wrap;
   }
 
+  // ── Scholar ──
+  if(charId===14){
+    wrap.appendChild(el('div',{style:'color:#5a4e3a;font-size:12px'},'📖 Drew 7 cards, kept 1. Build up to 2 districts this turn.'));
+    return wrap;
+  }
+
+  // ── Queen ──
+  if(charId===9){
+    wrap.appendChild(el('div',{style:'color:#5a4e3a;font-size:12px'},'🫅 Queen bonus applied at start of turn if seated beside the King.'));return wrap;
+  }
+
+  // ── Navigator ──
+  if(charId===10){
+    wrap.appendChild(el('div',{style:'color:#4a90d9;font-size:12px'},'⚓ Income collected above. No district may be built this turn.'));return wrap;
+  }
+
+  // ── Wizard ──
+  if(charId===11&&S.sub==='choose'){
+    if(!S.wizardTargetId){
+      const others=S.players.filter(p=>p.id!==0&&p.hand.length>0);
+      if(!others.length){
+        wrap.appendChild(el('div',{style:'color:#9a8a64;font-size:12px'},'No opponents have cards to take.'));
+      }else{
+        wrap.appendChild(el('div',{style:'color:#9b6fff;font-size:12px;margin-bottom:8px;font-family:Cinzel,serif'},'Look at a player\'s hand — choose who to target:'));
+        const r=el('div',{style:'display:flex;flex-wrap:wrap;gap:6px'});
+        others.forEach(p=>r.appendChild(gbtn(`${p.name} (${p.hand.length} cards)`,'#9b6fff',()=>{{const _nr=humanWizardTarget(S,p.id);if(_nr)S=_nr;render();}})));
+        wrap.appendChild(r);
+      }
+    }
+    return wrap;
+  }
+
+  // ── Seer ──
+  if(charId===15){
+    if(me.seerUsed){
+      wrap.appendChild(el('div',{style:'color:#9a8a64;font-size:12px'},'🔯 Seer ability used this turn.'));
+    }else{
+      const opps=S.players.filter(p=>p.id!==0&&p.hand.length>0);
+      if(!opps.length){
+        wrap.appendChild(el('div',{style:'color:#9a8a64;font-size:12px'},'No opponents have cards to take.'));
+      }else{
+        wrap.appendChild(gbtn(`🔯 Take from All (${opps.length} opponent${opps.length>1?'s':''})`,
+          '#9b6fff',()=>{{const _nr=humanSeer(S);if(_nr)S=_nr;render();};},'font-size:12px;padding:8px 14px;font-family:Cinzel,serif'));
+        wrap.appendChild(el('div',{style:'font-size:10px;color:#9a8a64;margin-top:5px'},
+          `Takes 1 random card from each of ${opps.length} opponent${opps.length>1?'s':''}.`));
+      }
+    }
+    return wrap;
+  }
+
+  // ── Trader ──
+  if(charId===16){
+    const greens=me.city.filter(d=>d.color==='green').length;
+    const txt=greens>0
+      ?`🏦 Earned ${greens}✦ from ${greens} Trade district${greens>1?'s':''}. Build up to 2 districts this turn.`
+      :'🏦 Build Trade (green) districts to earn gold each round as Trader. Build up to 2 districts this turn.';
+    wrap.appendChild(el('div',{style:'color:#4db87a;font-size:12px;background:#081408;border:1px solid #1a4a2044;border-radius:5px;padding:6px 10px'},txt));
+    return wrap;
+  }
+
   // ── Warlord ──
   if(charId===8){
     if(S.sub==='warlord_pick'){
       wrap.appendChild(el('div',{style:'color:#d45a5a;font-size:12px;margin-bottom:8px;font-family:Cinzel,serif'},'Destroy which district?'));
       const targets=[];
-      S.players.forEach(p=>{if(p.char===5&&!p.dead)return;
+      S.players.forEach(p=>{if(charRank(p.char)===5&&!p.dead)return;
         const wall=p.city.some(w=>w.id==='great_wall');
         p.city.forEach(d=>{if(d.id==='keep')return;const c1=wall?d.cost:Math.max(0,d.cost-1);
           if(c1<=me.gold)targets.push({pid:p.id,pname:p.name,d,c1,wall});});});
@@ -555,13 +681,13 @@ function renderGameOver(){
   const wrap=el('div',{style:'min-height:100vh;display:flex;align-items:center;justify-content:center;background:#090c18'});
   const box=el('div',{style:'background:#111530;border:1px solid #5a3f10;border-radius:14px;padding:28px 32px;max-width:520px;width:92%'});
   box.append(el('div',{style:'font-family:Cinzel,serif;font-size:22px;color:#d4a843;text-align:center;margin-bottom:6px'},'🏆 Game Over'),
-             el('div',{style:'color:#4a3e2a;text-align:center;margin-bottom:20px;font-size:12px'},`Round ${S.round} complete`));
+             el('div',{style:'color:#8a7a5a;text-align:center;margin-bottom:20px;font-size:12px'},`Round ${S.round} complete`));
   scores.forEach((sc,i)=>{
     const medals=['🥇','🥈','🥉','🏅'];
     const row=el('div',{style:`display:flex;align-items:flex-start;gap:12px;margin-bottom:9px;background:${i===0?'rgba(212,168,67,0.08)':'rgba(255,255,255,0.02)'};border:1px solid ${i===0?'#5a3f10':'#252945'};border-radius:8px;padding:10px 14px`});
     const info=el('div',{style:'flex:1'});
     info.append(el('div',{style:'font-family:Cinzel,serif;color:#d4a843;font-size:13px'},sc.p.name),
-                el('div',{style:'font-size:11px;color:#4a3e2a;margin-top:2px'},`${sc.p.city.length} districts built`));
+                el('div',{style:'font-size:11px;color:#8a7a5a;margin-top:2px'},`${sc.p.city.length} districts built`));
     if(sc.p.city.some(d=>d.color==='purple')){
       const purps=el('div',{style:'font-size:10px;color:#9060c0;margin-top:3px;display:flex;flex-wrap:wrap;gap:4px'});
       sc.p.city.filter(d=>d.color==='purple').forEach(d=>{
