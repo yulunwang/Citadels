@@ -426,8 +426,8 @@ function doAITurn(state,pid,charId){
       events.push({icon:'🔯',text:`${p().name} (Seer) takes ${taken.length} card${taken.length>1?'s':''} from opponents.`,color:'#9b6fff'});
     }else events.push({icon:'🔯',text:`${p().name} (Seer): no opponents had cards.`,color:'#9b6fff'});
   }else if(charId===8){
-    const humanTargets=s.players.filter(q=>q.id!==pid&&!(q.char===5&&!q.dead)&&q.city.length>0);
-    const target=humanTargets.sort((a,b)=>b.city.length-a.city.length)[0]||null;
+    const targets=s.players.filter(q=>q.id!==pid&&!(q.char===5&&!q.dead)&&q.city.length>0);
+    const target=targets.sort((a,b)=>b.city.length-a.city.length)[0]||null;
     if(target){
       const wallBonus=target.city.some(d=>d.id==='great_wall');
       const destructible=target.city.filter(d=>{if(d.id==='keep')return false;const c1=wallBonus?d.cost:Math.max(0,d.cost-1);return c1<=p().gold;});
