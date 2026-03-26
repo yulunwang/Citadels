@@ -58,11 +58,30 @@ function dealDraft(charPool,numPlayers){
   // King/Patrician (rank 4) may never appear face-up — swap them to avail/faceDown if drawn.
   const nFaceDown=charPool.length>numPlayers?1:0;
   const nFaceUp=Math.max(0,charPool.length-numPlayers-2);
-  const rank4=charPool.filter(id=>{const c=CHARS.find(q=>q.id===id);return c&&c.rank===4;});
-  const others=shuffle(charPool.filter(id=>!rank4.includes(id)));
-  const faceUp=others.slice(0,Math.min(nFaceUp,others.length));
-  const remaining=shuffle([...others.slice(faceUp.length),...rank4]);
-  return{avail:remaining.slice(nFaceDown),faceDown:remaining.slice(0,nFaceDown),faceUp};
+  // Shuffle full pool once, then:
+  // 1) draw face-down from the full pool (may be rank 4),
+  // 2) draw face-up from the remainder, never allowing rank 4 to be face-up.
+  const pool=shuffle([...charPool]);
+  const faceDown=[];
+  let remainingPool=pool;
+  if(nFaceDown>0){
+    faceDown.push(remainingPool[0]);
+    remainingPool=remainingPool.slice(1);
+  }
+  const faceUp=[];
+  const avail=[];
+  for(const id of remainingPool){
+    const c=CHARS.find(q=>q.id===id);
+    const isRank4=c&&c.rank===4;
+    if(faceUp.length<nFaceUp && !isRank4){
+      // Non-rank-4 card can be turned face-up while we still need more face-up cards.
+      faceUp.push(id);
+    }else{
+      // Either we've filled the face-up quota, or this is rank-4 which must not be face-up.
+      avail.push(id);
+    }
+  }
+  return{avail,faceDown,faceUp};
 }
 function charRank(id){const c=CHARS.find(q=>q.id===id);return c?c.rank:id;}
 function charById(id){return CHARS.find(q=>q.id===id)||{id,rank:id,name:'?',clr:'#888',emoji:'?',ability:''};}
