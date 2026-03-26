@@ -117,9 +117,19 @@ function aiBestBuild(p,state){
   // Don't trigger game end (build 8th district) if clearly losing — first-completer bonus (+4)
   // won't overcome the deficit, so let the game continue for more scoring opportunities.
   if(can.length&&p.city.length===7&&state&&state.firstCompleter===null){
-    const myScore=calcScore(p,true);// assume first completer for comparison
     const maxOther=Math.max(0,...state.players.filter(q=>q.id!==p.id).map(q=>calcScore(q,false)));
-    if(myScore<maxOther)can=[];// skip building 8th — not worth triggering end while losing
+    // Simulate each possible 8th-district build and see the best score we could reach.
+    let bestSimScore=0;
+    for(const d of can){
+      // Remove exactly one instance of the district from hand to model spending the card.
+      const handCopy=p.hand.slice();
+      const idx=handCopy.indexOf(d);
+      if(idx!==-1)handCopy.splice(idx,1);
+      const simPlayer={...p,city:[...p.city,d],hand:handCopy};
+      const s=calcScore(simPlayer,true); // assume we become first completer
+      if(s>bestSimScore)bestSimScore=s;
+    }
+    if(bestSimScore<maxOther)can=[];// skip building 8th — not worth triggering end while losing
   }
   return can.length?can.sort((a,b)=>buildCost(p,a)-buildCost(p,b))[0]:null;
 }
