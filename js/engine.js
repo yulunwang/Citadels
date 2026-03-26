@@ -625,7 +625,7 @@ function humanSteal(s,tc){return addLog({...s,sub:'choose',players:s.players.map
 
 function humanMagSwap(s,tid){
   const me=s.players[0];if(me.magicianUsed)return s;
-  const o=s.players.find(p=>p.id===tid);
+  const o=s.players.find(p=>p.id===tid);if(!o)return s;
   return addLog({...s,sub:'choose',players:s.players.map(p=>{if(p.id===0)return{...p,hand:[...o.hand],magicianUsed:true};if(p.id===tid)return{...p,hand:[...me.hand]};return p;})},`You swap hands with ${o.name}!`);}
 
 function humanMagDiscard(s,uids){
