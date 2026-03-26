@@ -22,7 +22,7 @@ function _ensureCharTooltip(){
   if(!tip){
     tip=document.createElement('div');
     tip.id='char-tooltip';
-    tip.style.cssText='position:fixed;z-index:9999;pointer-events:none;display:none;max-width:270px;min-width:210px;'+
+    tip.style.cssText='position:fixed;z-index:9999;pointer-events:none;display:none;max-width:270px;max-width:calc(100vw - 20px);'+
       'background:#0e1228;border:1px solid #3a2f6a;border-radius:10px;padding:13px 15px;'+
       'box-shadow:0 8px 32px #000c;font-family:Georgia,serif';
     document.body.appendChild(tip);
