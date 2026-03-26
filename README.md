@@ -2,7 +2,7 @@
 
 > A medieval city-building card game — built entirely by a Claude AI agent.
 
-**[▶ Play now → yulunwang.github.io/Citadels](https://yulunwang.github.io/Citadels/)**
+**[▶ Play now](https://yulunwang.github.io/Citadels/)**
 
 Play solo against 3 AI opponents, or host a multiplayer room and share a 6-letter code with friends. No install, no account — pure browser.
 
