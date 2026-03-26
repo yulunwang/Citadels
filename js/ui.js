@@ -665,7 +665,7 @@ function renderSpecial(charId){
     if(S.sub==='warlord_pick'){
       wrap.appendChild(el('div',{style:'color:#d45a5a;font-size:12px;margin-bottom:8px;font-family:Cinzel,serif'},'Destroy which district?'));
       const targets=[];
-      S.players.forEach(p=>{if(charRank(p.char)===5&&!p.dead)return;
+      S.players.forEach(p=>{if(p.id===me.id)return;if(p.char===5&&!p.dead)return;
         const wall=p.city.some(w=>w.id==='great_wall');
         p.city.forEach(d=>{if(d.id==='keep')return;const c1=wall?d.cost:Math.max(0,d.cost-1);
           if(c1<=me.gold)targets.push({pid:p.id,pname:p.name,d,c1,wall});});});
@@ -717,7 +717,7 @@ function renderGameOver(){
     if(sc.p.city.some(d=>d.color==='purple')){
       const purps=el('div',{style:'font-size:10px;color:#9060c0;margin-top:3px;display:flex;flex-wrap:wrap;gap:4px'});
       sc.p.city.filter(d=>d.color==='purple').forEach(d=>{
-        purps.appendChild(el('span',{style:'background:#1a0830;border:1px solid #4a1a7a;border-radius:3px;padding:1px 5px'},`${DEMOJI[d.id]||'✨'} ${d.name}`));
+        purps.appendChild(el('span',{style:'background:#1a0830;border:1px solid #4a1a7a;border-radius:3px;padding:1px 5px;display:inline-flex;align-items:center;gap:3px'},`${DEMOJI[d.id]||'✨'} ${d.name}`));
       });info.appendChild(purps);}
     row.append(el('span',{style:'font-size:20px'},medals[i]||`${i+1}`),info,
                el('span',{style:'font-family:Cinzel,serif;color:#d4a843;font-size:20px'},`${sc.score}✦`));
