@@ -40,8 +40,8 @@ function newGame(cfg){
   const crown=0|Math.random()*n;
   const dealt=dealDraft(charPool,n);
   const players=[
-    {id:0,name:'You',ai:false,gold:2,hand:[],city:[],char:null,dead:false,stolenTarget:null,smithyUsed:false,seerUsed:false,pendingKill:null},
-    ...Array.from({length:numAI},(_,i)=>({id:i+1,name:AI_NAMES[i]||'AI '+(i+2),ai:true,gold:2,hand:[],city:[],char:null,dead:false,stolenTarget:null,smithyUsed:false,seerUsed:false,pendingKill:null}))
+    {id:0,name:'You',ai:false,gold:2,hand:[],city:[],char:null,dead:false,stolenTarget:null,smithyUsed:false,seerUsed:false,magicianUsed:false,wizardUsed:false,pendingKill:null},
+    ...Array.from({length:numAI},(_,i)=>({id:i+1,name:AI_NAMES[i]||'AI '+(i+2),ai:true,gold:2,hand:[],city:[],char:null,dead:false,stolenTarget:null,smithyUsed:false,seerUsed:false,magicianUsed:false,wizardUsed:false,pendingKill:null}))
   ];
   const d=[...deck];players.forEach(p=>{p.hand=d.splice(0,4);});
   return{phase:'draft',sub:'idle',round:1,deck:d,trash:[],players,crown,
@@ -50,7 +50,7 @@ function newGame(cfg){
     heraldQueue:[],heraldIdx:0,heraldAfter:'action',heraldAcks:[],
     callIdx:1,log:['The game begins!'],firstCompleter:null,
     collected:false,builtCount:0,noBuild:false,drawOpts:[],selCards:[],pendingDestroy:null,_confirmEnd:false,
-    wizardTargetId:null};
+    wizardTargetId:null,_pendingSOTDraw:0};
 }
 function draftSeq(crown,n){return Array.from({length:n},(_,i)=>(crown+i)%n);}
 function dealDraft(charPool,numPlayers){
@@ -160,8 +160,8 @@ function humanDraft(state,charId){
 // ── ACTION PHASE ───────────────────────────────────────────────────────────────
 function startActionPhase(state){
   let s={...state,phase:'action',sub:'idle',callIdx:1,
-    collected:false,builtCount:0,noBuild:false,wizardTargetId:null,drawOpts:[],selCards:[],heraldQueue:[],heraldIdx:0,heraldAcks:[],
-    players:state.players.map(p=>({...p,smithyUsed:false,seerUsed:false}))};
+    collected:false,builtCount:0,noBuild:false,wizardTargetId:null,drawOpts:[],selCards:[],heraldQueue:[],heraldIdx:0,heraldAcks:[],_pendingSOTDraw:0,
+    players:state.players.map(p=>({...p,smithyUsed:false,seerUsed:false,magicianUsed:false,wizardUsed:false}))};
   s=addLog(s,`Round ${s.round}: The Herald calls characters...`);
   return advanceCall(s,_applyLocalSlot);
 }
@@ -186,9 +186,9 @@ function advanceCall(state, localSlot){
         sub:'idle',collected:false,builtCount:0,drawOpts:[],selCards:[]};
     }
 
-    // Local human — stop for local input
+    // Local human — stop for local input; defer card draws so hand doesn't update during prior herald beats
     if(!holder.ai && holder.id===localSlot){
-      const sotR=applyStartOfTurn(s,holder.char,localSlot);s=sotR.state;const sotEvents=sotR.events;
+      const sotR=applyStartOfTurn(s,holder.char,localSlot,true);s=sotR.state;const sotEvents=sotR.events;
       // If assassinated during start-of-turn (human pendingKill applied), skip turn like the dead branch
       if(s.players.find(p=>p.id===localSlot).dead){
         s={...s,heraldQueue:[...s.heraldQueue,{charId:s.callIdx,holderName:holder.name,events:sotEvents}],callIdx:s.callIdx+1};
@@ -199,7 +199,7 @@ function advanceCall(state, localSlot){
         if(sotEvents.length>0)q=[...q,{charId:s.callIdx,holderName:'Your turn begins',events:sotEvents,isStartOnly:true}];
         return{...s,heraldQueue:q,heraldIdx:0,phase:'herald',heraldAfter:'human_act'};
       }
-      return{...s,phase:'action',sub:'choose',collected:false,builtCount:0,drawOpts:[],selCards:[]};
+      return _applyPendingSOTDraw({...s,phase:'action',sub:'choose',collected:false,builtCount:0,drawOpts:[],selCards:[]});
     }
 
     const {state:ns,events}=doAITurn(s,holder.id,holder.char);
@@ -209,7 +209,7 @@ function advanceCall(state, localSlot){
   return endRound(s);
 }
 
-function applyStartOfTurn(state,charId,pid){
+function applyStartOfTurn(state,charId,pid,defer){
   let s={...state};const p=()=>s.players.find(q=>q.id===pid);const events=[];
   const rank=charRank(charId);
 
@@ -238,11 +238,14 @@ function applyStartOfTurn(state,charId,pid){
   if(charId===4||charId===12){
     newCrown=pid;
     if(charId===12){
-      // Patrician: draw 1 card per noble district
+      // Patrician: draw 1 card per noble district (deferred for local human to avoid early hand reveal)
       const cardCount=p().city.filter(d=>d.color==='yellow').length;
-      events.push({icon:'🏅',text:cardCount>0?`${p().name} takes the Crown and draws ${cardCount} card${cardCount>1?'s':''} from Noble districts!`:`${p().name} takes the Crown!`,color:'#d4a843'});
+      events.push({icon:'🏅',text:cardCount>0&&!defer?`${p().name} takes the Crown and draws ${cardCount} card${cardCount>1?'s':''} from Noble districts!`:`${p().name} takes the Crown!`,color:'#d4a843'});
       s={...s,crown:newCrown};
-      if(cardCount>0){const drawn=s.deck.slice(0,Math.min(cardCount,s.deck.length));s={...s,deck:s.deck.slice(drawn.length),players:s.players.map(q=>q.id===pid?{...q,hand:[...q.hand,...drawn]}:q)};}
+      if(cardCount>0){
+        if(defer)s={...s,_pendingSOTDraw:(s._pendingSOTDraw||0)+cardCount};
+        else{const drawn=s.deck.slice(0,Math.min(cardCount,s.deck.length));s={...s,deck:s.deck.slice(drawn.length),players:s.players.map(q=>q.id===pid?{...q,hand:[...q.hand,...drawn]}:q)};}
+      }
     }else{
       bonus=p().city.filter(d=>d.color==='yellow').length;
       events.push({icon:'👑',text:bonus>0?`${p().name} takes the Crown and earns ${bonus}✦ from Noble districts!`:`${p().name} takes the Crown!`,color:'#d4a843'});
@@ -292,9 +295,14 @@ function applyStartOfTurn(state,charId,pid){
     }
   }
   if(charId===7){
-    const drawn=s.deck.slice(0,Math.min(2,s.deck.length));
-    if(drawn.length>0){s={...s,deck:s.deck.slice(drawn.length),players:s.players.map(q=>q.id===pid?{...q,hand:[...q.hand,...drawn]}:q)};
-      events.push({icon:'🃏',text:`${p().name} draws ${drawn.length} extra card${drawn.length>1?'s':''} as the Architect.`,color:'#e0975c'});}
+    // Architect +2 cards: deferred for local human to avoid cards appearing in hand during earlier herald beats
+    if(defer){
+      s={...s,_pendingSOTDraw:(s._pendingSOTDraw||0)+2};
+    }else{
+      const drawn=s.deck.slice(0,Math.min(2,s.deck.length));
+      if(drawn.length>0){s={...s,deck:s.deck.slice(drawn.length),players:s.players.map(q=>q.id===pid?{...q,hand:[...q.hand,...drawn]}:q)};
+        events.push({icon:'🃏',text:`${p().name} draws ${drawn.length} extra card${drawn.length>1?'s':''} as the Architect.`,color:'#e0975c'});}
+    }
   }
   // Extension start-of-turn hooks (for expansion characters)
   EXT._sotHooks.forEach(fn=>{
@@ -302,6 +310,16 @@ function applyStartOfTurn(state,charId,pid){
     if(r){s=r.state||s;if(r.events)events.push(...r.events);}
   });
   return{state:s,events};
+}
+
+// Apply any deferred start-of-turn card draws (Architect +2, Patrician per-noble) for the local human.
+// Cards are drawn at the moment the human's action phase starts, not during earlier herald beats.
+function _applyPendingSOTDraw(s){
+  const cnt=Math.min(s._pendingSOTDraw||0,s.deck.length);
+  if(cnt<=0)return{...s,_pendingSOTDraw:0};
+  const drawn=s.deck.slice(0,cnt);
+  return{...s,deck:s.deck.slice(cnt),_pendingSOTDraw:0,
+    players:s.players.map(q=>q.id===0?{...q,hand:[...q.hand,...drawn]}:q)};
 }
 
 function doAITurn(state,pid,charId){
@@ -477,6 +495,7 @@ function heraldAck(state,slotId){
     return newState;
   }
   if(cleared.heraldAfter==='peer_act')return{...cleared,phase:'action',sub:'idle'};
+  if(cleared.heraldAfter==='human_act')return _applyPendingSOTDraw({...cleared,phase:'action',sub:'choose',collected:false,builtCount:0,drawOpts:[],selCards:[]});
   return{...cleared,phase:'action',sub:'choose',collected:false,builtCount:0,drawOpts:[],selCards:[]};
 }
 
@@ -563,7 +582,7 @@ function humanWizardTake(state,cardUid,doBuild){
   const card=target.hand.find(d=>d.uid===cardUid);
   if(!card)return state;
   let s={...state,wizardTargetId:null,sub:'choose',
-    players:state.players.map(p=>p.id===target.id?{...p,hand:p.hand.filter(d=>d.uid!==cardUid)}:p)};
+    players:state.players.map(p=>p.id===target.id?{...p,hand:p.hand.filter(d=>d.uid!==cardUid)}:p.id===0?{...p,wizardUsed:true}:p)};
   if(doBuild){
     const cost=buildCost(me,card);
     if(cost<=me.gold&&canBuildDistrict(me,card)){
@@ -604,17 +623,20 @@ function humanKill(s,tc){
 
 function humanSteal(s,tc){return addLog({...s,sub:'choose',players:s.players.map(p=>p.id===0?{...p,stolenTarget:charRank(tc)}:p)},`You target the ${charById(tc).name} for theft.`);}
 
-function humanMagSwap(s,tid){const o=s.players.find(p=>p.id===tid),me=s.players[0];
-  return addLog({...s,sub:'choose',players:s.players.map(p=>{if(p.id===0)return{...p,hand:[...o.hand]};if(p.id===tid)return{...p,hand:[...me.hand]};return p;})},`You swap hands with ${o.name}!`);}
+function humanMagSwap(s,tid){
+  const me=s.players[0];if(me.magicianUsed)return s;
+  const o=s.players.find(p=>p.id===tid);if(!o)return s;
+  return addLog({...s,sub:'choose',players:s.players.map(p=>{if(p.id===0)return{...p,hand:[...o.hand],magicianUsed:true};if(p.id===tid)return{...p,hand:[...me.hand]};return p;})},`You swap hands with ${o.name}!`);}
 
 function humanMagDiscard(s,uids){
   if(!uids.length)return{...s,sub:'choose',selCards:[]};
-  const disc=s.players[0].hand.filter(d=>uids.includes(d.uid));
+  const me=s.players[0];if(me.magicianUsed)return{...s,sub:'choose',selCards:[]};
+  const disc=me.hand.filter(d=>uids.includes(d.uid));
   let deck=[...s.deck];let trash=[...s.trash];
   if(deck.length<uids.length&&trash.length>0){deck=[...deck,...shuffle(trash)];trash=[];}
   const drawn=deck.splice(0,Math.min(uids.length,deck.length));
   return addLog({...s,sub:'choose',selCards:[],deck,trash:[...trash,...disc],
-    players:s.players.map(p=>p.id===0?{...p,hand:[...p.hand.filter(d=>!uids.includes(d.uid)),...drawn]}:p)},
+    players:s.players.map(p=>p.id===0?{...p,magicianUsed:true,hand:[...p.hand.filter(d=>!uids.includes(d.uid)),...drawn]}:p)},
     `You discard ${uids.length}, draw ${drawn.length}.`);
 }
 

@@ -168,7 +168,7 @@ function buildGameFromConfig(slots,charPool){
   charPool=charPool||[1,2,3,4,5,6,7,8];
   const deck=shuffle(mkDeck());const n=slots.length;
   const crown=slots[0].slot;
-  const players=slots.map(sl=>({id:sl.slot,name:sl.name,ai:sl.ai,gold:2,hand:[],city:[],char:null,dead:false,stolenTarget:null,smithyUsed:false,seerUsed:false,pendingKill:null}));
+  const players=slots.map(sl=>({id:sl.slot,name:sl.name,ai:sl.ai,gold:2,hand:[],city:[],char:null,dead:false,stolenTarget:null,smithyUsed:false,seerUsed:false,magicianUsed:false,wizardUsed:false,pendingKill:null}));
   players.sort((a,b)=>a.id-b.id);
   const d=[...deck];players.forEach(p=>{p.hand=d.splice(0,4);});
   const draftOrder=slots.map(sl=>sl.slot);
@@ -178,7 +178,7 @@ function buildGameFromConfig(slots,charPool){
     draftOrder,draftIdx:0,
     avail:dealt.avail,faceDown:dealt.faceDown,faceUp:dealt.faceUp,heraldQueue:[],heraldIdx:0,heraldAfter:'action',heraldAcks:[],callIdx:1,
     log:['The game begins!'],firstCompleter:null,collected:false,builtCount:0,noBuild:false,drawOpts:[],selCards:[],pendingDestroy:null,_confirmEnd:false,
-    wizardTargetId:null};
+    wizardTargetId:null,_pendingSOTDraw:0};
 }
 
 // ── RENDER ROUTING ────────────────────────────────────────────────────────────
