@@ -24,7 +24,7 @@ function _ensureCharTooltip(){
     tip.id='char-tooltip';
     tip.style.cssText='position:fixed;z-index:9999;pointer-events:none;display:none;max-width:270px;min-width:210px;'+
       'background:#0e1228;border:1px solid #3a2f6a;border-radius:10px;padding:13px 15px;'+
-      'box-shadow:0 8px 32px #000c;font-family:Georgia,serif;transition:opacity .1s';
+      'box-shadow:0 8px 32px #000c;font-family:Georgia,serif';
     document.body.appendChild(tip);
   }
   return tip;
