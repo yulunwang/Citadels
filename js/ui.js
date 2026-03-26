@@ -558,10 +558,15 @@ function renderSpecial(charId){
 
   // ── Magician ──
   if(charId===3){
-    const r=el('div',{style:'display:flex;gap:8px;flex-wrap:wrap'});
-    r.appendChild(gbtn('🔄 Swap Hand','#9b6fff',()=>{S={...S,sub:'mag_swap'};render();}));
-    r.appendChild(gbtn('🗑️ Discard & Redraw','#9b6fff',()=>{S={...S,sub:'mag_discard',selCards:[]};render();}));
-    wrap.appendChild(r);return wrap;
+    if(me.magicianUsed){
+      wrap.appendChild(el('div',{style:'color:#9a8a64;font-size:12px'},'🧙 Magician ability used this turn.'));
+    }else{
+      const r=el('div',{style:'display:flex;gap:8px;flex-wrap:wrap'});
+      r.appendChild(gbtn('🔄 Swap Hand','#9b6fff',()=>{S={...S,sub:'mag_swap'};render();}));
+      r.appendChild(gbtn('🗑️ Discard & Redraw','#9b6fff',()=>{S={...S,sub:'mag_discard',selCards:[]};render();}));
+      wrap.appendChild(r);
+    }
+    return wrap;
   }
 
   // ── King ──
@@ -611,7 +616,9 @@ function renderSpecial(charId){
 
   // ── Wizard ──
   if(charId===11&&S.sub==='choose'){
-    if(!S.wizardTargetId){
+    if(me.wizardUsed){
+      wrap.appendChild(el('div',{style:'color:#9a8a64;font-size:12px'},'🔮 Wizard ability used this turn.'));
+    }else if(!S.wizardTargetId){
       const others=S.players.filter(p=>p.id!==0&&p.hand.length>0);
       if(!others.length){
         wrap.appendChild(el('div',{style:'color:#9a8a64;font-size:12px'},'No opponents have cards to take.'));
