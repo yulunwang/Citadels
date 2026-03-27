@@ -154,7 +154,9 @@ function renderLobby(opts){
   LS={...LS,...opts};
   hideCharTooltip();
   const app=document.getElementById('app');app.innerHTML='';
-  const page=el('div',{style:'min-height:100vh;display:flex;align-items:center;justify-content:center;background:#090c18;padding:20px'});
+  // page is exactly 100vh and scrolls internally — inner wrapper provides flex-centering for short content
+  const page=el('div',{style:'height:100vh;overflow-y:auto;background:#090c18'});
+  const inner=el('div',{style:'min-height:100%;display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box'});
   const box=el('div',{style:'background:#111530;border:1px solid #2a2f55;border-radius:16px;padding:28px 32px;max-width:600px;width:100%'});
 
   box.appendChild(el('div',{style:'font-family:Cinzel,serif;font-size:26px;color:#d4a843;text-align:center;margin-bottom:4px'},'⚜ Citadels'));
@@ -395,5 +397,5 @@ function renderLobby(opts){
     lb.style.display='block';lb.style.margin='0 auto';box.appendChild(lb);
   }
 
-  page.appendChild(box);app.appendChild(page);
+  inner.appendChild(box);page.appendChild(inner);app.appendChild(page);
 }

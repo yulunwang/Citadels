@@ -13,7 +13,8 @@ function calcScore(player,isFirst){
   let s=player.city.reduce((t,d)=>t+d.cost,0);
   if(isFirst)s+=4;else if(player.city.length>=8)s+=2;
   const base=new Set(player.city.filter(d=>d.special!=='flex_color').map(d=>d.color));
-  if(player.city.some(d=>d.special==='flex_color')&&base.size===4)
+  const flexCount=player.city.filter(d=>d.special==='flex_color').length;
+  if(flexCount>0&&base.size+flexCount>=5)
     ['yellow','blue','green','red','purple'].forEach(c=>{if(!base.has(c))base.add(c);});
   if(['yellow','blue','green','red','purple'].every(c=>base.has(c)))s+=3;
   player.city.forEach(d=>{
@@ -360,11 +361,20 @@ function doAITurn(state,pid,charId){
   }else{
     // Normal income
     const hasLib=p().city.some(d=>d.id==='library');
+    const hasObs=p().city.some(d=>d.id==='observatory');
     if(p().hand.length<3&&s.deck.length>0){
-      const cnt=hasLib?Math.min(2,s.deck.length):1;
+      const cnt=hasLib?Math.min(2,s.deck.length):hasObs?Math.min(3,s.deck.length):1;
       const drawn=s.deck.slice(0,cnt);
-      s={...s,deck:s.deck.slice(cnt),players:s.players.map(q=>q.id===pid?{...q,hand:[...q.hand,...drawn]}:q)};
-      events.push({icon:'🃏',text:`${p().name} draws ${cnt} card${cnt>1?'s':''} for income.`,color:'#888'});
+      if(hasObs&&cnt>1){
+        // Observatory: draw 3 keep best 1, discard rest back to deck
+        const best=[...drawn].sort((a,b)=>b.cost-a.cost)[0];
+        const disc=drawn.filter(d=>d.uid!==best.uid);
+        s={...s,deck:[...s.deck.slice(cnt),...disc],players:s.players.map(q=>q.id===pid?{...q,hand:[...q.hand,best]}:q)};
+        events.push({icon:'🔭',text:`${p().name} draws ${cnt}, keeps ${best.name} (Observatory).`,color:'#888'});
+      }else{
+        s={...s,deck:s.deck.slice(cnt),players:s.players.map(q=>q.id===pid?{...q,hand:[...q.hand,...drawn]}:q)};
+        events.push({icon:'🃏',text:`${p().name} draws ${cnt} card${cnt>1?'s':''} for income.`,color:'#888'});
+      }
     }else{
       s={...s,players:s.players.map(q=>q.id===pid?{...q,gold:q.gold+2}:q)};
       events.push({icon:'✦',text:`${p().name} collects 2✦ gold.`,color:'#d4a843'});
@@ -392,6 +402,13 @@ function doAITurn(state,pid,charId){
       const myH=[...p().hand],thH=[...most.hand];
       s={...s,players:s.players.map(q=>{if(q.id===pid)return{...q,hand:thH};if(q.id===most.id)return{...q,hand:myH};return q;})};
       events.push({icon:'🔄',text:`${p().name} swaps hands with ${most.name}!`,color:'#9b6fff'});
+    }else if(p().hand.length>0&&s.deck.length>0){
+      // Discard unaffordable cards and redraw the same number
+      const unaffordable=p().hand.filter(d=>buildCost(p(),d)>p().gold+6);
+      const toDiscard=unaffordable.length>0?unaffordable:p().hand.slice(0,1);
+      const deck=[...s.deck];const drawn=deck.splice(0,Math.min(toDiscard.length,deck.length));
+      s={...s,deck,players:s.players.map(q=>q.id===pid?{...q,hand:[...q.hand.filter(d=>!toDiscard.includes(d)),...drawn]}:q)};
+      events.push({icon:'🧙',text:`${p().name} (Magician) discards ${toDiscard.length} and redraws.`,color:'#9b6fff'});
     }else events.push({icon:'🧙',text:`${p().name} (Magician) keeps their hand.`,color:'#9b6fff'});
   }else if(charId===9){
     // Queen: SOT bonus already applied in applyStartOfTurn; no additional action needed
@@ -573,10 +590,12 @@ function humanNavigator(state,choice){
     s={...s,players:s.players.map(p=>p.id===0?{...p,gold:p.gold+4}:p)};
     return addLog(s,'You (Navigator) take 4✦ gold.');
   }
-  const cnt=Math.min(4,s.deck.length);
+  let deck=[...s.deck];let trash=[...s.trash];
+  if(!deck.length&&trash.length){deck=shuffle(trash);trash=[];}
+  const cnt=Math.min(4,deck.length);
   if(!cnt)return addLog({...s,players:s.players.map(p=>p.id===0?{...p,gold:p.gold+4}:p)},'You (Navigator) take 4✦ gold (no cards left).');
-  const drawn=s.deck.slice(0,cnt);
-  s={...s,deck:s.deck.slice(cnt),players:s.players.map(p=>p.id===0?{...p,hand:[...p.hand,...drawn]}:p)};
+  const drawn=deck.slice(0,cnt);
+  s={...s,deck:deck.slice(cnt),trash,players:s.players.map(p=>p.id===0?{...p,hand:[...p.hand,...drawn]}:p)};
   return addLog(s,`You (Navigator) draw ${cnt} cards.`);
 }
 function humanWizardTarget(state,targetId){
