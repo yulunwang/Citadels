@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "citadels-dev",
+      "runtimeExecutable": "C:\\Program Files\\Git\\usr\\bin\\perl.exe",
+      "runtimeArgs": ["serve.pl"],
+      "port": 3000,
+      "autoPort": true
+    }
+  ]
+}
