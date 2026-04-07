@@ -11,6 +11,8 @@ Apply the full visual redesign to every UI component. This is the creative phase
 
 **Remember from the frontend-design principles**: Claude is capable of extraordinary creative work. Don't hold back. Commit fully to the Light Fantasy Elegance aesthetic.
 
+**Responsive is non-negotiable**: Every component must be designed for all screen sizes simultaneously. Implement mobile layout alongside desktop layout — do not defer responsive work to Phase 4. Use the breakpoints and per-component rules in `design-system.md § Responsive Design`.
+
 ## Scope
 **Files to modify:**
 - `css/style.css` — Enhance existing classes, add new decorative styles
@@ -64,6 +66,11 @@ All changes are RENDERING ONLY. The game state object `S`, all action functions 
 8. **Player list**: Cards with avatars/colors, ready indicators
 9. **Entrance animation**: `fadeSlideUp` on screen transitions (apply `.animate-in` class)
 
+### Responsive Rules (3A)
+- **Mobile (≤768px)**: Mode cards stack vertically, full-width. `.lobby-box` uses full viewport width with small margin. Inputs are full-width. Room code text scales down to fit.
+- **Tablet (≤1024px)**: Mode cards in 2-column grid. Lobby box max-width 480px centered.
+- All inputs: `min-height: 44px` for touch targets.
+
 ### Screen-by-Screen Details
 
 **Home screen**:
@@ -105,6 +112,11 @@ All changes are RENDERING ONLY. The game state object `S`, all action functions 
    - **Unavailable**: dimmed, no hover effect
 5. **Grid**: `repeat(auto-fill, minmax(180px, 1fr))`, centered, generous gap
 
+### Responsive Rules (3B)
+- **Mobile**: `minmax(110px, 1fr)` — 2-3 columns at small sizes. Cards at 110px width.
+- **Tablet**: `minmax(140px, 1fr)` — 3-4 columns. Cards at 140px width.
+- Character card name text must remain legible at all sizes — use `font-size: clamp(11px, 1.5vw, 14px)`.
+
 ---
 
 ## Component 3C: Herald Screen
@@ -128,6 +140,11 @@ All changes are RENDERING ONLY. The game state object `S`, all action functions 
 7. **Continue button**: Full-width, character-colored, with subtle gradient
 8. **Background tint**: Subtle wash matching character color (via `--herald-clr` variable on container)
 9. **Transition**: When advancing to next character, slide-out + slide-in animation
+
+### Responsive Rules (3C)
+- **Mobile**: Portrait at 110px, pips collapse to a simple color-dot row (no thumbnails — too small). Events show icon + text only (no background card).
+- **Tablet**: Portrait at 150px, thumbnail pips visible.
+- Herald card max-width: 100% on mobile, 680px on desktop.
 
 ---
 
@@ -166,6 +183,11 @@ All changes are RENDERING ONLY. The game state object `S`, all action functions 
    ```
 6. **Active buildings** (Smithy): Distinct panel with ⚒️ icon and "Pay 2✦" button
 
+### Responsive Rules (3D)
+- **Mobile**: Banner portrait shrinks to 70px. Income buttons stack vertically (full-width). Target selection grid uses 2 columns max. End Turn button always full-width with `min-height: 48px`.
+- **Tablet**: Banner portrait at 80px. Income buttons side by side.
+- Build section cards wrap naturally — `flex-wrap: wrap` already handles this.
+
 ---
 
 ## Component 3E: Top Bar & Player Panels
@@ -182,6 +204,10 @@ All changes are RENDERING ONLY. The game state object `S`, all action functions 
 3. **City chips**: Show district thumbnail (if available) + name + cost
 4. **Tooltips**: Cleaner styling, match new palette
 
+### Responsive Rules (3E)
+- **Mobile**: Player grid is 1-column. Stats row wraps to 2 lines if needed. City chips truncate long district names with `text-overflow: ellipsis`. Top bar `max-height` increases slightly to accommodate the taller stacked layout.
+- **Tablet**: 2-column player grid. Thumbnails at 24px.
+
 ---
 
 ## Component 3F: Bottom Panel
@@ -197,6 +223,10 @@ All changes are RENDERING ONLY. The game state object `S`, all action functions 
    - Each color group has a subtle header
    - Cards show district thumbnails
    - Selected card: golden glow ring
+
+### Responsive Rules (3F)
+- **Mobile**: Hand and city panels stack vertically (`flex-direction: column`). Each panel gets `max-height: 40vh` with scroll. Portrait cards shrink to 96px width.
+- **Tablet**: Side by side (default), portrait cards at 110px.
 
 ---
 
@@ -215,6 +245,10 @@ All changes are RENDERING ONLY. The game state object `S`, all action functions 
 5. **City display**: All district images in a wrap grid, organized by color
 6. **Bonus breakdown**: Score components listed with icons
 7. **"Play Again" button**: Large, prominent, golden, centered
+
+### Responsive Rules (3G)
+- **Mobile**: Rankings in a single full-width vertical list (no podium). Each row: rank number + name + score. City grid uses 2-column wrap of small district chips.
+- **Tablet**: Podium layout for top 3 (side by side), smaller rows for the rest.
 
 ---
 
@@ -285,6 +319,10 @@ Add to `css/style.css`:
 - [ ] Extensions: extension API still works (test if any are enabled)
 - [ ] No JavaScript errors in console
 - [ ] Performance: no visible jank or lag
+- [ ] **Responsive — Mobile (768px)**: Lobby stacks vertically, player grid is 1-column, bottom panels stack, draft fits in 2 columns
+- [ ] **Responsive — Tablet (1024px)**: Player grid is 2-column, draft fits in 3-4 columns, lobby box is centered
+- [ ] **Touch targets**: All buttons/cards ≥44px tall on mobile
+- [ ] **Fluid text**: Titles scale with `clamp()` and don't overflow at any size
 
 ## Success Criteria
-The game looks like a premium board game companion app — light, airy, richly illustrated, and polished. Every component has visual intentionality. The aesthetic is cohesive and distinctive. It looks NOTHING like generic AI-generated UI.
+The game looks like a premium board game companion app — light, airy, richly illustrated, and polished. Every component has visual intentionality. The aesthetic is cohesive and distinctive. It looks NOTHING like generic AI-generated UI. It works beautifully on mobile, tablet, and desktop.

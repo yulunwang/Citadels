@@ -196,14 +196,16 @@ Object.keys(DEMOJI).forEach(function(id) {
 ### Wire Images into Rendering
 
 **In `mkCard()` (`js/ui.js`)**:
-The `.dcard-emoji-col` div should get a background image:
+The `.dcard-emoji-col` div should get a background image. Because CSS `background-image` on a `<div>` never fires DOM `error` events, use a hidden `Image()` probe to detect load failures and fall back to the emoji:
 ```js
+var imgSrc = IMG.district[d.id].full;
 var emojiCol = el('div', { class: 'dcard-emoji-col has-img', 'data-emoji': emoji });
-emojiCol.style.backgroundImage = 'url(' + IMG.district[d.id].full + ')';
-emojiCol.onerror = function() { this.classList.add('img-error'); };
+emojiCol.style.backgroundImage = 'url(' + imgSrc + ')';
+// Probe load via Image() — divs don't fire onerror for background-image
+var probe = new Image();
+probe.onerror = function() { emojiCol.classList.add('img-error'); };
+probe.src = imgSrc;
 ```
-
-Note: Since it's a background-image (not an `<img>` tag), use an `<img>` element with `display:none` to detect load errors, or use JS `Image()` preloading.
 
 **In `renderDraft()` (`js/ui.js`)**:
 Character cards get portrait backgrounds:

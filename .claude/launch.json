@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "citadels-dev",
-      "runtimeExecutable": "C:\\Program Files\\Git\\usr\\bin\\perl.exe",
-      "runtimeArgs": ["serve.pl"],
+      "runtimeExecutable": "C:\\Program Files\\Git\\bin\\bash.exe",
+      "runtimeArgs": ["serve.sh"],
       "port": 3000,
       "autoPort": true
     }

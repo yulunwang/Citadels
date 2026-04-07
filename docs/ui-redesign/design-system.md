@@ -340,21 +340,79 @@ JS `onerror` handler adds `.img-error` class when image fails to load.
 
 ---
 
-## Responsive Breakpoints
+## Responsive Design
+
+All components must be designed **mobile-first**: start with the smallest layout and add complexity as the viewport grows. The game must be fully playable and readable at every breakpoint.
+
+### Breakpoints
+
+| Name | Width | Layout changes |
+|------|-------|---------------|
+| Mobile | ≤ 768px | Single column, stacked panels, compact cards |
+| Tablet | ≤ 1024px | 2-column player grid, medium cards |
+| Desktop | > 1024px | Full 4-column layout (default) |
+
+### Breakpoint CSS
 
 ```css
-/* Tablet */
+/* ── Tablet (≤1024px) ── */
 @media (max-width: 1024px) {
   .tb-grid { grid-template-columns: repeat(2, 1fr); }
   .dcard.portrait { width: 110px; }
+  .dcard.portrait .dcard-emoji-col { height: 52px; font-size: 24px; }
+  .herald-portrait { width: 150px; }
+  .draft-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+  .lobby-mode-grid { gap: var(--space-md); }
+  .action-banner-emoji, .action-banner img { width: 80px; }
 }
 
-/* Mobile */
+/* ── Mobile (≤768px) ── */
 @media (max-width: 768px) {
   .tb-grid { grid-template-columns: 1fr; }
   #bottom { flex-direction: column; }
-  #bot-hand, #bot-city { width: 100%; border-right: none; }
-  .dcard.portrait { width: 100px; }
+  #bot-hand, #bot-city { width: 100%; border-right: none; max-height: 40vh; }
+  #bot-hand { border-bottom: 1px solid var(--border-subtle); }
+  .dcard.portrait { width: 96px; }
+  .herald-portrait { width: 110px; }
+  .draft-grid { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); }
+  .lobby-mode-grid { flex-direction: column; }
+  .lobby-box { margin: var(--space-sm); padding: var(--space-lg); }
+  .gameover-podium { flex-direction: column; align-items: center; }
+  #main { max-height: 50vh; }
+  .action-end-turn { font-size: 13px; padding: 12px; }
+}
+```
+
+### Per-Component Responsive Rules
+
+| Component | Mobile | Tablet |
+|-----------|--------|--------|
+| **Top bar** | 1-column player stack, condensed stats | 2-column player grid |
+| **Draft** | 2-column char grid, smaller cards (110px) | 3-column grid (140px) |
+| **Herald** | Smaller portrait (110px), stacked events | Medium portrait (150px) |
+| **Action** | Smaller banner portrait (70px), full-width buttons | Medium portrait (80px) |
+| **Bottom panel** | Stacked vertically (hand above city) | Side by side (default) |
+| **Lobby** | Single-column mode selection, full-width inputs | Wider box, multi-column mode cards |
+| **Game over** | Stacked ranking (no podium), full-width rows | Side-by-side podium |
+
+### Fluid Typography
+
+Use `clamp()` for key text sizes to scale gracefully:
+```css
+.lobby-title { font-size: clamp(20px, 4vw, 32px); }
+.herald-title { font-size: clamp(18px, 3vw, 26px); }
+.tb-title { font-size: clamp(14px, 2vw, 18px); }
+```
+
+### Touch Targets
+
+All interactive elements must have a minimum touch target of **44×44px** on mobile. Use padding to expand small elements without changing their visual size:
+```css
+@media (max-width: 768px) {
+  .gbtn { min-height: 44px; padding: 10px 16px; }
+  .charcard { min-height: 44px; }
+  .dcard.clickable { min-height: 44px; }
+  .tb-chip-label { min-height: 36px; padding: 6px 10px; }
 }
 ```
 

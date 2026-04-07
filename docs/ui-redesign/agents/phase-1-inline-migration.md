@@ -74,7 +74,7 @@ New pattern:
 ```js
 function gbtn(label, color, onClick, extra) {
   var b = el('button', {
-    class: 'gbtn' + (extra ? '' : ''),
+    class: 'gbtn',
     style: '--btn-clr:' + color + ';' + (extra || ''),
   }, label);
   b.onclick = onClick;

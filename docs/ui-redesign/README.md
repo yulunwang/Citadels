@@ -6,6 +6,8 @@ Full visual redesign of the Citadels web game. Transform from a dark, emoji-base
 
 **Aesthetic**: Light Fantasy Elegance — warm cream backgrounds, vibrant district colors, illustrated character/card art, Cinzel serif typography, watercolor/gouache art style.
 
+**Responsive**: The redesign must work across all screen sizes. Every component is built mobile-first with breakpoints at 768px (mobile) and 1024px (tablet). See `design-system.md` for breakpoint specs and `agents/phase-3-component-redesign.md` for per-component responsive rules.
+
 ## Document Index
 
 | Document | Purpose |
