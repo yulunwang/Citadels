@@ -81,3 +81,19 @@ Hook points in the engine:
 - `EXT._extraDistricts` — extra districts shuffled into the deck (consumed by `mkDeck`)
 
 Use character IDs ≥ 9 for new characters to avoid base-game conflicts.
+
+## UI Redesign (Active Project)
+
+A full visual redesign is in progress. All agent instructions and design specifications are in [`docs/ui-redesign/`](docs/ui-redesign/README.md).
+
+**Key documents for any UI work:**
+- `docs/ui-redesign/design-system.md` — Colors, typography, components, image system
+- `docs/ui-redesign/frontend-design-principles.md` — Aesthetic guidelines (MUST READ)
+- `docs/ui-redesign/agents/phase-{0-4}-*.md` — Step-by-step agent instructions per phase
+
+**Critical rules for UI changes:**
+- NEVER modify `js/engine.js`, `js/net.js`, or `js/ext-api.js`
+- All colors must use CSS custom properties (`:root` variables in `css/style.css`)
+- All styling must use CSS classes, not inline styles in JS
+- Images are referenced via the global `IMG` object in `js/data.js`
+- Follow the Light Fantasy Elegance aesthetic: warm cream backgrounds, Cinzel typography, watercolor-style art
