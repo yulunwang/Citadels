@@ -25,11 +25,11 @@ const CHARS=[
 ];
 
 const CS={
-  yellow:{bg:'#1c1608',bdr:'#6a4e10',txt:'#d4a843',bar:'#d4a843',label:'Noble'},
-  blue:  {bg:'#08121e',bdr:'#1e3f63',txt:'#5a9fd4',bar:'#5a9fd4',label:'Religious'},
-  green: {bg:'#081408',bdr:'#1a4a20',txt:'#4db87a',bar:'#4db87a',label:'Trade'},
-  red:   {bg:'#1a0808',bdr:'#631e1e',txt:'#d45a5a',bar:'#d45a5a',label:'Military'},
-  purple:{bg:'#110820',bdr:'#4a1a7a',txt:'#c084fc',bar:'#c084fc',label:'Unique'},
+  yellow:{bg:'#fdf6e3',bdr:'#d4a843',txt:'#8b6914',bar:'#d4a843',label:'Noble'},
+  blue:  {bg:'#eef5fb',bdr:'#5a9fd4',txt:'#1a5f8a',bar:'#5a9fd4',label:'Religious'},
+  green: {bg:'#eef8f0',bdr:'#4db87a',txt:'#1a6b3a',bar:'#4db87a',label:'Trade'},
+  red:   {bg:'#fdf0f0',bdr:'#d45a5a',txt:'#8b2020',bar:'#d45a5a',label:'Military'},
+  purple:{bg:'#f5eefb',bdr:'#9b6fff',txt:'#5a2890',bar:'#9b6fff',label:'Unique'},
 };
 
 // Emoji per district id
