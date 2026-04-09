@@ -359,20 +359,26 @@ function renderDraft(){
     const removed=faceUp.includes(c.id);
     const stateClass=avail?'available':removed?'removed':'unavailable';
     const card=el('div',{class:`charcard ${stateClass}`,style:`--char-clr:${c.clr}`});
-    if(typeof IMG !== 'undefined' && IMG.char[c.id]) {
-      card.style.backgroundImage = 'url(' + IMG.char[c.id].full + ')';
-      card.style.backgroundSize = 'cover';
-      card.style.backgroundPosition = 'center top';
-      card.style.position = 'relative';
-      card.classList.add('has-img');
-    }
-    card.appendChild(el('div',{class:'charcard-emoji'},c.emoji));
-    card.appendChild(el('div',{class:`charcard-name${avail?' available':''}`},`${c.rank}. ${c.name}`));
-    if(removed){
-      card.appendChild(el('div',{class:'charcard-removed-label'},'✕ NOT IN PLAY'));
+    // Image zone — top portion of card
+    const imgZone=el('div',{class:'charcard-img-zone'});
+    if(typeof IMG!=='undefined'&&IMG.char[c.id]){
+      const img=el('img',{src:IMG.char[c.id].full,alt:c.name,class:'charcard-portrait'});
+      img.onerror=function(){imgZone.textContent=c.emoji;imgZone.classList.add('charcard-img-fallback');};
+      imgZone.appendChild(img);
     }else{
-      card.appendChild(el('div',{class:'charcard-ability'},c.ability));
+      imgZone.classList.add('charcard-img-fallback');
+      imgZone.textContent=c.emoji;
     }
+    card.appendChild(imgZone);
+    // Info zone — bottom portion, always clean background
+    const infoZone=el('div',{class:'charcard-info-zone'});
+    infoZone.appendChild(el('div',{class:`charcard-name${avail?' available':''}`},`${c.rank}. ${c.name}`));
+    if(removed){
+      infoZone.appendChild(el('div',{class:'charcard-removed-label'},'✕ NOT IN PLAY'));
+    }else{
+      infoZone.appendChild(el('div',{class:'charcard-ability'},c.ability));
+    }
+    card.appendChild(infoZone);
     if(avail){
       card.onclick=()=>{const result=humanDraft(S,c.id);if(result)S=result;render();};
     }
