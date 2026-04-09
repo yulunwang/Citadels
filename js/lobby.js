@@ -156,6 +156,10 @@ function renderLobby(opts){
   const app=document.getElementById('app');app.innerHTML='';
   // page is exactly 100vh and scrolls internally — inner wrapper provides flex-centering for short content
   const page=el('div',{class:'lobby-page'});
+  if(typeof IMG !== 'undefined') {
+    page.style.backgroundImage = 'url(' + IMG.bg.lobby + ')';
+    page.style.backgroundSize = 'cover';
+  }
   const inner=el('div',{class:'lobby-inner'});
   const box=el('div',{class:'lobby-box'});
 

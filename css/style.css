@@ -465,6 +465,14 @@ body{
   .dcard.portrait .dcard-emoji-col { height: 52px; font-size: 24px; }
 }
 
+/* ── Image integration ── */
+.dcard-emoji-col.has-img { font-size: 0; }
+.herald-portrait { width: 80px; height: 120px; border-radius: var(--radius-md); object-fit: cover; box-shadow: var(--shadow-card); flex-shrink: 0; }
+.herald-icon { font-size: 48px; line-height: 1; flex-shrink: 0; }
+.charcard.has-img { background-size: cover; background-position: center top; color: var(--text-on-dark); }
+.charcard.has-img .charcard-ability { text-shadow: 0 1px 3px rgba(0,0,0,0.6); }
+.charcard.has-img .charcard-name { text-shadow: 0 1px 3px rgba(0,0,0,0.6); }
+
 /* ── Mobile (≤768px) ── */
 @media (max-width: 768px) {
   .tb-grid { grid-template-columns: 1fr; }

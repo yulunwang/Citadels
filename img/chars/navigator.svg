@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 768">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#cce4f8"/>
+      <stop offset="100%" stop-color="#0a3870"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="768" fill="url(#bg)" rx="12"/>
+  <rect x="4" y="4" width="504" height="760" rx="10" fill="none" stroke="#4a90d9" stroke-opacity="0.3" stroke-width="1"/>
+  <text x="256" y="380" text-anchor="middle" font-size="120">⚓</text>
+  <rect x="0" y="668" width="512" height="100" fill="rgba(0,0,0,0.35)" rx="0"/>
+  <text x="256" y="728" text-anchor="middle" fill="white" font-family="serif" font-size="28" font-weight="bold">Navigator</text>
+</svg>
