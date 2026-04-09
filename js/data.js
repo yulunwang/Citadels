@@ -71,6 +71,30 @@ const SDESC={
   quarry:      'You may build duplicate districts (same-name districts already in your city).',
 };
 
+// ── Image asset registry ──
+var IMG_EXT = 'svg';  // Change to 'webp' when real art is ready
+var IMG = { char:{}, district:{}, bg:{}, ui:{} };
+
+CHARS.forEach(function(c) {
+  var slug = c.name.toLowerCase().replace(/[^a-z]/g, '_');
+  IMG.char[c.id] = {
+    full: 'img/chars/' + slug + '.' + IMG_EXT,
+    thumb: 'img/chars/thumb/' + slug + '.' + IMG_EXT
+  };
+});
+Object.keys(DEMOJI).forEach(function(id) {
+  IMG.district[id] = {
+    full: 'img/districts/' + id + '.' + IMG_EXT,
+    thumb: 'img/districts/thumb/' + id + '.' + IMG_EXT
+  };
+});
+['lobby','game','draft','gameover'].forEach(function(k) {
+  IMG.bg[k] = 'img/bg/' + k + '.' + IMG_EXT;
+});
+['gold','card','crown','build','sword','score'].forEach(function(k) {
+  IMG.ui[k] = 'img/ui/' + k + '.svg';
+});
+
 const CHAR_PRESETS={
   2:[1,2,3,4,5,6,7,8],
   3:[1,2,3,4,5,6,7,8],

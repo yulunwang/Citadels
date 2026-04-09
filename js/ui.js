@@ -42,6 +42,17 @@ function mkCard(d,opts){
     emojiCol.style.fontSize=(small?14:22)+'px';
   }
   emojiCol.textContent=DEMOJI[d.id]||'🏛';
+  // Try to load district art
+  if(typeof IMG !== 'undefined' && IMG.district[d.id]) {
+    var imgSrc = IMG.district[d.id].full;
+    emojiCol.style.backgroundImage = 'url(' + imgSrc + ')';
+    emojiCol.style.backgroundSize = 'cover';
+    emojiCol.style.backgroundPosition = 'center';
+    var probe = new Image();
+    probe.onload = function() { emojiCol.textContent = ''; };
+    probe.onerror = function() { emojiCol.style.backgroundImage = ''; };
+    probe.src = imgSrc;
+  }
   div.appendChild(emojiCol);
 
   const infoCol=el('div',{class:'dcard-info-col'});
@@ -75,6 +86,10 @@ function render(){
   if(S.phase==='gameover'){app.appendChild(renderGameOver());return;}
 
   const wrap=el('div',{class:'game-wrap'});
+  if(typeof IMG !== 'undefined') {
+    wrap.style.backgroundImage = 'url(' + IMG.bg.game + ')';
+    wrap.style.backgroundSize = 'cover';
+  }
 
   // ── TOP BAR ──────────────────────────────────────────────────────────────────
   const topbar=el('div',{id:'topbar'});
@@ -256,7 +271,19 @@ function renderHerald(){
   const card=el('div',{class:'herald-card'});
   card.appendChild(el('div',{class:'herald-char-num'},`Character ${beat.charId} of ${Math.max(0,...S.charPool.map(charRank))}`));
   const iconRow=el('div',{class:'herald-icon-row'});
-  iconRow.appendChild(el('span',{class:'herald-icon'},c.emoji));
+  var portraitEl;
+  if(typeof IMG !== 'undefined' && IMG.char[c.id]) {
+    portraitEl = el('img', {src: IMG.char[c.id].full, alt: c.name, class: 'herald-portrait'});
+    portraitEl.onerror = function() {
+      var span = el('span', {class:'herald-icon'});
+      span.textContent = c.emoji;
+      if(portraitEl.parentNode) portraitEl.parentNode.replaceChild(span, portraitEl);
+    };
+  } else {
+    portraitEl = el('span', {class:'herald-icon'});
+    portraitEl.textContent = c.emoji;
+  }
+  iconRow.appendChild(portraitEl);
   const titleBlock=el('div',{class:'herald-title-block'});
   const titleEl=el('div',{class:'herald-title'});titleEl.style.color=c.clr;titleEl.textContent=c.name;titleBlock.appendChild(titleEl);
   titleBlock.appendChild(el('div',{class:'herald-ability'},c.ability));
@@ -332,6 +359,13 @@ function renderDraft(){
     const removed=faceUp.includes(c.id);
     const stateClass=avail?'available':removed?'removed':'unavailable';
     const card=el('div',{class:`charcard ${stateClass}`,style:`--char-clr:${c.clr}`});
+    if(typeof IMG !== 'undefined' && IMG.char[c.id]) {
+      card.style.backgroundImage = 'url(' + IMG.char[c.id].full + ')';
+      card.style.backgroundSize = 'cover';
+      card.style.backgroundPosition = 'center top';
+      card.style.position = 'relative';
+      card.classList.add('has-img');
+    }
     card.appendChild(el('div',{class:'charcard-emoji'},c.emoji));
     card.appendChild(el('div',{class:`charcard-name${avail?' available':''}`},`${c.rank}. ${c.name}`));
     if(removed){
