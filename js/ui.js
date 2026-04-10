@@ -157,11 +157,14 @@ function render(){
     const isMe=p.id===0;
     const cls='tb-player'+(isActive?' active':'')+(isMe?' me':'')+(compact?' tb-player-compact':'');
     const pDiv=el('div',{class:cls});
+    // Row 1: crown + name (+ YOU/dead badge). In compact mode: name truncates, char badge moves to r2.
     const r1=el('div',{class:'tb-player-row1'});
     if(S.crown===p.id)r1.appendChild(el('span',null,'👑'));
     r1.appendChild(el('span',{class:'tb-player-name'},p.name));
     if(isMe)r1.appendChild(el('span',{class:'badge-you'},'YOU'));
     if(p.dead)r1.appendChild(el('span',{class:'badge-dead'},'☠️'));
+    pDiv.appendChild(r1);
+    // Character visibility
     let charRevealed=isMe;
     if(!charRevealed&&p.char){
       if(S.phase==='action'){charRevealed=charRank(p.char)<S.callIdx;}
@@ -170,15 +173,24 @@ function render(){
         charRevealed=beatIdx>=0&&beatIdx<S.heraldIdx;
       }
     }
-    if(p.char&&charRevealed){const c=charById(p.char);
-      const badge=el('span',{class:'tb-player-char',style:`--char-clr:${c.clr};color:var(--char-clr);border-color:color-mix(in srgb,var(--char-clr) 35%,var(--border-main));background:color-mix(in srgb,var(--char-clr) 10%,var(--bg-card))`});
-      badge.textContent=`${c.emoji} ${c.name}`;r1.appendChild(badge);
-    }else if(p.char&&!charRevealed&&!isMe){
-      const badge=el('span',{class:'tb-player-char badge-hidden'});
-      badge.textContent='🎭 Hidden';r1.appendChild(badge);
-    }
-    pDiv.appendChild(r1);
+    // In full panels: char badge in row1. In compact: char badge in row2 inline with stats.
     const r2=el('div',{class:'tb-player-stats'});
+    if(!compact){
+      if(p.char&&charRevealed){const c=charById(p.char);
+        const badge=el('span',{class:'tb-player-char',style:`--char-clr:${c.clr};color:var(--char-clr);border-color:color-mix(in srgb,var(--char-clr) 35%,var(--border-main));background:color-mix(in srgb,var(--char-clr) 10%,var(--bg-card))`});
+        badge.textContent=`${c.emoji} ${c.name}`;r1.appendChild(badge);
+      }else if(p.char&&!charRevealed&&!isMe){
+        const badge=el('span',{class:'tb-player-char badge-hidden'});badge.textContent='🎭 Hidden';r1.appendChild(badge);
+      }
+    }else{
+      // Compact: tiny char indicator prefixed to stats row
+      if(p.char&&charRevealed){const c=charById(p.char);
+        const badge=el('span',{class:'tb-player-char tb-char-compact',style:`--char-clr:${c.clr};color:var(--char-clr)`});
+        badge.textContent=`${c.emoji}`;r2.appendChild(badge);
+      }else if(p.char&&!charRevealed&&!isMe){
+        const badge=el('span',{class:'tb-char-compact tb-char-hidden'},'🎭');r2.appendChild(badge);
+      }
+    }
     r2.innerHTML=`<span>💰<span class="tb-stat-val"> ${p.gold}✦</span></span>`+
       `<span>🏰<span class="tb-stat-val"> ${p.city.length}/8</span></span>`+
       `<span>🃏<span class="tb-stat-val"> ${p.hand.length}</span></span>`+
@@ -278,12 +290,17 @@ function render(){
   const myScore=calcScore(me,S.firstCompleter===me.id);
 
   const botHand=el('div',{id:'bot-hand'});
+  // Single merged header: section title + character + gold/cards all on one row
   const handLabel=el('div',{class:'bot-label'});
-  handLabel.innerHTML=`<span>YOUR HAND</span><span class="bot-label-right">💰 ${me.gold}✦ &nbsp;🃏 ${me.hand.length} cards</span>`;
-  botHand.appendChild(handLabel);
+  const handLeft=el('span',{class:'bot-label-left'});
+  handLeft.appendChild(el('span',null,'YOUR HAND'));
   if(me.char){const c=charById(me.char);
-    const paDiv=el('div',{class:'playing-as',style:`color:${c.clr}`},`${c.emoji} Playing as ${c.name}`);
-    botHand.appendChild(paDiv);}
+    const charBadge=el('span',{class:'bot-char-badge',style:`color:${c.clr};border-color:color-mix(in srgb,${c.clr} 35%,var(--border-main));background:color-mix(in srgb,${c.clr} 10%,var(--bg-card))`},`${c.emoji} ${c.name}`);
+    handLeft.appendChild(charBadge);
+  }
+  handLabel.appendChild(handLeft);
+  handLabel.appendChild(el('span',{class:'bot-label-right'},`💰 ${me.gold}✦  🃏 ${me.hand.length}`));
+  botHand.appendChild(handLabel);
   const handWrap=el('div',{class:'cards-wrap'});
   if(me.hand.length)me.hand.forEach(d=>handWrap.appendChild(mkCard(d,{portrait:true,player:me})));
   else handWrap.appendChild(el('span',{class:'state-empty'},'No cards in hand'));
