@@ -357,7 +357,10 @@ function renderDraft(){
   CHARS.filter(c=>S.charPool.includes(c.id)).forEach(c=>{
     const avail=S.avail.includes(c.id);
     const removed=faceUp.includes(c.id);
-    const stateClass=avail?'available':removed?'removed':'unavailable';
+    // Hide cards already drafted by others (unavailable & not face-up removed)
+    // — showing them would reveal which character another player picked
+    if(!avail&&!removed)return;
+    const stateClass=avail?'available':'removed';
     const card=el('div',{class:`charcard ${stateClass}`,style:`--char-clr:${c.clr}`});
     // Image zone — top portion of card
     const imgZone=el('div',{class:'charcard-img-zone'});
