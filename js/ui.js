@@ -106,15 +106,12 @@ function render(){
   tbHdr.appendChild(endBtn);
   topbar.appendChild(tbHdr);
 
-  const tbGrid=el('div',{class:'tb-grid'});
-  const displayOrder=[...S.players].sort((a,b)=>{
-    const ai=S.draftOrder.indexOf(a.id);const bi=S.draftOrder.indexOf(b.id);
-    return(ai===-1?99:ai)-(bi===-1?99:bi);
-  });
-  displayOrder.forEach(p=>{
+  // Helper: build a player panel div
+  function mkPlayerPanel(p,compact){
     const isActive=(S.phase==='action')&&charRank(p.char)===S.callIdx&&!p.dead;
     const isMe=p.id===0;
-    const pDiv=el('div',{class:'tb-player'+(isActive?' active':'')+(isMe?' me':'')});
+    const cls='tb-player'+(isActive?' active':'')+(isMe?' me':'')+(compact?' tb-player-compact':'');
+    const pDiv=el('div',{class:cls});
     const r1=el('div',{class:'tb-player-row1'});
     if(S.crown===p.id)r1.appendChild(el('span',null,'👑'));
     r1.appendChild(el('span',{class:'tb-player-name'},p.name));
@@ -122,17 +119,16 @@ function render(){
     if(p.dead)r1.appendChild(el('span',{class:'badge-dead'},'☠️'));
     let charRevealed=isMe;
     if(!charRevealed&&p.char){
-      if(S.phase==='action'){
-        charRevealed=charRank(p.char)<S.callIdx;
-      }else if(S.phase==='herald'){
+      if(S.phase==='action'){charRevealed=charRank(p.char)<S.callIdx;}
+      else if(S.phase==='herald'){
         const beatIdx=S.heraldQueue.findIndex(b=>b.charId===p.char);
         charRevealed=beatIdx>=0&&beatIdx<S.heraldIdx;
       }
     }
-    if(p.char && charRevealed){const c=charById(p.char);
+    if(p.char&&charRevealed){const c=charById(p.char);
       const badge=el('span',{class:'tb-player-char',style:`--char-clr:${c.clr};color:var(--char-clr);border-color:color-mix(in srgb,var(--char-clr) 35%,var(--border-main));background:color-mix(in srgb,var(--char-clr) 10%,var(--bg-card))`});
-      badge.textContent=`${c.emoji} ${c.name}`;r1.appendChild(badge);}
-    else if(p.char && !charRevealed && !isMe){
+      badge.textContent=`${c.emoji} ${c.name}`;r1.appendChild(badge);
+    }else if(p.char&&!charRevealed&&!isMe){
       const badge=el('span',{class:'tb-player-char badge-hidden'});
       badge.textContent='🎭 Hidden';r1.appendChild(badge);
     }
@@ -143,29 +139,65 @@ function render(){
       `<span>🃏<span class="tb-stat-val"> ${p.hand.length}</span></span>`+
       `<span>📊<span class="tb-stat-val"> ${calcScore(p,S.firstCompleter===p.id)}pts</span></span>`;
     pDiv.appendChild(r2);
-    if(p.city.length){
+    if(!compact&&p.city.length){
       const cityDiv=el('div',{class:'tb-city'});
       p.city.forEach(d=>{
         const isUnique=d.color==='purple'&&d.special&&SDESC[d.special];
         const chip=el('div',{class:'tb-chip'+(isUnique?' has-tip':'')});
         const label=el('span',{class:'tb-chip-label color-'+d.color});
         label.appendChild(document.createTextNode(`${DEMOJI[d.id]||'🏛'} ${d.name} `));
-        const ptsSpan=el('span',{class:'tb-chip-pts'});
-        ptsSpan.textContent=`${d.cost}✦`;
-        label.appendChild(ptsSpan);
-        chip.appendChild(label);
-        if(isUnique){
-          const tip=el('div',{class:'tb-chip-tip'});
-          tip.textContent=`✨ ${d.name}\n${SDESC[d.special]}`;
-          chip.appendChild(tip);
-        }
+        const ptsSpan=el('span',{class:'tb-chip-pts'});ptsSpan.textContent=`${d.cost}✦`;
+        label.appendChild(ptsSpan);chip.appendChild(label);
+        if(isUnique){const tip=el('div',{class:'tb-chip-tip'});tip.textContent=`✨ ${d.name}\n${SDESC[d.special]}`;chip.appendChild(tip);}
         cityDiv.appendChild(chip);
       });
       pDiv.appendChild(cityDiv);
     }
-    tbGrid.appendChild(pDiv);
-  });
-  topbar.appendChild(tbGrid);
+    // Tap any panel to see city details in a bottom sheet
+    pDiv.style.cursor='pointer';
+    pDiv.onclick=function(e){
+      e.stopPropagation();
+      var existing=document.getElementById('player-detail-sheet');
+      if(existing){existing.remove();return;}
+      var sheet=el('div',{id:'player-detail-sheet'});
+      sheet.onclick=function(ev){if(ev.target===sheet)sheet.remove();};
+      var box=el('div',{class:'player-detail-box'});
+      var hdr=el('div',{class:'player-detail-hdr'});
+      hdr.appendChild(el('span',{class:'player-detail-name'},p.name+(isMe?' (You)':'')));
+      var score=calcScore(p,S.firstCompleter===p.id);
+      hdr.appendChild(el('span',{class:'player-detail-score'},`💰${p.gold}✦  🏰${p.city.length}/8  📊${score}pts`));
+      var closeBtn=el('button',{class:'player-detail-close'},'✕');
+      closeBtn.onclick=function(){sheet.remove();};
+      hdr.appendChild(closeBtn);
+      box.appendChild(hdr);
+      if(p.city.length){
+        var cityWrap=el('div',{class:'player-detail-city'});
+        ['yellow','blue','green','red','purple'].forEach(function(col){
+          p.city.filter(function(d){return d.color===col;}).forEach(function(d){cityWrap.appendChild(mkCard(d,{portrait:true,player:p}));});
+        });
+        box.appendChild(cityWrap);
+      }else{
+        box.appendChild(el('p',{class:'player-detail-empty'},'No districts built yet.'));
+      }
+      sheet.appendChild(box);
+      document.body.appendChild(sheet); // attach to body so render() can't wipe it
+    };
+    return pDiv;
+  }
+
+  // You: full-width prominent panel — opponents: compact grid
+  const me=S.players[0];
+  topbar.appendChild(mkPlayerPanel(me,false));
+  const opponents=S.players.filter(p=>p.id!==0);
+  if(opponents.length){
+    const tbGrid=el('div',{class:'tb-grid'});
+    const displayOrder=[...opponents].sort((a,b)=>{
+      const ai=S.draftOrder.indexOf(a.id);const bi=S.draftOrder.indexOf(b.id);
+      return(ai===-1?99:ai)-(bi===-1?99:bi);
+    });
+    displayOrder.forEach(p=>tbGrid.appendChild(mkPlayerPanel(p,true)));
+    topbar.appendChild(tbGrid);
+  }
   wrap.appendChild(topbar);
 
   // ── CENTER ────────────────────────────────────────────────────────────────────
@@ -198,7 +230,7 @@ function render(){
 
   // ── BOTTOM PANEL ──────────────────────────────────────────────────────────────
   const bottom=el('div',{id:'bottom'});
-  const me=S.players[0];const myScore=calcScore(me,S.firstCompleter===me.id);
+  const myScore=calcScore(me,S.firstCompleter===me.id);
 
   const botHand=el('div',{id:'bot-hand'});
   const handLabel=el('div',{class:'bot-label'});

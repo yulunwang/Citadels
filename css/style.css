@@ -86,6 +86,7 @@
    ══════════════════════════════════════════════════════════════ */
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden}
+@media (max-width: 768px){html,body{height:auto;overflow:visible}}
 body{
   font-family:var(--font-body);
   background: radial-gradient(ellipse 110% 70% at 50% 0%, var(--bg-panel) 0%, var(--bg-body) 55%, color-mix(in srgb, var(--bg-body) 80%, var(--border-main)) 100%);
@@ -107,6 +108,17 @@ body{
 .tb-title{font-family:var(--font-display);font-size:clamp(14px,2vw,18px);color:var(--text-accent);font-weight:700}
 .tb-meta{font-size:12px;color:var(--text-muted)}
 .tb-calling{font-size:12px;font-family:var(--font-display);margin-left:auto}
+/* Player detail bottom sheet (tap a player panel to open) */
+#player-detail-sheet{position:fixed;inset:0;background:rgba(0,0,0,0.45);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);z-index:500;display:flex;align-items:flex-end;justify-content:center;animation:fadeIn .15s both}
+.player-detail-box{background:var(--bg-panel);border-radius:var(--radius-lg) var(--radius-lg) 0 0;border:1px solid var(--border-main);border-bottom:none;width:100%;max-width:520px;max-height:70vh;overflow-y:auto;padding:16px;box-shadow:var(--shadow-overlay);animation:slideUp .2s both}
+.player-detail-hdr{display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border-subtle)}
+.player-detail-name{font-family:var(--font-display);font-size:15px;font-weight:700;color:var(--text-accent)}
+.player-detail-score{font-size:11px;color:var(--text-muted);flex:1}
+.player-detail-close{margin-left:auto;background:none;border:none;font-size:16px;color:var(--text-muted);cursor:pointer;padding:2px 6px}
+.player-detail-city{display:flex;flex-wrap:wrap;gap:8px}
+.player-detail-empty{font-size:12px;color:var(--text-muted);text-align:center;padding:20px 0}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
 /* Confirmation modal */
 .confirm-overlay{position:fixed;inset:0;background:var(--overlay-bg);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;z-index:9999}
 .confirm-box{background:var(--modal-bg);border:1px solid var(--modal-border);border-radius:var(--radius-lg);padding:24px 28px;max-width:340px;width:90%;box-shadow:var(--shadow-overlay);text-align:center;animation:fadeSlideUp var(--transition-med) both}
@@ -508,22 +520,41 @@ body{
 
 /* ── Mobile (≤768px) ── */
 @media (max-width: 768px) {
-  /* Topbar: compact 2-col grid, hide city chips to save space */
-  #topbar { padding: 6px 8px; max-height: 36vh; }
-  .tb-header { flex-wrap: wrap; gap: 5px; margin-bottom: 6px; padding-bottom: 6px; }
-  .tb-calling { margin-left: 0; font-size: 11px; }
-  .tb-meta { font-size: 11px; }
-  .tb-grid { grid-template-columns: repeat(2, 1fr); gap: 5px; }
-  .tb-player { padding: 5px 8px; }
-  .tb-player-name { font-size: 11px; }
-  .tb-player-stats { font-size: 10px; gap: 6px; margin-bottom: 2px; }
-  .tb-city { display: none; } /* city chips are in bot-city — no room in topbar on mobile */
+  /* Full-page natural scroll — no fixed-height containers */
+  .game-wrap { height: auto; overflow: visible; min-height: 100vh; }
+  #topbar { max-height: none; overflow-y: visible; position: sticky; top: 0; z-index: 100; padding: 6px 8px; }
+  #main { max-height: none; overflow: visible; flex: none; }
+  #center { overflow: visible; }
+  #bottom { flex-direction: column; overflow: visible; max-height: none; min-height: 0; }
+  #bot-hand { width: 100%; border-right: none; border-bottom: 1px solid var(--border-subtle); max-height: none; padding: 8px 10px; }
+  #bot-city { width: 100%; max-height: none; padding: 8px 10px; }
 
-  /* Bottom */
-  #bottom { flex-direction: column; }
-  #bot-hand { width: 100%; border-right: none; border-bottom: 1px solid var(--border-subtle); max-height: 40vh; }
-  #bot-city { width: 100%; max-height: 40vh; }
-  .dcard.portrait { width: 96px; }
-  #main { max-height: 50vh; }
+  /* Topbar: your panel full-width + compact opponent grid */
+  .tb-header { flex-wrap: wrap; gap: 4px; margin-bottom: 5px; padding-bottom: 5px; }
+  .tb-meta { font-size: 11px; }
+  .tb-calling { margin-left: 0; font-size: 11px; }
+  /* Your panel: full-width, slightly taller, visually prominent */
+  .tb-player.me { grid-column: 1 / -1; border-color: var(--c-green-bdr); background: color-mix(in srgb, var(--c-green-bdr) 6%, var(--bg-card)); }
+  /* Opponent panels: compact, 2-col */
+  .tb-grid { grid-template-columns: repeat(2, 1fr); gap: 4px; margin-top: 5px; }
+  .tb-player { padding: 5px 8px; cursor: pointer; }
+  .tb-player-compact { padding: 4px 7px; }
+  .tb-player-name { font-size: 11px; }
+  .tb-player-stats { font-size: 10px; gap: 5px; margin-bottom: 0; flex-wrap: nowrap; }
+  .tb-city { display: none; } /* city is in bot-city; tap panel to see opponent city */
+
+  /* Hand & city: horizontal scroll strip — natural mobile card game feel */
+  .cards-wrap { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 6px; gap: 6px; }
+  .dcard.portrait { width: 88px; flex-shrink: 0; }
+  .dcard.portrait .dcard-emoji-col { height: 56px; }
+  .dcard.portrait .dcard-name { font-size: 10px; }
+  .dcard.portrait .dcard-type { font-size: 9px; }
+  .dcard.portrait .dcard-cost { font-size: 11px; }
+
+  /* Touch-friendly buttons */
   .gbtn { min-height: 44px; padding: 10px 16px; }
+
+  /* Draft: show bottom when page scrolls */
+  .game-wrap.phase-draft #bottom { display: block; }
+  .game-wrap.phase-draft #main { max-height: none; flex: none; }
 }
