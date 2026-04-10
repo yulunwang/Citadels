@@ -728,13 +728,15 @@ function renderAction(){
     else{
       if(affordable.length){
         const row=el('div',{class:'cards-wrap build-row'});
-        affordable.forEach(d=>row.appendChild(mkCard(d,{player:me,noDesc:true,onClick:canBuild?()=>{{const _nr=humanBuild(S,d.uid);if(_nr)S=_nr;render();};}:null,disabled:!canBuild})));
+        affordable.forEach(d=>{const isUnique=d.color==='purple'&&d.special&&SDESC[d.special];
+          row.appendChild(mkCard(d,{portrait:true,player:me,noDesc:!isUnique,onClick:canBuild?()=>{{const _nr=humanBuild(S,d.uid);if(_nr)S=_nr;render();};}:null,disabled:!canBuild}));});
         wrap.appendChild(row);
       }
       if(rest.length){
         wrap.appendChild(el('div',{class:'build-too-costly'},'Too costly or already built:'));
         const row2=el('div',{class:'cards-wrap build-row'});
-        rest.forEach(d=>row2.appendChild(mkCard(d,{player:me,disabled:true,noDesc:true})));wrap.appendChild(row2);
+        rest.forEach(d=>{const isUnique=d.color==='purple'&&d.special&&SDESC[d.special];
+          row2.appendChild(mkCard(d,{portrait:true,player:me,disabled:true,noDesc:!isUnique}));});wrap.appendChild(row2);
       }
       if(!affordable.length)wrap.appendChild(el('div',{class:'state-empty',style:'margin-bottom:8px'},'Cannot afford to build.'));
     }

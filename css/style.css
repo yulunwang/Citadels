@@ -556,6 +556,8 @@ body{
   .game-wrap.mobile #main { flex: 1 1 auto; overflow-y: auto; max-height: none; padding: 8px; -webkit-overflow-scrolling: touch; }
   .game-wrap.mobile #center { overflow: visible; }
   .game-wrap.mobile #center .gbtn { width: 100%; box-sizing: border-box; }
+  .game-wrap.mobile #center .cards-wrap { flex-wrap: wrap; overflow-x: visible; scroll-snap-type: none; }
+  .game-wrap.mobile #center .dcard.portrait { width: 90px; }
 
   /* Collapsible city in stage */
   .mob-city-hdr { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: var(--bg-panel); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); margin: 8px 8px 0; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--text-secondary); }
