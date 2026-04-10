@@ -137,16 +137,16 @@ body{
 .confirm-btns{display:flex;gap:10px}
 .confirm-btns button{flex:1;padding:10px;border-radius:var(--radius-md);font-family:var(--font-display);font-size:12px;cursor:pointer;border:1px solid;transition:background var(--transition-fast)}
 .tb-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
-.tb-player{background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:9px 11px;transition:background var(--transition-fast),box-shadow var(--transition-fast),border-color var(--transition-fast);position:relative;box-shadow:var(--shadow-sm)}
+.tb-player{background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:6px 10px;transition:background var(--transition-fast),box-shadow var(--transition-fast),border-color var(--transition-fast);position:relative;box-shadow:var(--shadow-sm)}
 .tb-player.active{background:var(--active-tint);border-color:var(--text-accent);animation:activePlayerGlow 2.5s ease-in-out infinite}
 .tb-player.active::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--text-accent);border-radius:3px 0 0 3px}
 .tb-player-row1{display:flex;align-items:center;gap:5px;margin-bottom:4px;flex-wrap:wrap}
 .tb-player-name{font-family:var(--font-display);font-size:13px;color:var(--text-accent);font-weight:600}
 .tb-player-char{font-size:10px;padding:2px 7px;border-radius:var(--radius-xl);border:1px solid;font-family:var(--font-display);white-space:nowrap}
-.tb-player-stats{display:flex;gap:10px;font-size:12px;color:var(--text-muted);margin-bottom:6px;flex-wrap:wrap}
+.tb-player-stats{display:flex;gap:10px;font-size:12px;color:var(--text-muted);margin-bottom:2px;flex-wrap:wrap}
 .tb-stat-val{color:var(--text-primary);font-weight:600}
-/* District chips — always show pts; tooltip only for unique specials */
-.tb-city{display:flex;flex-wrap:wrap;gap:4px;margin-top:2px}
+/* District chips — hidden by default; shown in detail sheet on click */
+.tb-city{display:none;flex-wrap:wrap;gap:4px;margin-top:2px}
 .tb-chip{position:relative;display:inline-block}
 .tb-chip-label{font-size:11px;border-radius:var(--radius-sm);padding:3px 7px;border:1px solid;white-space:nowrap;font-family:var(--font-display);cursor:default;display:flex;align-items:center;gap:4px}
 .tb-chip-pts{font-size:10px;opacity:0.7;font-family:var(--font-body)}
@@ -163,18 +163,25 @@ body{
 .tb-chip.has-tip .tb-chip-label{border-style:dashed}
 .tb-chip.has-tip:hover .tb-chip-tip{display:block}
 
-/* ── CENTER — shrinks, gives space to bottom ── */
-#main{display:flex;flex:0 1 auto;overflow:hidden;min-height:60px;max-height:44vh}
+/* ── CENTER — primary content area, gets remaining space ── */
+#main{display:flex;flex:1 1 auto;overflow:hidden;min-height:80px}
 #center{flex:1;overflow-y:auto;padding:12px 16px;min-width:0;background:var(--bg-center);min-height:0;box-shadow:inset 0 3px 10px rgba(0,0,0,0.04)}
 
-/* ── BOTTOM PANEL — much taller ── */
-#bottom{display:flex;background:var(--bg-panel);border-top:1px solid var(--border-main);flex:1;min-height:300px}
-#bot-hand{width:50%;border-right:1px solid var(--border-subtle);padding:10px 12px;overflow-y:auto;display:flex;flex-direction:column}
-#bot-city{width:50%;padding:10px 12px;overflow-y:auto;display:flex;flex-direction:column}
+/* ── BOTTOM PANEL — compact, doesn't hog space ── */
+#bottom{display:flex;background:var(--bg-panel);border-top:1px solid var(--border-main);flex:0 0 auto;max-height:220px}
+#bot-hand{width:50%;border-right:1px solid var(--border-subtle);padding:8px 10px;overflow-y:auto;display:flex;flex-direction:column}
+#bot-city{width:50%;padding:8px 10px;overflow-y:auto;display:flex;flex-direction:column}
 .bot-label{font-family:var(--font-display);font-size:11px;color:var(--text-muted);letter-spacing:.5px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-shrink:0}
 .bot-label-left{display:flex;align-items:center;gap:7px;min-width:0}
 .bot-char-badge{font-size:10px;padding:2px 7px;border-radius:var(--radius-xl);border:1px solid;white-space:nowrap;font-family:var(--font-display);flex-shrink:0}
 .bot-label-right{font-size:12px;color:var(--text-accent);letter-spacing:0;font-family:var(--font-body);white-space:nowrap;flex-shrink:0}
+/* Compact cards in bottom panel — tap for detail */
+#bot-hand .dcard.portrait .dcard-desc,
+#bot-city .dcard.portrait .dcard-desc{display:none}
+#bot-hand .dcard.portrait,
+#bot-city .dcard.portrait{width:90px}
+#bot-hand .dcard.portrait .dcard-emoji-col,
+#bot-city .dcard.portrait .dcard-emoji-col{height:52px}
 /* Compact opponent panel: name truncates, char indicator inline with stats */
 .tb-player-compact .tb-player-row1{flex-wrap:nowrap;overflow:hidden}
 .tb-player-compact .tb-player-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1}
