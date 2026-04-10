@@ -557,9 +557,11 @@ body{
   /* Zone 2: Stage — scrollable middle area */
   .game-wrap.mobile #main { flex: 1 1 auto; overflow-y: auto; max-height: none; padding: 8px; -webkit-overflow-scrolling: touch; flex-direction: column; }
   .game-wrap.mobile #center { overflow: visible; }
-  /* Full-width action buttons, but special-ability buttons stay side-by-side */
-  .game-wrap.mobile #center .gbtn { width: 100%; box-sizing: border-box; }
-  .game-wrap.mobile #center .special-wrap .gbtn { width: auto; flex: 1 1 0; min-width: 0; }
+  /* Full-width action buttons, but special-ability buttons use grid */
+  .game-wrap.mobile #center > div > .gbtn { width: 100%; box-sizing: border-box; }
+  .game-wrap.mobile #center .special-wrap .gbtn { width: auto; }
+  .game-wrap.mobile #center .special-wrap div[style*="flex"] { display: grid !important; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .game-wrap.mobile #center .special-wrap div[style*="flex"] .gbtn { width: 100%; min-height: 44px; font-size: 12px; padding: 6px 4px; text-align: center; }
   .game-wrap.mobile #center .cards-wrap { flex-wrap: wrap; overflow-x: visible; scroll-snap-type: none; }
   .game-wrap.mobile #center .dcard.portrait { width: 90px; }
 
