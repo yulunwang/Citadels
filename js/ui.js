@@ -130,7 +130,8 @@ function render(){
   const app=document.getElementById('app');app.innerHTML='';
   if(S.phase==='gameover'){app.appendChild(renderGameOver());return;}
 
-  const wrap=el('div',{class:`game-wrap phase-${S.phase}`});
+  const isMobile=window.innerWidth<=768;
+  const wrap=el('div',{class:`game-wrap phase-${S.phase}${isMobile?' mobile':''}`});
   if(typeof IMG !== 'undefined') {
     wrap.style.backgroundImage = 'url(' + IMG.bg.game + ')';
     wrap.style.backgroundSize = 'cover';
@@ -138,18 +139,55 @@ function render(){
 
   // ── TOP BAR ──────────────────────────────────────────────────────────────────
   const topbar=el('div',{id:'topbar'});
-  const tbHdr=el('div',{class:'tb-header'});
-  tbHdr.appendChild(el('span',{class:'tb-title'},'⚜ Citadels'));
-  tbHdr.appendChild(el('span',{class:'tb-meta'},`Round ${S.round} · Crown: ${S.players[S.crown].name}`));
-  if((S.phase==='action'||S.phase==='herald')&&S.callIdx<=Math.max(0,...S.charPool.map(charRank))){
-    const activeChar=S.players.find(p=>charRank(p.char)===S.callIdx);
-    const c=activeChar?charById(activeChar.char):CHARS.find(ch=>ch.rank===S.callIdx)||{emoji:'?',name:'?',clr:'#888'};
-    tbHdr.appendChild(el('span',{class:'tb-calling',style:`color:${c.clr}`},`${c.emoji} Calling: ${c.name}`));
+
+  if(isMobile){
+    // ── MOBILE: Mini HUD bar ──
+    const hud=el('div',{class:'mob-hud'});
+    // Left: round + calling info
+    const hudLeft=el('div',{class:'mob-hud-left'});
+    hudLeft.appendChild(el('span',{class:'mob-hud-round'},`R${S.round}`));
+    if((S.phase==='action'||S.phase==='herald')&&S.callIdx<=Math.max(0,...S.charPool.map(charRank))){
+      const activeChar=S.players.find(p=>charRank(p.char)===S.callIdx);
+      const c=activeChar?charById(activeChar.char):CHARS.find(ch=>ch.rank===S.callIdx)||{emoji:'?',name:'?',clr:'#888'};
+      hudLeft.appendChild(el('span',{class:'mob-hud-calling',style:`color:${c.clr}`},`${c.emoji} ${c.name}`));
+    }else if(S.phase==='draft'){
+      hudLeft.appendChild(el('span',{class:'mob-hud-calling'},'📜 Draft'));
+    }
+    hud.appendChild(hudLeft);
+    // Center: your stats pill
+    const meH=S.players[0];
+    const hudStats=el('div',{class:'mob-hud-stats'});
+    if(meH.char){const c=charById(meH.char);hudStats.appendChild(el('span',{class:'mob-hud-char',style:`color:${c.clr}`},c.emoji+' '));}
+    hudStats.appendChild(document.createTextNode('\u00A0'));
+    var statsSpan=el('span',null,'');
+    statsSpan.innerHTML='💰'+meH.gold+' 🃏'+meH.hand.length+' 🏰'+meH.city.length+'/8';
+    hudStats.appendChild(statsSpan);
+    hud.appendChild(hudStats);
+    // Right: opponents button + end game
+    const hudRight=el('div',{class:'mob-hud-right'});
+    const oppBtn=el('button',{class:'mob-opp-btn'},`👥 ${S.players.length-1}`);
+    oppBtn.onclick=function(e){e.stopPropagation();showAllPlayersSheet();};
+    hudRight.appendChild(oppBtn);
+    const endBtn=el('button',{class:'btn-danger mob-end-btn'},'✕');
+    endBtn.onclick=()=>{S={...S,_confirmEnd:true};render();};
+    hudRight.appendChild(endBtn);
+    hud.appendChild(hudRight);
+    topbar.appendChild(hud);
+  }else{
+    // ── DESKTOP: Full topbar ──
+    const tbHdr=el('div',{class:'tb-header'});
+    tbHdr.appendChild(el('span',{class:'tb-title'},'⚜ Citadels'));
+    tbHdr.appendChild(el('span',{class:'tb-meta'},`Round ${S.round} · Crown: ${S.players[S.crown].name}`));
+    if((S.phase==='action'||S.phase==='herald')&&S.callIdx<=Math.max(0,...S.charPool.map(charRank))){
+      const activeChar=S.players.find(p=>charRank(p.char)===S.callIdx);
+      const c=activeChar?charById(activeChar.char):CHARS.find(ch=>ch.rank===S.callIdx)||{emoji:'?',name:'?',clr:'#888'};
+      tbHdr.appendChild(el('span',{class:'tb-calling',style:`color:${c.clr}`},`${c.emoji} Calling: ${c.name}`));
+    }
+    const endBtn=el('button',{class:'btn-danger'},'✕ End Game');
+    endBtn.onclick=()=>{S={...S,_confirmEnd:true};render();};
+    tbHdr.appendChild(endBtn);
+    topbar.appendChild(tbHdr);
   }
-  const endBtn=el('button',{class:'btn-danger'},'✕ End Game');
-  endBtn.onclick=()=>{S={...S,_confirmEnd:true};render();};
-  tbHdr.appendChild(endBtn);
-  topbar.appendChild(tbHdr);
 
   // Helper: build a player panel div
   function mkPlayerPanel(p,compact){
@@ -194,7 +232,7 @@ function render(){
     r2.innerHTML=`<span>💰<span class="tb-stat-val"> ${p.gold}✦</span></span>`+
       `<span>🏰<span class="tb-stat-val"> ${p.city.length}/8</span></span>`+
       `<span>🃏<span class="tb-stat-val"> ${p.hand.length}</span></span>`+
-      `<span>📊<span class="tb-stat-val"> ${calcScore(p,S.firstCompleter===p.id)}pts</span></span>`;
+      `<span>📊<span class="tb-stat-val"> ${calcScore(p,S.firstCompleter===p.id)} pts</span></span>`;
     pDiv.appendChild(r2);
     if(!compact&&p.city.length){
       const cityDiv=el('div',{class:'tb-city'});
@@ -242,20 +280,74 @@ function render(){
     return pDiv;
   }
 
-  // You: full-width prominent panel — opponents: compact grid
+  // You: full-width prominent panel — opponents: compact grid (desktop only)
   const me=S.players[0];
-  topbar.appendChild(mkPlayerPanel(me,false));
-  const opponents=S.players.filter(p=>p.id!==0);
-  if(opponents.length){
-    const tbGrid=el('div',{class:'tb-grid'});
-    const displayOrder=[...opponents].sort((a,b)=>{
-      const ai=S.draftOrder.indexOf(a.id);const bi=S.draftOrder.indexOf(b.id);
-      return(ai===-1?99:ai)-(bi===-1?99:bi);
-    });
-    displayOrder.forEach(p=>tbGrid.appendChild(mkPlayerPanel(p,true)));
-    topbar.appendChild(tbGrid);
+  if(!isMobile){
+    topbar.appendChild(mkPlayerPanel(me,false));
+    const opponents=S.players.filter(p=>p.id!==0);
+    if(opponents.length){
+      const tbGrid=el('div',{class:'tb-grid'});
+      const displayOrder=[...opponents].sort((a,b)=>{
+        const ai=S.draftOrder.indexOf(a.id);const bi=S.draftOrder.indexOf(b.id);
+        return(ai===-1?99:ai)-(bi===-1?99:bi);
+      });
+      displayOrder.forEach(p=>tbGrid.appendChild(mkPlayerPanel(p,true)));
+      topbar.appendChild(tbGrid);
+    }
   }
   wrap.appendChild(topbar);
+
+  // Mobile: all-players bottom sheet (triggered by opponents button)
+  function showAllPlayersSheet(){
+    var existing=document.getElementById('player-detail-sheet');
+    if(existing){existing.remove();return;}
+    var sheet=el('div',{id:'player-detail-sheet'});
+    sheet.onclick=function(ev){if(ev.target===sheet)sheet.remove();};
+    var box=el('div',{class:'player-detail-box mob-all-players'});
+    var hdr=el('div',{class:'player-detail-hdr'});
+    hdr.appendChild(el('span',{class:'player-detail-name'},'All Players'));
+    var closeBtn=el('button',{class:'player-detail-close'},'✕');
+    closeBtn.onclick=function(){sheet.remove();};
+    hdr.appendChild(closeBtn);
+    box.appendChild(hdr);
+    var allOrder=[...S.players].sort(function(a,b){
+      var ai=S.draftOrder.indexOf(a.id);var bi=S.draftOrder.indexOf(b.id);
+      return(ai===-1?99:ai)-(bi===-1?99:bi);
+    });
+    allOrder.forEach(function(p){
+      var panel=mkPlayerPanel(p,false);
+      panel.style.cursor='default';
+      // Re-bind tap to show city detail inside the sheet
+      panel.onclick=function(e){e.stopPropagation();
+        var existingSub=document.getElementById('player-detail-sheet');
+        if(existingSub)existingSub.remove();
+        // Open individual player detail
+        var subSheet=el('div',{id:'player-detail-sheet'});
+        subSheet.onclick=function(ev){if(ev.target===subSheet)subSheet.remove();};
+        var subBox=el('div',{class:'player-detail-box'});
+        var subHdr=el('div',{class:'player-detail-hdr'});
+        subHdr.appendChild(el('span',{class:'player-detail-name'},p.name+(p.id===0?' (You)':'')));
+        var score=calcScore(p,S.firstCompleter===p.id);
+        subHdr.appendChild(el('span',{class:'player-detail-score'},'💰'+p.gold+'✦  🏰'+p.city.length+'/8  📊'+score+'pts'));
+        var subClose=el('button',{class:'player-detail-close'},'✕');
+        subClose.onclick=function(){subSheet.remove();};
+        subHdr.appendChild(subClose);
+        subBox.appendChild(subHdr);
+        if(p.city.length){
+          var cityWrap=el('div',{class:'player-detail-city'});
+          ['yellow','blue','green','red','purple'].forEach(function(col){
+            p.city.filter(function(d){return d.color===col;}).forEach(function(d){cityWrap.appendChild(mkCard(d,{portrait:true,player:p}));});
+          });
+          subBox.appendChild(cityWrap);
+        }else{subBox.appendChild(el('p',{class:'player-detail-empty'},'No districts built yet.'));}
+        subSheet.appendChild(subBox);
+        document.body.appendChild(subSheet);
+      };
+      box.appendChild(panel);
+    });
+    sheet.appendChild(box);
+    document.body.appendChild(sheet);
+  }
 
   // ── CENTER ────────────────────────────────────────────────────────────────────
   const main=el('div',{id:'main'});
@@ -283,42 +375,82 @@ function render(){
       center.appendChild(el('div',{class:'state-waiting'},waitMsg));
     }
   }
-  main.appendChild(center);wrap.appendChild(main);
+  main.appendChild(center);
+
+  // ── YOUR CITY (mobile: collapsible in #main; desktop: in #bottom) ──
+  const myScore=calcScore(me,S.firstCompleter===me.id);
+  const botCity=el('div',{id:'bot-city'});
+  if(isMobile&&me.city.length>0){
+    // Collapsible city section — only shown when player has built districts
+    const cityHdr=el('div',{class:'mob-city-hdr'});
+    cityHdr.innerHTML=`<span>🏰 YOUR CITY (${me.city.length}/8) · ${myScore} pts</span><span class="mob-city-toggle">▼</span>`;
+    botCity.appendChild(cityHdr);
+    const cityWrap=el('div',{class:'cards-wrap mob-city-cards'});
+    cityWrap.style.display='none';
+    ['yellow','blue','green','red','purple'].forEach(col=>{
+      me.city.filter(d=>d.color===col).forEach(d=>cityWrap.appendChild(mkCard(d,{portrait:true,player:me})));
+    });
+    botCity.appendChild(cityWrap);
+    cityHdr.onclick=function(){
+      var cards=cityHdr.nextElementSibling;
+      var toggle=cityHdr.querySelector('.mob-city-toggle');
+      if(cards.style.display==='none'){cards.style.display='';toggle.textContent='▲';}
+      else{cards.style.display='none';toggle.textContent='▼';}
+    };
+    main.appendChild(botCity);
+  }
+
+  wrap.appendChild(main);
 
   // ── BOTTOM PANEL ──────────────────────────────────────────────────────────────
   const bottom=el('div',{id:'bottom'});
-  const myScore=calcScore(me,S.firstCompleter===me.id);
 
   const botHand=el('div',{id:'bot-hand'});
-  // Single merged header: section title + character + gold/cards all on one row
-  const handLabel=el('div',{class:'bot-label'});
-  const handLeft=el('span',{class:'bot-label-left'});
-  handLeft.appendChild(el('span',null,'YOUR HAND'));
-  if(me.char){const c=charById(me.char);
-    const charBadge=el('span',{class:'bot-char-badge',style:`color:${c.clr};border-color:color-mix(in srgb,${c.clr} 35%,var(--border-main));background:color-mix(in srgb,${c.clr} 10%,var(--bg-card))`},`${c.emoji} ${c.name}`);
-    handLeft.appendChild(charBadge);
+  if(isMobile){
+    // Mobile: compact hand label
+    const handLabel=el('div',{class:'bot-label'});
+    const handLeft=el('span',{class:'bot-label-left'});
+    handLeft.appendChild(el('span',null,'HAND'));
+    if(me.char){const c=charById(me.char);
+      handLeft.appendChild(el('span',{class:'bot-char-badge',style:`color:${c.clr};border-color:color-mix(in srgb,${c.clr} 35%,var(--border-main));background:color-mix(in srgb,${c.clr} 10%,var(--bg-card))`},`${c.emoji} ${c.name}`));
+    }
+    handLabel.appendChild(handLeft);
+    botHand.appendChild(handLabel);
+  }else{
+    // Desktop: full hand label
+    const handLabel=el('div',{class:'bot-label'});
+    const handLeft=el('span',{class:'bot-label-left'});
+    handLeft.appendChild(el('span',null,'YOUR HAND'));
+    if(me.char){const c=charById(me.char);
+      const charBadge=el('span',{class:'bot-char-badge',style:`color:${c.clr};border-color:color-mix(in srgb,${c.clr} 35%,var(--border-main));background:color-mix(in srgb,${c.clr} 10%,var(--bg-card))`},`${c.emoji} ${c.name}`);
+      handLeft.appendChild(charBadge);
+    }
+    handLabel.appendChild(handLeft);
+    handLabel.appendChild(el('span',{class:'bot-label-right'},`💰 ${me.gold}✦  🃏 ${me.hand.length}`));
+    botHand.appendChild(handLabel);
   }
-  handLabel.appendChild(handLeft);
-  handLabel.appendChild(el('span',{class:'bot-label-right'},`💰 ${me.gold}✦  🃏 ${me.hand.length}`));
-  botHand.appendChild(handLabel);
   const handWrap=el('div',{class:'cards-wrap'});
   if(me.hand.length)me.hand.forEach(d=>handWrap.appendChild(mkCard(d,{portrait:true,player:me})));
   else handWrap.appendChild(el('span',{class:'state-empty'},'No cards in hand'));
   botHand.appendChild(handWrap);
 
-  const botCity=el('div',{id:'bot-city'});
-  const cityLabel=el('div',{class:'bot-label'});
-  cityLabel.innerHTML=`<span>YOUR CITY (${me.city.length}/8)</span><span class="bot-label-right">📊 ~${myScore} pts</span>`;
-  botCity.appendChild(cityLabel);
-  const cityWrap=el('div',{class:'cards-wrap'});
-  if(me.city.length){
-    ['yellow','blue','green','red','purple'].forEach(col=>{
-      me.city.filter(d=>d.color===col).forEach(d=>cityWrap.appendChild(mkCard(d,{portrait:true,player:me})));
-    });
-  }else cityWrap.appendChild(el('span',{class:'state-empty'},'Nothing built yet'));
-  botCity.appendChild(cityWrap);
-
-  bottom.append(botHand,botCity);wrap.appendChild(bottom);
+  if(!isMobile){
+    // Desktop: city in bottom panel
+    const cityLabel=el('div',{class:'bot-label'});
+    cityLabel.innerHTML=`<span>YOUR CITY (${me.city.length}/8)</span><span class="bot-label-right">📊 ~${myScore} pts</span>`;
+    botCity.appendChild(cityLabel);
+    const cityWrap=el('div',{class:'cards-wrap'});
+    if(me.city.length){
+      ['yellow','blue','green','red','purple'].forEach(col=>{
+        me.city.filter(d=>d.color===col).forEach(d=>cityWrap.appendChild(mkCard(d,{portrait:true,player:me})));
+      });
+    }else cityWrap.appendChild(el('span',{class:'state-empty'},'Nothing built yet'));
+    botCity.appendChild(cityWrap);
+    bottom.append(botHand,botCity);
+  }else{
+    bottom.appendChild(botHand);
+  }
+  wrap.appendChild(bottom);
 
   // Confirmation modal
   if(S._confirmEnd){

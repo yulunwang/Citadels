@@ -537,41 +537,70 @@ body{
 
 /* ── Mobile (≤768px) ── */
 @media (max-width: 768px) {
-  /* Full-page natural scroll — no fixed-height containers */
-  .game-wrap { height: auto; overflow: visible; min-height: 100vh; }
-  #topbar { max-height: none; overflow-y: visible; position: sticky; top: 0; z-index: 100; padding: 6px 8px; }
-  #main { max-height: none; overflow: visible; flex: none; }
-  #center { overflow: visible; }
-  #bottom { flex-direction: column; overflow: visible; max-height: none; min-height: 0; }
-  #bot-hand { width: 100%; border-right: none; border-bottom: 1px solid var(--border-subtle); max-height: none; padding: 8px 10px; }
-  #bot-city { width: 100%; max-height: none; padding: 8px 10px; }
+  /* 3-zone layout: fixed viewport, no page scroll */
+  .game-wrap.mobile { height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
 
-  /* Topbar: your panel full-width + compact opponent grid */
-  .tb-header { flex-wrap: wrap; gap: 4px; margin-bottom: 5px; padding-bottom: 5px; }
-  .tb-meta { font-size: 11px; }
-  .tb-calling { margin-left: 0; font-size: 11px; }
-  /* Your panel: full-width, slightly taller, visually prominent */
-  .tb-player.me { grid-column: 1 / -1; border-color: var(--c-green-bdr); background: color-mix(in srgb, var(--c-green-bdr) 6%, var(--bg-card)); }
-  /* Opponent panels: compact, 2-col */
-  .tb-grid { grid-template-columns: repeat(2, 1fr); gap: 4px; margin-top: 5px; }
-  .tb-player { padding: 5px 8px; cursor: pointer; }
-  .tb-player-compact { padding: 4px 7px; }
-  .tb-player-name { font-size: 11px; }
-  .tb-player-stats { font-size: 10px; gap: 5px; margin-bottom: 0; flex-wrap: nowrap; }
-  .tb-city { display: none; } /* city is in bot-city; tap panel to see opponent city */
+  /* Zone 1: Mini HUD — thin sticky top bar */
+  .game-wrap.mobile #topbar { flex: 0 0 auto; max-height: none; overflow: visible; padding: 0; border-bottom: 1px solid var(--border-subtle); }
+  .mob-hud { display: flex; align-items: center; gap: 6px; padding: 6px 10px; min-height: 40px; }
+  .mob-hud-left { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+  .mob-hud-round { font-family: var(--font-display); font-size: 14px; font-weight: 700; color: var(--text-accent); }
+  .mob-hud-calling { font-size: 12px; font-weight: 600; }
+  .mob-hud-stats { flex: 1; text-align: center; font-size: 12px; color: var(--text-secondary); white-space: nowrap; }
+  .mob-hud-right { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+  .mob-opp-btn { font-size: 12px; padding: 4px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border-main); background: var(--bg-card); color: var(--text-primary); cursor: pointer; font-weight: 600; }
+  .mob-opp-btn:active { background: var(--bg-hover); }
+  .mob-end-btn { font-size: 12px; padding: 4px 8px; min-height: auto; }
 
-  /* Hand & city: horizontal scroll strip — natural mobile card game feel */
-  .cards-wrap { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 8px; gap: 8px; scroll-snap-type: x mandatory; }
-  .dcard.portrait { width: 100px; flex-shrink: 0; scroll-snap-align: start; }
-  .dcard.portrait .dcard-emoji-col { height: 64px; }
-  .dcard.portrait .dcard-name { font-size: 11px; white-space: normal; }
-  .dcard.portrait .dcard-type { font-size: 10px; }
-  .dcard.portrait .dcard-cost { font-size: 13px; }
+  /* Zone 2: Stage — scrollable middle area */
+  .game-wrap.mobile #main { flex: 1 1 auto; overflow-y: auto; max-height: none; padding: 8px; -webkit-overflow-scrolling: touch; }
+  .game-wrap.mobile #center { overflow: visible; }
+  .game-wrap.mobile #center .gbtn { width: 100%; box-sizing: border-box; }
+
+  /* Collapsible city in stage */
+  .mob-city-hdr { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: var(--bg-panel); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); margin: 8px 8px 0; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+  .mob-city-hdr:active { background: var(--bg-hover); }
+  .mob-city-toggle { font-size: 11px; color: var(--text-muted); }
+  .mob-city-cards { padding: 6px 8px; }
+  .game-wrap.mobile #bot-city { border: none; padding: 0; width: 100%; }
+
+  /* Zone 3: Hand tray — pinned at bottom */
+  .game-wrap.mobile #bottom { flex: 0 0 auto; flex-direction: column; overflow: visible; max-height: none; min-height: 0; border-top: 2px solid var(--border-main); background: var(--bg-panel); }
+  .game-wrap.mobile #bot-hand { width: 100%; border-right: none; max-height: none; padding: 4px 8px 8px; }
+  .game-wrap.mobile #bot-hand .bot-label { margin-bottom: 2px; }
+  .game-wrap.mobile #bot-hand .bot-label-left { font-size: 11px; }
+  .game-wrap.mobile #bot-hand .bot-char-badge { font-size: 10px; padding: 1px 5px; }
+
+  /* All-players sheet on mobile */
+  .mob-all-players { max-height: 80vh; overflow-y: auto; }
+  .mob-all-players .tb-player { margin-bottom: 6px; padding: 8px 10px; }
+  .mob-all-players .tb-city { display: none; }
+
+  /* Hide desktop topbar elements on mobile */
+  .game-wrap.mobile .tb-header,
+  .game-wrap.mobile .tb-grid,
+  .game-wrap.mobile .tb-player { /* these are not rendered on mobile, but safety */ }
+
+  /* Hand & city: horizontal scroll strip */
+  .cards-wrap { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 4px; gap: 6px; scroll-snap-type: x mandatory; }
+  .dcard.portrait { width: 80px; flex-shrink: 0; scroll-snap-align: start; }
+  .dcard.portrait .dcard-emoji-col { height: 48px; font-size: 20px; }
+  .dcard.portrait .dcard-name { font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dcard.portrait .dcard-type { font-size: 9px; }
+  .dcard.portrait .dcard-cost { font-size: 11px; }
+  /* Hide verbose text in hand/city cards on mobile — tap for detail popup */
+  .game-wrap.mobile #bot-hand .dcard.portrait .dcard-desc,
+  .game-wrap.mobile #bot-city .dcard.portrait .dcard-desc { display: none; }
+  .game-wrap.mobile #bot-hand .dcard.portrait,
+  .game-wrap.mobile #bot-city .dcard.portrait { width: 72px; }
+  .game-wrap.mobile #bot-hand .dcard.portrait .dcard-emoji-col,
+  .game-wrap.mobile #bot-city .dcard.portrait .dcard-emoji-col { height: 42px; }
 
   /* Touch-friendly buttons */
   .gbtn { min-height: 44px; padding: 10px 16px; }
 
-  /* Draft: show bottom when page scrolls */
-  .game-wrap.phase-draft #bottom { display: block; }
-  .game-wrap.phase-draft #main { max-height: none; flex: none; }
+  /* Draft: expand main, hide hand tray */
+  .game-wrap.mobile.phase-draft #bottom { display: none; }
+  .game-wrap.mobile.phase-draft #main { max-height: none; flex: 1 1 auto; }
+  .game-wrap.mobile.phase-draft #bot-city { display: none; }
 }
