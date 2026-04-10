@@ -721,22 +721,26 @@ function renderAction(){
 
   if(S.collected&&S.sub==='choose'&&!S.noBuild){
     const canBuild=S.builtCount<maxB;
-    wrap.appendChild(el('div',{class:'sect-label'},`BUILD DISTRICT (${S.builtCount}/${maxB}) · 💰 ${me.gold}✦`));
-    if(!me.hand.length)wrap.appendChild(el('div',{class:'state-empty',style:'margin-bottom:8px'},'No cards in hand.'));
-    else{
-      const row=el('div',{class:'cards-wrap build-row'});
-      me.hand.forEach(d=>{
-        const cost=buildCost(me,d);
-        const canAfford=cost<=me.gold&&canBuildDistrict(me,d)&&canBuild;
-        const card=mkCard(d,{portrait:true,player:me,noDesc:true,disabled:false});
-        if(!canAfford)card.style.opacity='0.45';
-        card.style.cursor='pointer';
-        card.onclick=function(e){e.stopPropagation();showBuildConfirm(d,cost,canAfford);};
-        row.appendChild(card);
-      });
-      wrap.appendChild(row);
-      if(!me.hand.some(d=>buildCost(me,d)<=me.gold&&canBuildDistrict(me,d))&&canBuild)
-        wrap.appendChild(el('div',{class:'state-empty',style:'margin-bottom:8px'},'Cannot afford to build.'));
+    if(canBuild){
+      wrap.appendChild(el('div',{class:'sect-label'},`BUILD DISTRICT (${S.builtCount}/${maxB}) · 💰 ${me.gold}✦`));
+      if(!me.hand.length)wrap.appendChild(el('div',{class:'state-empty',style:'margin-bottom:8px'},'No cards in hand.'));
+      else{
+        const row=el('div',{class:'cards-wrap build-row'});
+        me.hand.forEach(d=>{
+          const cost=buildCost(me,d);
+          const canAfford=cost<=me.gold&&canBuildDistrict(me,d);
+          const card=mkCard(d,{portrait:true,player:me,noDesc:true,disabled:false});
+          if(!canAfford)card.style.opacity='0.45';
+          card.style.cursor='pointer';
+          card.onclick=function(e){e.stopPropagation();showBuildConfirm(d,cost,canAfford);};
+          row.appendChild(card);
+        });
+        wrap.appendChild(row);
+        if(!me.hand.some(d=>buildCost(me,d)<=me.gold&&canBuildDistrict(me,d)))
+          wrap.appendChild(el('div',{class:'state-empty',style:'margin-bottom:8px'},'Cannot afford to build.'));
+      }
+    }else if(S.builtCount>0){
+      wrap.appendChild(el('div',{class:'build-done-msg'},'✅ District built this turn ('+S.builtCount+'/'+maxB+')'));
     }
   }
   // Build confirm popup: shows card detail + build button
