@@ -383,6 +383,11 @@ body{
 .build-row{margin-bottom:10px}
 .build-too-costly{font-size:10px;color:var(--text-muted);margin-bottom:5px}
 .build-cant-reason{font-size:11px;color:var(--c-red-txt);margin-top:8px;font-style:italic}
+/* Uniform cards in player detail sheet */
+.player-detail-city{display:flex;flex-wrap:wrap;gap:8px;padding:8px 0}
+.player-detail-city .dcard.portrait{width:90px}
+.player-detail-city .dcard.portrait .dcard-desc{display:none}
+.player-detail-city .dcard.portrait .dcard-emoji-col{height:52px}
 .build-done-msg{font-size:12px;color:var(--c-green-txt);padding:8px 12px;background:var(--c-green-bg);border:1px solid var(--c-green-bdr);border-radius:var(--radius-sm);margin:8px 0}
 
 /* ── GAME OVER ── */
