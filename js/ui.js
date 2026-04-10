@@ -280,20 +280,16 @@ function render(){
     return pDiv;
   }
 
-  // You: full-width prominent panel — opponents: compact grid (desktop only)
+  // All players in a single compact grid (desktop only)
   const me=S.players[0];
   if(!isMobile){
-    topbar.appendChild(mkPlayerPanel(me,false));
-    const opponents=S.players.filter(p=>p.id!==0);
-    if(opponents.length){
-      const tbGrid=el('div',{class:'tb-grid'});
-      const displayOrder=[...opponents].sort((a,b)=>{
-        const ai=S.draftOrder.indexOf(a.id);const bi=S.draftOrder.indexOf(b.id);
-        return(ai===-1?99:ai)-(bi===-1?99:bi);
-      });
-      displayOrder.forEach(p=>tbGrid.appendChild(mkPlayerPanel(p,true)));
-      topbar.appendChild(tbGrid);
-    }
+    const tbGrid=el('div',{class:'tb-grid'});
+    const allOrder=[me,...S.players.filter(p=>p.id!==0).sort((a,b)=>{
+      const ai=S.draftOrder.indexOf(a.id);const bi=S.draftOrder.indexOf(b.id);
+      return(ai===-1?99:ai)-(bi===-1?99:bi);
+    })];
+    allOrder.forEach(p=>tbGrid.appendChild(mkPlayerPanel(p,true)));
+    topbar.appendChild(tbGrid);
   }
   wrap.appendChild(topbar);
 
