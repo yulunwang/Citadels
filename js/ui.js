@@ -85,7 +85,7 @@ function render(){
   const app=document.getElementById('app');app.innerHTML='';
   if(S.phase==='gameover'){app.appendChild(renderGameOver());return;}
 
-  const wrap=el('div',{class:'game-wrap'});
+  const wrap=el('div',{class:`game-wrap phase-${S.phase}`});
   if(typeof IMG !== 'undefined') {
     wrap.style.backgroundImage = 'url(' + IMG.bg.game + ')';
     wrap.style.backgroundSize = 'cover';

@@ -248,6 +248,9 @@ body{
 
 /* ── GAME WRAPPER ── */
 .game-wrap{display:flex;flex-direction:column;height:100vh;overflow:hidden}
+/* During draft, hide bottom hand/city — player only needs to pick a character */
+.game-wrap.phase-draft #bottom{display:none}
+.game-wrap.phase-draft #main{max-height:none;flex:1 1 auto}
 
 /* ── CITY CHIPS using color utility classes ── */
 .tb-chip-label.color-yellow,.tb-chip-label.color-blue,.tb-chip-label.color-green,.tb-chip-label.color-red,.tb-chip-label.color-purple{
