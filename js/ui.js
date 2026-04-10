@@ -71,8 +71,53 @@ function mkCard(d,opts){
   }
 
   div.appendChild(infoCol);
-  if(opts.onClick&&!opts.disabled)div.onclick=opts.onClick;
+  if(opts.onClick&&!opts.disabled){
+    div.onclick=opts.onClick;
+  }else if(portrait&&!opts.disabled){
+    // Tap portrait card (hand/city) → enlarged detail popup
+    div.style.cursor='pointer';
+    div.onclick=function(e){e.stopPropagation();showCardDetail(d,cost,disc);};
+  }
   return div;
+}
+
+function showCardDetail(d,cost,disc){
+  var existing=document.getElementById('card-detail-overlay');
+  if(existing){existing.remove();return;}
+  var overlay=el('div',{id:'card-detail-overlay'});
+  overlay.onclick=function(e){if(e.target===overlay)overlay.remove();};
+  var box=el('div',{class:'card-detail-box color-'+d.color});
+  // Art zone
+  var art=el('div',{class:'card-detail-art'});
+  var emoji=DEMOJI[d.id]||'🏛';
+  art.textContent=emoji;
+  if(typeof IMG!=='undefined'&&IMG.district[d.id]){
+    var src=IMG.district[d.id].full;
+    art.style.backgroundImage='url('+src+')';
+    art.style.backgroundSize='cover';
+    art.style.backgroundPosition='center';
+    var probe=new Image();
+    probe.onload=function(){art.textContent='';};
+    probe.onerror=function(){art.style.backgroundImage='';};
+    probe.src=src;
+  }
+  box.appendChild(art);
+  // Info zone
+  var info=el('div',{class:'card-detail-info'});
+  var costStr=disc?cost+'✦ ('+d.cost+'✦ normally)':cost+'✦';
+  info.appendChild(el('div',{class:'card-detail-cost'},costStr));
+  info.appendChild(el('div',{class:'card-detail-name'},d.name));
+  var c=CS[d.color];
+  info.appendChild(el('div',{class:'card-detail-type'},c.label));
+  if(d.special&&SDESC[d.special]){
+    info.appendChild(el('div',{class:'card-detail-desc'},SDESC[d.special]));
+  }
+  var closeBtn=el('button',{class:'card-detail-close'},'✕');
+  closeBtn.onclick=function(){overlay.remove();};
+  info.appendChild(closeBtn);
+  box.appendChild(info);
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
 }
 
 // ── GAME STATE ─────────────────────────────────────────────────────────────────
