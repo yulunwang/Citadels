@@ -382,6 +382,7 @@ body{
 .income-row-nav{display:flex;gap:8px;margin-bottom:6px;flex-wrap:wrap}
 .build-row{margin-bottom:10px}
 .build-too-costly{font-size:10px;color:var(--text-muted);margin-bottom:5px}
+.build-cant-reason{font-size:11px;color:var(--c-red-txt);margin-top:8px;font-style:italic}
 
 /* ── GAME OVER ── */
 .gameover-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg-body)}

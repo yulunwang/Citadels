@@ -720,26 +720,58 @@ function renderAction(){
   }
 
   if(S.collected&&S.sub==='choose'&&!S.noBuild){
-    wrap.appendChild(el('div',{class:'sect-label'},`BUILD DISTRICT (${S.builtCount}/${maxB})`));
     const canBuild=S.builtCount<maxB;
-    const affordable=me.hand.filter(d=>{const cost=buildCost(me,d);return cost<=me.gold&&canBuildDistrict(me,d);});
-    const rest=me.hand.filter(d=>!affordable.includes(d));
+    wrap.appendChild(el('div',{class:'sect-label'},`BUILD DISTRICT (${S.builtCount}/${maxB}) · 💰 ${me.gold}✦`));
     if(!me.hand.length)wrap.appendChild(el('div',{class:'state-empty',style:'margin-bottom:8px'},'No cards in hand.'));
     else{
-      if(affordable.length){
-        const row=el('div',{class:'cards-wrap build-row'});
-        affordable.forEach(d=>{const isUnique=d.color==='purple'&&d.special&&SDESC[d.special];
-          row.appendChild(mkCard(d,{portrait:true,player:me,noDesc:!isUnique,onClick:canBuild?()=>{{const _nr=humanBuild(S,d.uid);if(_nr)S=_nr;render();};}:null,disabled:!canBuild}));});
-        wrap.appendChild(row);
-      }
-      if(rest.length){
-        wrap.appendChild(el('div',{class:'build-too-costly'},'Too costly or already built:'));
-        const row2=el('div',{class:'cards-wrap build-row'});
-        rest.forEach(d=>{const isUnique=d.color==='purple'&&d.special&&SDESC[d.special];
-          row2.appendChild(mkCard(d,{portrait:true,player:me,disabled:true,noDesc:!isUnique}));});wrap.appendChild(row2);
-      }
-      if(!affordable.length)wrap.appendChild(el('div',{class:'state-empty',style:'margin-bottom:8px'},'Cannot afford to build.'));
+      const row=el('div',{class:'cards-wrap build-row'});
+      me.hand.forEach(d=>{
+        const cost=buildCost(me,d);
+        const canAfford=cost<=me.gold&&canBuildDistrict(me,d)&&canBuild;
+        const card=mkCard(d,{portrait:true,player:me,noDesc:true,disabled:false});
+        if(!canAfford)card.style.opacity='0.45';
+        card.style.cursor='pointer';
+        card.onclick=function(e){e.stopPropagation();showBuildConfirm(d,cost,canAfford);};
+        row.appendChild(card);
+      });
+      wrap.appendChild(row);
+      if(!me.hand.some(d=>buildCost(me,d)<=me.gold&&canBuildDistrict(me,d))&&canBuild)
+        wrap.appendChild(el('div',{class:'state-empty',style:'margin-bottom:8px'},'Cannot afford to build.'));
     }
+  }
+  // Build confirm popup: shows card detail + build button
+  function showBuildConfirm(d,cost,canAfford){
+    var existing=document.getElementById('card-detail-overlay');
+    if(existing)existing.remove();
+    var overlay=el('div',{id:'card-detail-overlay'});
+    overlay.onclick=function(e){if(e.target===overlay)overlay.remove();};
+    var box=el('div',{class:'card-detail-box color-'+d.color});
+    var art=el('div',{class:'card-detail-art'});
+    art.textContent=DEMOJI[d.id]||'🏛';
+    if(typeof IMG!=='undefined'&&IMG.district[d.id]){
+      var src=IMG.district[d.id].full;
+      art.style.backgroundImage='url('+src+')';art.style.backgroundSize='cover';art.style.backgroundPosition='center';
+      var probe=new Image();probe.onload=function(){art.textContent='';};probe.onerror=function(){art.style.backgroundImage='';};probe.src=src;
+    }
+    box.appendChild(art);
+    var info=el('div',{class:'card-detail-info'});
+    info.appendChild(el('div',{class:'card-detail-cost'},cost+'✦'));
+    info.appendChild(el('div',{class:'card-detail-name'},d.name));
+    info.appendChild(el('div',{class:'card-detail-type'},CS[d.color].label));
+    if(d.special&&SDESC[d.special])info.appendChild(el('div',{class:'card-detail-desc'},SDESC[d.special]));
+    if(canAfford){
+      var buildBtn=el('button',{class:'gbtn build-confirm-btn'},`🏗 Build for ${cost}✦`);
+      buildBtn.style.cssText='margin-top:10px;width:100%;background:#4db87a;color:#fff;border:none;padding:10px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer';
+      buildBtn.onclick=function(){overlay.remove();var _nr=humanBuild(S,d.uid);if(_nr){S=_nr;render();}};
+      info.appendChild(buildBtn);
+    }else{
+      var reason=!canBuildDistrict(me,d)?'Already built':'Not enough gold (need '+cost+'✦, have '+me.gold+'✦)';
+      info.appendChild(el('div',{class:'build-cant-reason'},reason));
+    }
+    var closeBtn=el('button',{class:'card-detail-close'},'✕');
+    closeBtn.onclick=function(){overlay.remove();};
+    info.appendChild(closeBtn);
+    box.appendChild(info);overlay.appendChild(box);document.body.appendChild(overlay);
   }
   if(S.noBuild&&S.collected&&S.sub==='choose'){
     wrap.appendChild(el('div',{class:'action-navigator-note'},'⚓ Navigator: income collected. No district may be built this turn.'));
