@@ -340,16 +340,12 @@ function renderDraft(){
 
   wrap.appendChild(el('div',{class:'draft-title'},'Choose your character for this round:'));
 
-  // Info bar: show what was removed before the draft
-  if(faceDown.length||faceUp.length){
+  // Only hint at how many cards total are out of play — never reveal which ones
+  const totalRemoved=(faceDown.length||0)+(faceUp.length||0);
+  if(totalRemoved){
     const info=el('div',{class:'draft-info'});
-    if(faceDown.length)info.appendChild(el('span',{class:'draft-info-ghost'},
-      `🎴 ${faceDown.length} card${faceDown.length>1?'s':''} set aside face-down before drafting — unknown to everyone`));
-    if(faceDown.length&&faceUp.length)info.appendChild(el('span',{class:'draft-info-sep'},'·'));
-    if(faceUp.length){
-      const names=faceUp.map(id=>{const c=CHARS.find(q=>q.id===id);return c?`${c.emoji} ${c.name}`:'?';}).join(', ');
-      info.appendChild(el('span',{class:'draft-info-removed'},`✕ Removed before draft (visible to all): ${names}`));
-    }
+    info.appendChild(el('span',{class:'draft-info-ghost'},
+      `🎴 ${totalRemoved} card${totalRemoved>1?'s':''} removed before drafting`));
     wrap.appendChild(info);
   }
 
@@ -357,10 +353,10 @@ function renderDraft(){
   CHARS.filter(c=>S.charPool.includes(c.id)).forEach(c=>{
     const avail=S.avail.includes(c.id);
     const removed=faceUp.includes(c.id);
-    // Hide cards already drafted by others (unavailable & not face-up removed)
-    // — showing them would reveal which character another player picked
-    if(!avail&&!removed)return;
-    const stateClass=avail?'available':'removed';
+    // Only show cards still available to pick — hide drafted + removed cards
+    // (face-up removed would tell you what's gone; that breaks the guessing game)
+    if(!avail)return;
+    const stateClass='available';
     const card=el('div',{class:`charcard ${stateClass}`,style:`--char-clr:${c.clr}`});
     // Image zone — top portion of card
     const imgZone=el('div',{class:'charcard-img-zone'});
