@@ -508,7 +508,18 @@ body{
 
 /* ── Mobile (≤768px) ── */
 @media (max-width: 768px) {
-  .tb-grid { grid-template-columns: 1fr; }
+  /* Topbar: compact 2-col grid, hide city chips to save space */
+  #topbar { padding: 6px 8px; max-height: 36vh; }
+  .tb-header { flex-wrap: wrap; gap: 5px; margin-bottom: 6px; padding-bottom: 6px; }
+  .tb-calling { margin-left: 0; font-size: 11px; }
+  .tb-meta { font-size: 11px; }
+  .tb-grid { grid-template-columns: repeat(2, 1fr); gap: 5px; }
+  .tb-player { padding: 5px 8px; }
+  .tb-player-name { font-size: 11px; }
+  .tb-player-stats { font-size: 10px; gap: 6px; margin-bottom: 2px; }
+  .tb-city { display: none; } /* city chips are in bot-city — no room in topbar on mobile */
+
+  /* Bottom */
   #bottom { flex-direction: column; }
   #bot-hand { width: 100%; border-right: none; border-bottom: 1px solid var(--border-subtle); max-height: 40vh; }
   #bot-city { width: 100%; max-height: 40vh; }
