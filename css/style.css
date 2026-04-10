@@ -566,10 +566,13 @@ body{
   .game-wrap.mobile #center .dcard.portrait { width: 90px; }
 
   /* Collapsible city in stage */
-  .mob-city-hdr { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: var(--bg-panel); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); margin: 8px 8px 0; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+  .mob-city-hdr { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: var(--bg-panel); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); margin: 8px 0 0; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--text-secondary); }
   .mob-city-hdr:active { background: var(--bg-hover); }
   .mob-city-toggle { font-size: 11px; color: var(--text-muted); }
-  .mob-city-cards { padding: 6px 8px; }
+  .mob-city-cards { padding: 6px 0; }
+  .mob-city-cards .dcard-desc { display: none; }
+  .mob-city-cards .dcard.portrait { width: 72px; }
+  .mob-city-cards .dcard.portrait .dcard-emoji-col { height: 42px; }
   .game-wrap.mobile #bot-city { border: none; padding: 0; width: 100%; }
 
   /* Zone 3: Hand tray — pinned at bottom */
