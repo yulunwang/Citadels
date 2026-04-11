@@ -627,3 +627,45 @@ body{
   .game-wrap.mobile.phase-draft #main { max-height: none; flex: 1 1 auto; }
   .game-wrap.mobile.phase-draft #bot-city { display: none; }
 }
+
+/* ── MOBILE: iPhone 15 Pro and similar (≤480px wide) ── */
+@media (max-width:480px){
+  /* Topbar: 2-col grid, tighter */
+  #topbar{max-height:34vh;padding:5px 7px}
+  .tb-header{margin-bottom:5px;padding-bottom:4px}
+  .tb-grid{grid-template-columns:repeat(2,1fr);gap:5px}
+  .tb-player{padding:5px 7px}
+  .tb-player-name{font-size:11px}
+  .tb-player-stats{font-size:11px;gap:6px;margin-bottom:3px}
+  .tb-city{gap:3px}
+  .tb-chip-label{font-size:10px;padding:2px 5px}
+
+  /* Main: allow more height on mobile */
+  #main{max-height:52vh}
+  #center{padding:8px 10px}
+
+  /* Bottom panel: smaller min-height so action panel gets more room */
+  #bottom{min-height:140px}
+  #bot-hand,#bot-city{padding:6px 8px}
+  .bot-label{margin-bottom:4px}
+
+  /* Action banner: compact */
+  .action-banner{padding:7px 10px;margin-bottom:8px;gap:8px}
+  .action-banner-emoji{font-size:28px}
+
+  /* Section labels and card wraps: tighter */
+  .sect-label{margin-bottom:4px;margin-top:2px}
+  .cards-wrap{gap:5px}
+
+  /* Portrait cards: smaller on mobile */
+  .dcard.portrait{width:88px}
+  .dcard.portrait .dcard-emoji-col{height:42px;font-size:22px}
+  .dcard.portrait .dcard-info-col{padding:4px 6px}
+  .dcard.portrait .dcard-cost{font-size:12px}
+  .dcard.portrait .dcard-name{font-size:10px;margin-top:2px}
+  .dcard.portrait .dcard-type{display:none}
+  .dcard.portrait .dcard-desc{display:none}
+
+  /* Action panel buttons: slightly smaller padding */
+  #center .gbtn{padding:7px 12px!important;margin-top:6px!important}
+}
