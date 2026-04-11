@@ -4,7 +4,8 @@
 
 var LS={screen:'home',hostSlots:null,hostName:'',joinName:'',joinCode:'',error:null,
   soloNumAI:3,soloCharPreset:'standard',soloCharSet:[1,2,3,4,5,6,7,8],
-  hostCharPreset:'standard',hostCharSet:[1,2,3,4,5,6,7,8]};
+  hostCharPreset:'standard',hostCharSet:[1,2,3,4,5,6,7,8],
+  charExpanded:false};
 
 function lobbyError(msg){
   NET.mode='solo';try{NET.peer?.destroy();}catch(e){}NET.peer=null;NET.hostConn=null;NET.conns={};
@@ -81,71 +82,94 @@ function renderCharSelect(mode){
   const setCharSet=(newSet)=>{
     if(mode==='solo'){LS.soloCharSet=newSet;LS.soloCharPreset='custom';}
     else{LS.hostCharSet=newSet;LS.hostCharPreset='custom';}
+    LS.charExpanded=true;
     renderLobby({});
   };
 
-  wrap.appendChild(el('div',{class:'charsel-label'},'CHARACTERS (one per rank)'));
+  wrap.appendChild(el('div',{class:'charsel-label'},'CHARACTERS'));
 
   // Quick preset buttons
   const presetRow=el('div',{class:'charsel-preset-row'});
-  [
+  const presets=[
     {label:'Standard',chars:[1,2,3,4,5,6,7,8]},
     {label:'+ Queen',  chars:[1,2,3,4,5,6,7,8,9]},
     {label:'Expanded', chars:[1,2,11,12,13,6,14,8,9]},
     {label:'Full Mix', chars:[1,2,15,12,13,16,10,8,9]},
-  ].forEach(opt=>{
+  ];
+  presets.forEach(opt=>{
     const active=JSON.stringify(charSet.slice().sort((a,b)=>a-b))===JSON.stringify(opt.chars.slice().sort((a,b)=>a-b));
     presetRow.appendChild(gbtn(opt.label,active?'#d4a843':'#555',()=>{
       if(mode==='solo'){LS.soloCharSet=[...opt.chars];LS.soloCharPreset=opt.label;}
       else{LS.hostCharSet=[...opt.chars];LS.hostCharPreset=opt.label;}
+      LS.charExpanded=false;
       renderLobby({});
     },'font-size:11px;padding:5px 10px'));
   });
   wrap.appendChild(presetRow);
 
-  // Per-rank radio groups (ranks 1-8)
-  const ranks=[1,2,3,4,5,6,7,8];
-  ranks.forEach(r=>{
-    const charsAtRank=CHARS.filter(c=>c.rank===r);
-    const selected=charSet.find(id=>CHARS.find(c=>c.id===id)?.rank===r);
-    const row=el('div',{class:'charsel-rank-row'});
-    row.appendChild(el('span',{class:'charsel-rank-lbl'},`Rank ${r}`));
-    charsAtRank.forEach(ch=>{
-      const active=selected===ch.id;
-      const btn=el('button',{class:`charsel-btn${active?' active':''}`,style:`--char-clr:${ch.clr}`},`${ch.emoji} ${ch.name}${ch.id>=9?' ✦':''}`);
+  // Summary: show selected characters as emoji strip
+  const summaryRow=el('div',{class:'charsel-summary'});
+  charSet.slice().sort((a,b)=>{
+    const ra=CHARS.find(c=>c.id===a)?.rank||99;
+    const rb=CHARS.find(c=>c.id===b)?.rank||99;
+    return ra-rb;
+  }).forEach(id=>{
+    const ch=CHARS.find(c=>c.id===id);
+    if(ch) summaryRow.appendChild(el('span',{class:'charsel-chip',style:`--char-clr:${ch.clr}`},ch.emoji));
+  });
+  // Customize toggle
+  const toggleBtn=el('button',{class:'charsel-toggle'},LS.charExpanded?'▴ Less':'▾ Customize');
+  toggleBtn.onclick=()=>{LS.charExpanded=!LS.charExpanded;renderLobby({});};
+  summaryRow.appendChild(toggleBtn);
+  wrap.appendChild(summaryRow);
+
+  // Per-rank detail — collapsible
+  if(LS.charExpanded){
+    const detail=el('div',{class:'charsel-detail'});
+    const ranks=[1,2,3,4,5,6,7,8];
+    ranks.forEach(r=>{
+      const charsAtRank=CHARS.filter(c=>c.rank===r);
+      const selected=charSet.find(id=>CHARS.find(c=>c.id===id)?.rank===r);
+      const row=el('div',{class:'charsel-rank-row'});
+      row.appendChild(el('span',{class:'charsel-rank-lbl'},`Rank ${r}`));
+      charsAtRank.forEach(ch=>{
+        const active=selected===ch.id;
+        const btn=el('button',{class:`charsel-btn${active?' active':''}`,style:`--char-clr:${ch.clr}`},`${ch.emoji} ${ch.name}${ch.id>=9?' ✦':''}`);
+        btn.onclick=()=>{
+          const newSet=charSet.filter(id=>CHARS.find(c=>c.id===id)?.rank!==r);
+          setCharSet([...newSet,ch.id]);
+        };
+        btn.onmouseenter=()=>showCharTooltip(ch,btn);
+        btn.onmouseleave=()=>hideCharTooltip();
+        btn.onfocus=()=>showCharTooltip(ch,btn);
+        btn.onblur=()=>hideCharTooltip();
+        row.appendChild(btn);
+      });
+      detail.appendChild(row);
+    });
+
+    // Rank 9 toggle (optional)
+    const has9=charSet.some(id=>CHARS.find(c=>c.id===id)?.rank===9);
+    const rank9chars=CHARS.filter(c=>c.rank===9);
+    const r9row=el('div',{class:'charsel-rank-row'});
+    r9row.appendChild(el('span',{class:'charsel-rank-lbl'},'Rank 9'));
+    const noBtn=el('button',{class:`charsel-btn${!has9?' active':''}`,style:'--char-clr:var(--text-muted)'},'None');
+    noBtn.onclick=()=>setCharSet(charSet.filter(id=>CHARS.find(c=>c.id===id)?.rank!==9));
+    r9row.appendChild(noBtn);
+    rank9chars.forEach(ch=>{
+      const active=has9&&charSet.includes(ch.id);
+      const btn=el('button',{class:`charsel-btn${active?' active':''}`,style:`--char-clr:${ch.clr}`},`${ch.emoji} ${ch.name} ✦`);
       btn.onclick=()=>{
-        const newSet=charSet.filter(id=>CHARS.find(c=>c.id===id)?.rank!==r);
+        const newSet=charSet.filter(id=>CHARS.find(c=>c.id===id)?.rank!==9);
         setCharSet([...newSet,ch.id]);
       };
       btn.onmouseenter=()=>showCharTooltip(ch,btn);
       btn.onmouseleave=()=>hideCharTooltip();
-      btn.onfocus=()=>showCharTooltip(ch,btn);
-      btn.onblur=()=>hideCharTooltip();
-      row.appendChild(btn);
+      r9row.appendChild(btn);
     });
-    wrap.appendChild(row);
-  });
-
-  // Rank 9 toggle (optional)
-  const has9=charSet.some(id=>CHARS.find(c=>c.id===id)?.rank===9);
-  const rank9chars=CHARS.filter(c=>c.rank===9);
-  const r9row=el('div',{class:'charsel-rank-row'});
-  r9row.appendChild(el('span',{class:'charsel-rank-lbl'},'Rank 9'));
-  const noBtn=el('button',{class:`charsel-btn${!has9?' active':''}`,style:'--char-clr:var(--text-muted)'},'None');
-  noBtn.onclick=()=>setCharSet(charSet.filter(id=>CHARS.find(c=>c.id===id)?.rank!==9));
-  r9row.appendChild(noBtn);
-  rank9chars.forEach(ch=>{
-    const active=has9&&charSet.includes(ch.id);
-    const btn=el('button',{class:`charsel-btn${active?' active':''}`,style:`--char-clr:${ch.clr}`},`${ch.emoji} ${ch.name} ✦`);
-    btn.onclick=()=>{
-      const newSet=charSet.filter(id=>CHARS.find(c=>c.id===id)?.rank!==9);
-      setCharSet([...newSet,ch.id]);
-    };
-    btn.onmouseenter=()=>showCharTooltip(ch,btn);
-    btn.onmouseleave=()=>hideCharTooltip();
-    r9row.appendChild(btn);
-  });
-  wrap.appendChild(r9row);
+    detail.appendChild(r9row);
+    wrap.appendChild(detail);
+  }
 
   return wrap;
 }
@@ -195,9 +219,9 @@ function renderLobby(opts){
     box.appendChild(el('div',{class:'lobby-section-title'},'🤖 Solo Game Setup'));
     box.appendChild(el('div',{class:'lobby-label'},'NUMBER OF OPPONENTS'));
     const cntRow=el('div',{class:'lobby-cnt-row'});
-    const decBtn=gbtn('−','#555',()=>{if(LS.soloNumAI>1){LS.soloNumAI--;const p=autoPreset(1+LS.soloNumAI);LS.soloCharPreset=p;LS.soloCharSet=[...(CHAR_PRESETS[1+LS.soloNumAI]||[1,2,3,4,5,6,7,8])];renderLobby({});}},'width:36px;height:36px;text-align:center;padding:0;font-size:18px;border-radius:50%');
+    const decBtn=gbtn('−','#555',()=>{if(LS.soloNumAI>1){LS.soloNumAI--;const p=autoPreset(1+LS.soloNumAI);LS.soloCharPreset=p;LS.soloCharSet=[...(CHAR_PRESETS[1+LS.soloNumAI]||[1,2,3,4,5,6,7,8])];renderLobby({});}},'width:30px;height:30px;text-align:center;padding:0;font-size:16px;border-radius:50%;min-height:auto');
     const cntLabel=el('div',{class:'lobby-cnt-label'},`${LS.soloNumAI} AI opponent${LS.soloNumAI>1?'s':''}`);
-    const incBtn=gbtn('+','#555',()=>{if(LS.soloNumAI<6){LS.soloNumAI++;const p=autoPreset(1+LS.soloNumAI);LS.soloCharPreset=p;LS.soloCharSet=[...(CHAR_PRESETS[1+LS.soloNumAI]||[1,2,3,4,5,6,7,8])];renderLobby({});}},'width:36px;height:36px;text-align:center;padding:0;font-size:18px;border-radius:50%');
+    const incBtn=gbtn('+','#555',()=>{if(LS.soloNumAI<6){LS.soloNumAI++;const p=autoPreset(1+LS.soloNumAI);LS.soloCharPreset=p;LS.soloCharSet=[...(CHAR_PRESETS[1+LS.soloNumAI]||[1,2,3,4,5,6,7,8])];renderLobby({});}},'width:30px;height:30px;text-align:center;padding:0;font-size:16px;border-radius:50%;min-height:auto');
     cntRow.append(decBtn,cntLabel,incBtn);box.appendChild(cntRow);
     box.appendChild(renderCharSelect('solo'));
     const br=el('div',{class:'lobby-btn-row'});
