@@ -5,7 +5,7 @@
 var LS={screen:'home',hostSlots:null,hostName:'',joinName:'',joinCode:'',error:null,
   soloNumAI:3,soloCharPreset:'standard',soloCharSet:[1,2,3,4,5,6,7,8],
   hostCharPreset:'standard',hostCharSet:[1,2,3,4,5,6,7,8],
-  charExpanded:false};
+  charExpanded:false,myAvatar:'🦊',hostStep:1};
 
 function lobbyError(msg){
   NET.mode='solo';try{NET.peer?.destroy();}catch(e){}NET.peer=null;NET.hostConn=null;NET.conns={};
@@ -76,6 +76,19 @@ function hideCharTooltip(){
   const tip=document.getElementById('char-tooltip');
   if(tip)tip.style.display='none';
 }
+function renderAvatarPicker(){
+  const wrap=el('div',{class:'avatar-picker'});
+  wrap.appendChild(el('div',{class:'lobby-label'},'YOUR AVATAR'));
+  const row=el('div',{class:'avatar-grid'});
+  AVATAR_POOL.forEach(a=>{
+    const btn=el('button',{class:`avatar-btn${LS.myAvatar===a?' active':''}`},a);
+    btn.onclick=()=>{LS.myAvatar=a;renderLobby({});};
+    row.appendChild(btn);
+  });
+  wrap.appendChild(row);
+  return wrap;
+}
+
 function renderCharSelect(mode){
   const wrap=el('div',null);
   const charSet=mode==='solo'?LS.soloCharSet:LS.hostCharSet;
@@ -224,6 +237,7 @@ function renderLobby(opts){
 
   else if(LS.screen==='solo_config'){
     box.appendChild(el('div',{class:'lobby-section-title'},'🤖 Solo Game Setup'));
+    box.appendChild(renderAvatarPicker());
     box.appendChild(el('div',{class:'lobby-label'},'NUMBER OF OPPONENTS'));
     const cntRow=el('div',{class:'lobby-cnt-row'});
     const decBtn=gbtn('−','#555',()=>{if(LS.soloNumAI>1){LS.soloNumAI--;const p=autoPreset(1+LS.soloNumAI);LS.soloCharPreset=p;LS.soloCharSet=[...(CHAR_PRESETS[1+LS.soloNumAI]||[1,2,3,4,5,6,7,8])];renderLobby({});}},'width:30px;height:30px;text-align:center;padding:0;font-size:16px;border-radius:50%;min-height:auto');
@@ -234,7 +248,8 @@ function renderLobby(opts){
     const br=el('div',{class:'lobby-btn-row'});
     br.appendChild(gbtn('← Back','#555',()=>{LS.screen='home';renderLobby({});}));
     br.appendChild(gbtn('▶ Start Game','#4db87a',()=>{
-      NET.mode='solo';S=runAIDraft(newGame({numAI:LS.soloNumAI,charPool:LS.soloCharSet}));render();
+      PLAYER_AVATARS={};PLAYER_AVATARS[0]=LS.myAvatar||'🦊';
+      NET.mode='solo';S=runAIDraft(newGame({numAI:LS.soloNumAI,charPool:LS.soloCharSet}));assignAvatars(S.players);render();
     },'flex:1;padding:10px;font-family:Cinzel,serif;font-size:13px;text-align:center'));
     box.appendChild(br);
   }
@@ -246,71 +261,84 @@ function renderLobby(opts){
       {slot:2,name:'Duke Arven',ai:true},
       {slot:3,name:'Baron Selt',ai:true},
     ];
-    box.appendChild(el('div',{class:'lobby-section-title'},'🏠 Configure Room'));
 
-    const hnRow=el('div',{style:'margin-bottom:16px'});
-    hnRow.appendChild(el('div',{class:'lobby-label-sm'},'YOUR NAME'));
-    const hnIn=document.createElement('input');
-    hnIn.value=LS.hostName||'';hnIn.placeholder='Your display name (e.g. Alex)';
-    hnIn.className='lobby-input';
-    hnRow.appendChild(hnIn);box.appendChild(hnRow);
+    if(LS.hostStep===1){
+      // Step 1: Players
+      box.appendChild(el('div',{class:'lobby-section-title'},'🏠 Room — Players'));
+      box.appendChild(renderAvatarPicker());
 
-    box.appendChild(el('div',{class:'lobby-label'},'PLAYER SLOTS'));
-    box.appendChild(el('div',{class:'lobby-hint'},'Set each slot to AI or Human. Human players join with the room code and choose their own name when they connect.'));
-    const AI_NAMES=['Lady Mira','Duke Arven','Baron Selt','Countess Vael','Lord Draven','Dame Isolde'];
-    const slotHdr=el('div',{class:'lobby-slot-hdr'});
-    slotHdr.appendChild(el('span',{class:'lobby-slot-count'},`${LS.hostSlots.length} players`));
-    slotHdr.appendChild(gbtn('− Remove','#555',()=>{if(LS.hostSlots.length>2){LS.hostSlots=LS.hostSlots.slice(0,-1);renderLobby({});}},'font-size:11px;padding:4px 10px'));
-    slotHdr.appendChild(gbtn('+ Add Player','#5a9fd4',()=>{if(LS.hostSlots.length<7){const i=LS.hostSlots.length;LS.hostSlots.push({slot:i,name:AI_NAMES[i-1]||'AI '+(i+1),ai:true});renderLobby({});}},'font-size:11px;padding:4px 10px'));
-    box.appendChild(slotHdr);
-    const slotList=el('div',{class:'lobby-slot-list'});
-    let hostNameEl=null;
-    LS.hostSlots.forEach((sl,i)=>{
-      const row=el('div',{class:'lobby-slot-row'});
-      row.appendChild(el('span',{class:'lobby-slot-icon'},sl.locked?'👤':sl.ai?'🤖':'👥'));
-      if(sl.locked){
-        const nameEl=el('span',{class:'lobby-slot-name'});
-        nameEl.textContent=LS.hostSlots[0].name||'Host';
-        hostNameEl=nameEl;
-        row.appendChild(nameEl);
-        row.appendChild(el('span',{class:'lobby-slot-tag'},'You (Host)'));
-      }else if(sl.ai){
-        const ni=document.createElement('input');
-        ni.value=sl.name;ni.placeholder='AI name';
-        ni.className='lobby-ai-input';
-        ni.oninput=()=>{LS.hostSlots[i].name=ni.value;};
-        row.appendChild(ni);
-        const tb=gbtn('🤖 AI','#6a5a8a',()=>{LS.hostSlots[i].ai=false;renderLobby({});},'min-width:90px;text-align:center');
-        row.appendChild(tb);
-      }else{
-        const nameEl=el('span',{class:'lobby-slot-name-wait'},'(waits for player to join)');
-        row.appendChild(nameEl);
-        const tb=gbtn('👥 Human','#4db87a',()=>{LS.hostSlots[i].ai=true;LS.hostSlots[i].name=['Lady Mira','Duke Arven','Baron Selt','Countess Vael','Lord Draven','Dame Isolde'][i-1]||'AI '+(i+1);renderLobby({});},'min-width:90px;text-align:center');
-        row.appendChild(tb);
-      }
-      slotList.appendChild(row);
-    });
-    hnIn.oninput=()=>{
-      LS.hostName=hnIn.value;
-      LS.hostSlots[0].name=hnIn.value.trim()||'Host';
-      if(hostNameEl)hostNameEl.textContent=LS.hostSlots[0].name;
-    };
-    box.appendChild(slotList);
-    box.appendChild(renderCharSelect('host'));
-    const br=el('div',{class:'lobby-btn-row-sm'});
-    br.appendChild(gbtn('← Back','#555',()=>{LS.screen='home';LS.hostSlots=null;renderLobby({});}));
-    br.appendChild(gbtn('Create Room →','#d4a843',()=>{
-      const slots=LS.hostSlots.map(sl=>({...sl,name:sl.slot===0?(LS.hostName.trim()||'Host'):sl.name}));
-      const allAI=slots.every(sl=>sl.ai||sl.slot===0);
-      if(allAI){
-        NET.mode='solo';
-        S=runAIDraft(buildGameFromConfig(slots,LS.hostCharSet));
-        render();
-      }else{
-        hostRoom(slots);
-      }
-    },'flex:1;padding:10px;font-family:Cinzel,serif;font-size:13px;text-align:center'));
-    box.appendChild(br);
+      const hnRow=el('div',{style:'margin-bottom:16px'});
+      hnRow.appendChild(el('div',{class:'lobby-label-sm'},'YOUR NAME'));
+      const hnIn=document.createElement('input');
+      hnIn.value=LS.hostName||'';hnIn.placeholder='Your display name (e.g. Alex)';
+      hnIn.className='lobby-input';
+      hnRow.appendChild(hnIn);box.appendChild(hnRow);
+
+      box.appendChild(el('div',{class:'lobby-label'},'PLAYER SLOTS'));
+      box.appendChild(el('div',{class:'lobby-hint'},'Set each slot to AI or Human.'));
+      const AI_NAMES=['Lady Mira','Duke Arven','Baron Selt','Countess Vael','Lord Draven','Dame Isolde'];
+      const slotHdr=el('div',{class:'lobby-slot-hdr'});
+      slotHdr.appendChild(el('span',{class:'lobby-slot-count'},`${LS.hostSlots.length} players`));
+      slotHdr.appendChild(gbtn('− Remove','#555',()=>{if(LS.hostSlots.length>2){LS.hostSlots=LS.hostSlots.slice(0,-1);renderLobby({});}},'font-size:11px;padding:4px 10px'));
+      slotHdr.appendChild(gbtn('+ Add','#5a9fd4',()=>{if(LS.hostSlots.length<7){const i=LS.hostSlots.length;LS.hostSlots.push({slot:i,name:AI_NAMES[i-1]||'AI '+(i+1),ai:true});renderLobby({});}},'font-size:11px;padding:4px 10px'));
+      box.appendChild(slotHdr);
+      const slotList=el('div',{class:'lobby-slot-list'});
+      let hostNameEl=null;
+      LS.hostSlots.forEach((sl,i)=>{
+        const row=el('div',{class:'lobby-slot-row'});
+        row.appendChild(el('span',{class:'lobby-slot-icon'},sl.locked?LS.myAvatar:sl.ai?'🤖':'👥'));
+        if(sl.locked){
+          const nameEl=el('span',{class:'lobby-slot-name'});
+          nameEl.textContent=LS.hostSlots[0].name||'Host';
+          hostNameEl=nameEl;
+          row.appendChild(nameEl);
+          row.appendChild(el('span',{class:'lobby-slot-tag'},'You'));
+        }else if(sl.ai){
+          const ni=document.createElement('input');
+          ni.value=sl.name;ni.placeholder='AI name';
+          ni.className='lobby-ai-input';
+          ni.oninput=()=>{LS.hostSlots[i].name=ni.value;};
+          row.appendChild(ni);
+          const tb=gbtn('🤖 AI','#6a5a8a',()=>{LS.hostSlots[i].ai=false;renderLobby({});},'min-width:70px;text-align:center;font-size:11px');
+          row.appendChild(tb);
+        }else{
+          const nameEl=el('span',{class:'lobby-slot-name-wait'},'(waiting for player)');
+          row.appendChild(nameEl);
+          const tb=gbtn('👥 Human','#4db87a',()=>{LS.hostSlots[i].ai=true;LS.hostSlots[i].name=['Lady Mira','Duke Arven','Baron Selt','Countess Vael','Lord Draven','Dame Isolde'][i-1]||'AI '+(i+1);renderLobby({});},'min-width:70px;text-align:center;font-size:11px');
+          row.appendChild(tb);
+        }
+        slotList.appendChild(row);
+      });
+      hnIn.oninput=()=>{
+        LS.hostName=hnIn.value;
+        LS.hostSlots[0].name=hnIn.value.trim()||'Host';
+        if(hostNameEl)hostNameEl.textContent=LS.hostSlots[0].name;
+      };
+      box.appendChild(slotList);
+      const br=el('div',{class:'lobby-btn-row-sm'});
+      br.appendChild(gbtn('← Back','#555',()=>{LS.screen='home';LS.hostSlots=null;LS.hostStep=1;renderLobby({});}));
+      br.appendChild(gbtn('Characters →','#d4a843',()=>{LS.hostStep=2;renderLobby({});},'flex:1;padding:10px;font-family:Cinzel,serif;font-size:13px;text-align:center'));
+      box.appendChild(br);
+    }else{
+      // Step 2: Characters
+      box.appendChild(el('div',{class:'lobby-section-title'},'🏠 Room — Characters'));
+      box.appendChild(renderCharSelect('host'));
+      const br=el('div',{class:'lobby-btn-row-sm'});
+      br.appendChild(gbtn('← Players','#555',()=>{LS.hostStep=1;renderLobby({});}));
+      br.appendChild(gbtn('Create Room →','#d4a843',()=>{
+        const slots=LS.hostSlots.map(sl=>({...sl,name:sl.slot===0?(LS.hostName.trim()||'Host'):sl.name}));
+        const allAI=slots.every(sl=>sl.ai||sl.slot===0);
+        if(allAI){
+          PLAYER_AVATARS={};PLAYER_AVATARS[0]=LS.myAvatar||'🦊';
+          NET.mode='solo';
+          S=runAIDraft(buildGameFromConfig(slots,LS.hostCharSet));assignAvatars(S.players);
+          render();
+        }else{
+          hostRoom(slots);
+        }
+      },'flex:1;padding:10px;font-family:Cinzel,serif;font-size:13px;text-align:center'));
+      box.appendChild(br);
+    }
   }
 
   else if(LS.screen==='hosting'){
@@ -385,6 +413,7 @@ function renderLobby(opts){
 
   else if(LS.screen==='join'){
     box.appendChild(el('div',{class:'lobby-section-title'},'🚪 Join a Room'));
+    box.appendChild(renderAvatarPicker());
     const nRow=el('div',{style:'margin-bottom:12px'});
     nRow.appendChild(el('div',{class:'lobby-label-sm'},'YOUR NAME'));
     const nIn=document.createElement('input');nIn.value=LS.joinName;nIn.placeholder='Your display name';

@@ -560,15 +560,14 @@ function renderDraft(){
   const wrap=el('div',null);
   const faceDown=S.faceDown||[];const faceUp=S.faceUp||[];
 
-  // Draft order bar — who picked, who's picking, who's waiting
+  // Draft order bar — emoji avatar pips
   const orderBar=el('div',{class:'draft-order'});
   S.draftOrder.forEach((pid,i)=>{
     const p=S.players[pid];
     const state=i<S.draftIdx?'done':i===S.draftIdx?'active':'waiting';
-    const pip=el('div',{class:`draft-pip ${state}`});
-    const icon=el('span',{class:'draft-pip-icon'},state==='done'?'✓':p.ai?'🤖':'👤');
-    const name=el('span',{class:'draft-pip-name'},pid===0?'You':p.name);
-    pip.append(icon,name);
+    const avatar=typeof getAvatar==='function'?getAvatar(pid):(p.ai?'🤖':'👤');
+    const pip=el('div',{class:`draft-pip ${state}`,title:pid===0?'You':p.name});
+    pip.textContent=state==='done'?'✓':avatar;
     orderBar.appendChild(pip);
   });
   wrap.appendChild(orderBar);

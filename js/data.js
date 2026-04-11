@@ -95,6 +95,27 @@ Object.keys(DEMOJI).forEach(function(id) {
   IMG.ui[k] = 'img/ui/' + k + '.svg';
 });
 
+// ── Player avatar emoji pool ──
+var AVATAR_POOL=['🦊','🐺','🦅','🐉','🦁','🐻','🦉','🐍','🦇','🐬',
+  '🦚','🐎','🦌','🐢','🦋','🐝','🦂','🐙','🦈','🐘'];
+var PLAYER_AVATARS={};  // {playerId: emoji} — set by lobby before game starts
+
+function assignAvatars(players){
+  var used=[];
+  players.forEach(function(p){
+    if(PLAYER_AVATARS[p.id])used.push(PLAYER_AVATARS[p.id]);
+  });
+  players.forEach(function(p){
+    if(!PLAYER_AVATARS[p.id]){
+      var pool=AVATAR_POOL.filter(function(e){return used.indexOf(e)<0;});
+      var pick=pool[Math.floor(Math.random()*pool.length)]||'⬜';
+      PLAYER_AVATARS[p.id]=pick;
+      used.push(pick);
+    }
+  });
+}
+function getAvatar(pid){return PLAYER_AVATARS[pid]||'⬜';}
+
 const CHAR_PRESETS={
   2:[1,2,3,4,5,6,7,8],
   3:[1,2,3,4,5,6,7,8],

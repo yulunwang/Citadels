@@ -324,13 +324,11 @@ body{
 .state-info{color:var(--text-secondary);font-size:12px}
 
 /* ── DRAFT ── */
-.draft-order{display:flex;gap:4px;margin-bottom:12px;padding:6px 8px;background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius-md);overflow-x:auto}
-.draft-pip{display:flex;align-items:center;gap:4px;padding:4px 8px;border-radius:var(--radius-sm);font-size:11px;white-space:nowrap;flex-shrink:0}
-.draft-pip.done{background:color-mix(in srgb,var(--c-green-bdr) 12%,var(--bg-card));color:var(--c-green-txt)}
-.draft-pip.active{background:color-mix(in srgb,var(--text-accent) 15%,var(--bg-card));color:var(--text-accent);font-weight:700;border:1px solid color-mix(in srgb,var(--text-accent) 40%,var(--border-main))}
-.draft-pip.waiting{color:var(--text-muted)}
-.draft-pip-icon{font-size:12px}
-.draft-pip-name{font-family:var(--font-display);font-size:10px}
+.draft-order{display:flex;gap:6px;margin-bottom:12px;justify-content:center;align-items:center}
+.draft-pip{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;border:2px solid var(--border-main);background:var(--bg-card);transition:all var(--transition-fast);cursor:default;flex-shrink:0}
+.draft-pip.done{background:color-mix(in srgb,var(--c-green-bdr) 15%,var(--bg-card));border-color:var(--c-green-bdr);color:var(--c-green-txt);font-size:14px}
+.draft-pip.active{background:color-mix(in srgb,var(--text-accent) 15%,var(--bg-card));border-color:var(--text-accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--text-accent) 25%,transparent);animation:activePlayerGlow 2s ease-in-out infinite}
+.draft-pip.waiting{opacity:0.4}
 .draft-title{font-family:var(--font-display);color:var(--text-accent);font-size:15px;margin-bottom:10px}
 .draft-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
 .draft-info{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:12px;padding:8px 12px;background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius-md);font-size:11px;line-height:1.5}
@@ -444,6 +442,11 @@ body{
 .lobby-mode-text{flex:1;min-width:0}
 .lobby-mode-title{font-family:var(--font-display);font-size:14px;color:var(--text-accent);margin-bottom:2px}
 .lobby-mode-desc{font-size:11px;color:var(--text-muted);line-height:1.4}
+.avatar-picker{margin-bottom:14px}
+.avatar-grid{display:flex;flex-wrap:wrap;gap:6px}
+.avatar-btn{width:36px;height:36px;border:2px solid var(--border-main);border-radius:var(--radius-md);background:var(--bg-card);font-size:18px;cursor:pointer;transition:all var(--transition-fast);padding:0;display:inline-flex;align-items:center;justify-content:center}
+.avatar-btn:hover{background:var(--bg-hover);border-color:var(--border-strong)}
+.avatar-btn.active{border-color:var(--text-accent);background:color-mix(in srgb,var(--text-accent) 12%,var(--bg-card));box-shadow:0 0 0 2px color-mix(in srgb,var(--text-accent) 25%,transparent)}
 .lobby-cnt-row{display:flex;align-items:center;gap:12px;margin-bottom:16px;justify-content:center}
 .lobby-cnt-label{font-family:var(--font-display);font-size:15px;color:var(--text-primary);text-align:center;min-width:120px}
 .lobby-btn-row{display:flex;gap:10px;margin-top:16px}
@@ -641,9 +644,22 @@ body{
   .game-wrap.mobile.phase-draft #main { max-height: none; flex: 1 1 auto; }
   .game-wrap.mobile.phase-draft #bot-city { display: none; }
 
+  /* ── Draft: compact cards on mobile ── */
+  .draft-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 8px; }
+  .charcard-img-zone { height: 80px; }
+  .charcard-img-fallback { font-size: 32px; }
+  .charcard-info-zone { padding: 6px 8px 8px; }
+  .charcard-name { font-size: 11px; }
+  .charcard-ability { font-size: 9px; line-height: 1.35; }
+  .draft-title { font-size: 13px; margin-bottom: 6px; }
+  .draft-pip { width: 30px; height: 30px; font-size: 15px; }
+
   /* ── Lobby: mobile adjustments ── */
   .lobby-inner { padding: 12px; }
   .lobby-box { padding: 20px 16px; }
+  .avatar-btn { width: 30px; height: 30px; font-size: 15px; }
+  .avatar-grid { gap: 5px; }
+  .avatar-picker { margin-bottom: 10px; }
   .charsel-rank-row { gap: 5px; padding: 6px 6px; }
   .charsel-rank-lbl { min-width: 42px; font-size: 9px; }
   .charsel-btn { font-size: 10px; padding: 5px 8px; }
