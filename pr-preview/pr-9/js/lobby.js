@@ -182,8 +182,10 @@ function renderLobby(opts){
     ].forEach(m=>{
       const c=el('div',{class:'lobby-mode-card'});
       c.appendChild(el('div',{class:'lobby-mode-icon'},m.icon));
-      c.appendChild(el('div',{class:'lobby-mode-title'},m.title));
-      c.appendChild(el('div',{class:'lobby-mode-desc'},m.desc));
+      const txt=el('div',{class:'lobby-mode-text'});
+      txt.appendChild(el('div',{class:'lobby-mode-title'},m.title));
+      txt.appendChild(el('div',{class:'lobby-mode-desc'},m.desc));
+      c.appendChild(txt);
       c.onclick=m.fn;grid.appendChild(c);
     });
     box.appendChild(grid);

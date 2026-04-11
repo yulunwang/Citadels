@@ -1,13 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 768">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#fae8d0"/>
-      <stop offset="100%" stop-color="#7a4010"/>
+      <stop offset="0%" stop-color="#faf7f0"/>
+      <stop offset="100%" stop-color="#f8ece0"/>
     </linearGradient>
   </defs>
-  <rect width="512" height="768" fill="url(#bg)" rx="12"/>
-  <rect x="4" y="4" width="504" height="760" rx="10" fill="none" stroke="#e0975c" stroke-opacity="0.3" stroke-width="1"/>
-  <text x="256" y="380" text-anchor="middle" font-size="120">📖</text>
-  <rect x="0" y="668" width="512" height="100" fill="rgba(0,0,0,0.35)" rx="0"/>
-  <text x="256" y="728" text-anchor="middle" fill="white" font-family="serif" font-size="28" font-weight="bold">Scholar</text>
+  <rect width="512" height="768" rx="12" fill="url(#bg)"/>
+  <rect x="0" y="0" width="512" height="6" rx="12" fill="#e0975c" fill-opacity="0.5"/>
+  <rect x="16" y="16" width="480" height="736" rx="6" fill="none" stroke="#e0975c" stroke-opacity="0.15" stroke-width="1.5"/>
+  <text x="256" y="340" text-anchor="middle" font-size="200">📖</text>
+  <rect x="0" y="660" width="512" height="108" rx="0 0 10 10" fill="#e0975c" fill-opacity="0.8"/>
+  <text x="256" y="726" text-anchor="middle" font-family="Georgia, serif" font-size="38" fill="#fff" font-weight="bold">Scholar</text>
 </svg>

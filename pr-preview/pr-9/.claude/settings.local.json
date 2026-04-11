@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__Claude_Preview__preview_start",
+      "Bash(gh pr:*)",
+      "Bash(where gh:*)",
+      "Bash(winget list:*)",
+      "Read(//c/Program Files/GitHub CLI/**)",
+      "Read(//c/Users/yulun/AppData/Local/Programs/GitHub CLI/**)",
+      "Bash(winget install:*)",
+      "Bash(export PATH=\"$PATH:/c/Program Files/GitHub CLI\")",
+      "Bash(gh --version)",
+      "Bash(gh auth:*)"
+    ]
+  }
+}
