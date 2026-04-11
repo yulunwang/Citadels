@@ -115,7 +115,14 @@ function renderCharSelect(mode){
     return ra-rb;
   }).forEach(id=>{
     const ch=CHARS.find(c=>c.id===id);
-    if(ch) summaryRow.appendChild(el('span',{class:'charsel-chip',style:`--char-clr:${ch.clr}`},ch.emoji));
+    if(ch){
+      const chip=el('span',{class:'charsel-chip',style:`--char-clr:${ch.clr}`},ch.emoji);
+      chip.onmouseenter=()=>showCharTooltip(ch,chip);
+      chip.onmouseleave=()=>hideCharTooltip();
+      chip.onfocus=()=>showCharTooltip(ch,chip);
+      chip.onblur=()=>hideCharTooltip();
+      summaryRow.appendChild(chip);
+    }
   });
   // Customize toggle
   const toggleBtn=el('button',{class:'charsel-toggle'},LS.charExpanded?'▴ Less':'▾ Customize');

@@ -486,7 +486,8 @@ body{
 .charsel-btn:hover{background:var(--bg-hover)}
 .charsel-btn.active:hover{background:color-mix(in srgb,var(--char-clr,var(--text-accent)) 20%,var(--bg-card))}
 .charsel-summary{display:flex;align-items:center;gap:4px;margin-bottom:8px;flex-wrap:wrap}
-.charsel-chip{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:var(--radius-sm);background:color-mix(in srgb,var(--char-clr,var(--text-accent)) 12%,var(--bg-card));border:1px solid color-mix(in srgb,var(--char-clr,var(--text-accent)) 30%,var(--border-main));font-size:14px}
+.charsel-chip{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:var(--radius-sm);background:color-mix(in srgb,var(--char-clr,var(--text-accent)) 12%,var(--bg-card));border:1px solid color-mix(in srgb,var(--char-clr,var(--text-accent)) 30%,var(--border-main));font-size:14px;cursor:default;transition:background var(--transition-fast)}
+.charsel-chip:hover{background:color-mix(in srgb,var(--char-clr,var(--text-accent)) 22%,var(--bg-card))}
 .charsel-toggle{background:none;border:none;color:var(--text-muted);font-family:var(--font-display);font-size:10px;cursor:pointer;padding:4px 8px;margin-left:auto;white-space:nowrap}
 .charsel-toggle:hover{color:var(--text-accent)}
 .charsel-detail{animation:fadeSlideUp .15s ease-out}
