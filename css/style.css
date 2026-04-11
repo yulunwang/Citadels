@@ -430,12 +430,13 @@ body{
 .lobby-input-code:focus{border-color:var(--text-accent)}
 .lobby-ai-input{flex:1;background:var(--bg-card);border:1px solid var(--border-main);border-radius:var(--radius-sm);padding:6px 10px;color:var(--text-primary);font-size:13px;font-family:var(--font-body);outline:none}
 .lobby-error{background:color-mix(in srgb,var(--c-red-bdr) 8%,var(--bg-panel));border:1px solid color-mix(in srgb,var(--c-red-bdr) 30%,var(--border-main));border-radius:var(--radius-md);padding:10px 14px;color:var(--c-red-txt);font-size:13px;margin-bottom:14px;text-align:center}
-.lobby-mode-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
-.lobby-mode-card{background:var(--bg-card);border:1px solid var(--border-main);border-radius:var(--radius-lg);padding:16px;text-align:center;cursor:pointer;transition:background var(--transition-fast),box-shadow var(--transition-fast),border-color var(--transition-fast)}
+.lobby-mode-grid{display:flex;flex-direction:column;gap:10px}
+.lobby-mode-card{background:var(--bg-card);border:1px solid var(--border-main);border-radius:var(--radius-lg);padding:14px 18px;cursor:pointer;transition:background var(--transition-fast),box-shadow var(--transition-fast),border-color var(--transition-fast);display:flex;align-items:center;gap:16px}
 .lobby-mode-card:hover{background:var(--bg-hover);box-shadow:var(--shadow-hover);border-color:var(--border-strong)}
-.lobby-mode-icon{font-size:30px;margin-bottom:8px}
-.lobby-mode-title{font-family:var(--font-display);font-size:13px;color:var(--text-accent);margin-bottom:5px}
-.lobby-mode-desc{font-size:11px;color:var(--text-muted);line-height:1.45}
+.lobby-mode-icon{font-size:28px;flex-shrink:0;width:40px;text-align:center}
+.lobby-mode-text{flex:1;min-width:0}
+.lobby-mode-title{font-family:var(--font-display);font-size:14px;color:var(--text-accent);margin-bottom:2px}
+.lobby-mode-desc{font-size:11px;color:var(--text-muted);line-height:1.4}
 .lobby-cnt-row{display:flex;align-items:center;gap:12px;margin-bottom:16px}
 .lobby-cnt-label{font-family:var(--font-display);font-size:15px;color:var(--text-primary);flex:1;text-align:center}
 .lobby-btn-row{display:flex;gap:10px;margin-top:16px}
@@ -668,4 +669,16 @@ body{
 
   /* Action panel buttons: slightly smaller padding */
   #center .gbtn{padding:7px 12px!important;margin-top:6px!important}
+}
+
+@media (max-width: 480px) {
+  #topbar { max-height: 34vh; }
+  .player-grid { grid-template-columns: repeat(2, 1fr); }
+  #bottom { min-height: 140px; }
+  #main { max-height: 52vh; }
+  .action-banner .char-emoji { font-size: 28px; }
+  .dcard.portrait { width: 88px; }
+  .dcard.portrait .card-left { width: 42px; }
+  .dcard.portrait .card-type,
+  .dcard.portrait .card-desc { display: none; }
 }
