@@ -479,9 +479,9 @@ body{
 /* ── CHAR SELECT (lobby) ── */
 .charsel-label{font-size:11px;color:var(--text-secondary);margin-bottom:8px;letter-spacing:.5px}
 .charsel-preset-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
-.charsel-rank-row{display:flex;align-items:center;gap:8px;margin-bottom:5px;padding:5px 8px;background:var(--bg-card);border-radius:var(--radius-md)}
+.charsel-rank-row{display:flex;align-items:center;gap:6px;margin-bottom:5px;padding:5px 8px;background:var(--bg-card);border-radius:var(--radius-md);flex-wrap:wrap}
 .charsel-rank-lbl{font-size:10px;color:var(--text-muted);min-width:48px;font-family:var(--font-display)}
-.charsel-btn{background:transparent;border:1px solid var(--border-main);border-radius:var(--radius-sm);padding:4px 10px;cursor:pointer;color:var(--text-secondary);font-family:var(--font-display);font-size:11px;transition:all var(--transition-fast);position:relative}
+.charsel-btn{background:transparent;border:1px solid var(--border-main);border-radius:var(--radius-sm);padding:4px 10px;cursor:pointer;color:var(--text-secondary);font-family:var(--font-display);font-size:11px;transition:all var(--transition-fast);position:relative;white-space:nowrap}
 .charsel-btn.active{background:color-mix(in srgb,var(--char-clr,var(--text-accent)) 12%,var(--bg-card));border-color:color-mix(in srgb,var(--char-clr,var(--text-accent)) 55%,var(--border-main));color:var(--char-clr,var(--text-accent))}
 .charsel-btn:hover{background:var(--bg-hover)}
 .charsel-btn.active:hover{background:color-mix(in srgb,var(--char-clr,var(--text-accent)) 20%,var(--bg-card))}
@@ -627,6 +627,16 @@ body{
   .game-wrap.mobile.phase-draft #bottom { display: none; }
   .game-wrap.mobile.phase-draft #main { max-height: none; flex: 1 1 auto; }
   .game-wrap.mobile.phase-draft #bot-city { display: none; }
+
+  /* ── Lobby: mobile adjustments ── */
+  .lobby-inner { padding: 12px; }
+  .lobby-box { padding: 20px 16px; }
+  .charsel-rank-row { gap: 5px; padding: 6px 6px; }
+  .charsel-rank-lbl { min-width: 42px; font-size: 9px; }
+  .charsel-btn { font-size: 10px; padding: 5px 8px; }
+  .charsel-preset-row { gap: 5px; }
+  .lobby-cnt-row { gap: 8px; }
+  .lobby-cnt-label { font-size: 13px; }
 }
 
 /* ── MOBILE: iPhone 15 Pro and similar (≤480px wide) ── */
