@@ -351,6 +351,8 @@ function render(){
   if(S.phase==='draft'){
     const currentDrafter=S.draftOrder[S.draftIdx];
     const draftingPlayer=S.players[currentDrafter];
+    // Always show draft order bar
+    center.appendChild(renderDraftOrder());
     if(currentDrafter===0)center.appendChild(renderDraft());
     else{
       const msg=draftingPlayer&&!draftingPlayer.ai
@@ -556,21 +558,35 @@ function renderHerald(){
 }
 
 // ── DRAFT ──────────────────────────────────────────────────────────────────────
-function renderDraft(){
-  const wrap=el('div',null);
-  const faceDown=S.faceDown||[];const faceUp=S.faceUp||[];
-
-  // Draft order bar — emoji avatar pips
+function renderDraftOrder(){
   const orderBar=el('div',{class:'draft-order'});
   S.draftOrder.forEach((pid,i)=>{
     const p=S.players[pid];
     const state=i<S.draftIdx?'done':i===S.draftIdx?'active':'waiting';
     const avatar=typeof getAvatar==='function'?getAvatar(pid):(p.ai?'🤖':'👤');
-    const pip=el('div',{class:`draft-pip ${state}`,title:pid===0?'You':p.name});
+    const pip=el('div',{class:`draft-pip ${state}`});
     pip.textContent=state==='done'?'✓':avatar;
+    // Rich hover tooltip
+    pip.onmouseenter=function(e){
+      var tip=document.getElementById('draft-pip-tip');
+      if(!tip){tip=document.createElement('div');tip.id='draft-pip-tip';tip.className='draft-pip-tip';document.body.appendChild(tip);}
+      var label=pid===0?'You':p.name;
+      var statusText=state==='done'?'Picked':state==='active'?'Choosing now…':'Waiting';
+      tip.innerHTML='<div class="dpt-avatar">'+avatar+'</div><div class="dpt-name">'+label+'</div><div class="dpt-status dpt-'+state+'">'+statusText+'</div>';
+      tip.style.display='block';
+      var r=pip.getBoundingClientRect();
+      tip.style.left=Math.max(8,Math.min(r.left+r.width/2-tip.offsetWidth/2,window.innerWidth-tip.offsetWidth-8))+'px';
+      tip.style.top=(r.bottom+8)+'px';
+    };
+    pip.onmouseleave=function(){var tip=document.getElementById('draft-pip-tip');if(tip)tip.style.display='none';};
     orderBar.appendChild(pip);
   });
-  wrap.appendChild(orderBar);
+  return orderBar;
+}
+
+function renderDraft(){
+  const wrap=el('div',null);
+  const faceDown=S.faceDown||[];const faceUp=S.faceUp||[];
 
   wrap.appendChild(el('div',{class:'draft-title'},'Choose your character for this round:'));
 
