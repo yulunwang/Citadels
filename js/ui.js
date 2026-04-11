@@ -560,6 +560,19 @@ function renderDraft(){
   const wrap=el('div',null);
   const faceDown=S.faceDown||[];const faceUp=S.faceUp||[];
 
+  // Draft order bar — who picked, who's picking, who's waiting
+  const orderBar=el('div',{class:'draft-order'});
+  S.draftOrder.forEach((pid,i)=>{
+    const p=S.players[pid];
+    const state=i<S.draftIdx?'done':i===S.draftIdx?'active':'waiting';
+    const pip=el('div',{class:`draft-pip ${state}`});
+    const icon=el('span',{class:'draft-pip-icon'},state==='done'?'✓':p.ai?'🤖':'👤');
+    const name=el('span',{class:'draft-pip-name'},pid===0?'You':p.name);
+    pip.append(icon,name);
+    orderBar.appendChild(pip);
+  });
+  wrap.appendChild(orderBar);
+
   wrap.appendChild(el('div',{class:'draft-title'},'Choose your character for this round:'));
 
   // Only hint at how many cards total are out of play — never reveal which ones

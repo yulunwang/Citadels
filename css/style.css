@@ -324,6 +324,13 @@ body{
 .state-info{color:var(--text-secondary);font-size:12px}
 
 /* ── DRAFT ── */
+.draft-order{display:flex;gap:4px;margin-bottom:12px;padding:6px 8px;background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius-md);overflow-x:auto}
+.draft-pip{display:flex;align-items:center;gap:4px;padding:4px 8px;border-radius:var(--radius-sm);font-size:11px;white-space:nowrap;flex-shrink:0}
+.draft-pip.done{background:color-mix(in srgb,var(--c-green-bdr) 12%,var(--bg-card));color:var(--c-green-txt)}
+.draft-pip.active{background:color-mix(in srgb,var(--text-accent) 15%,var(--bg-card));color:var(--text-accent);font-weight:700;border:1px solid color-mix(in srgb,var(--text-accent) 40%,var(--border-main))}
+.draft-pip.waiting{color:var(--text-muted)}
+.draft-pip-icon{font-size:12px}
+.draft-pip-name{font-family:var(--font-display);font-size:10px}
 .draft-title{font-family:var(--font-display);color:var(--text-accent);font-size:15px;margin-bottom:10px}
 .draft-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
 .draft-info{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:12px;padding:8px 12px;background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius-md);font-size:11px;line-height:1.5}
