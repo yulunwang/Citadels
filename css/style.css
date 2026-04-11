@@ -583,8 +583,8 @@ body{
   .mob-opp-btn:active { background: var(--bg-hover); }
   .mob-end-btn { font-size: 12px; padding: 4px 8px; min-height: auto; }
 
-  /* Zone 2: Stage — scrollable middle area */
-  .game-wrap.mobile #main { flex: 1 1 auto; overflow-y: auto; max-height: none; padding: 8px; -webkit-overflow-scrolling: touch; flex-direction: column; }
+  /* Zone 2: Stage — scrollable middle area, capped so hand tray stays visible */
+  .game-wrap.mobile #main { flex: 1 1 0; overflow-y: auto; max-height: 65vh; padding: 8px; -webkit-overflow-scrolling: touch; flex-direction: column; min-height: 0; }
   .game-wrap.mobile #center { overflow: visible; }
   /* Full-width action buttons, but special-ability buttons use grid */
   .game-wrap.mobile #center > div > .gbtn { width: 100%; box-sizing: border-box; }
