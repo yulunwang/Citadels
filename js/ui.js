@@ -348,11 +348,14 @@ function render(){
   // ── CENTER ────────────────────────────────────────────────────────────────────
   const main=el('div',{id:'main'});
   const center=el('div',{id:'center'});
+  // Player bar — persistent across all game phases
+  if(S.phase==='draft'||S.phase==='herald'||S.phase==='action'){
+    center.appendChild(renderPlayerBar());
+  }
+
   if(S.phase==='draft'){
     const currentDrafter=S.draftOrder[S.draftIdx];
     const draftingPlayer=S.players[currentDrafter];
-    // Always show draft order bar
-    center.appendChild(renderDraftOrder());
     if(currentDrafter===0)center.appendChild(renderDraft());
     else{
       const msg=draftingPlayer&&!draftingPlayer.ai
@@ -515,22 +518,42 @@ function renderHerald(){
   if(!beat.holderName){
     card.appendChild(el('div',{class:'herald-empty'},'No one answered this call.'));
   }else{
+    // Visual player→character assignment chip
     const who=el('div',{class:'herald-sub'});
     if(beat.isStartOnly){
-      who.textContent=`${beat.holderName}`;
-    }else if(beat.isHuman){
-      const localName=S.players[0]?.name||'You';
-      const isMe=beat.holderName===localName;
-      who.textContent=isMe?`${beat.holderName} (You) — turn summary:`:`${beat.holderName} — turn summary:`;
+      who.textContent=beat.holderName;
     }else{
-      who.textContent=`${beat.holderName} plays as ${c.name}.`;
+      var holder=S.players.find(function(p){return p.name===beat.holderName;});
+      var hAvatar=holder&&typeof getAvatar==='function'?getAvatar(holder.id):(beat.isHuman?'👤':'🤖');
+      var hName=beat.isHuman?(beat.holderName===(S.players[0]?.name||'You')?'You':beat.holderName):beat.holderName;
+      var pChip=el('span',{class:'herald-chip herald-chip-player'});
+      pChip.innerHTML='<span class="hc-avatar">'+hAvatar+'</span><span class="hc-label">'+hName+'</span>';
+      var arrow=el('span',{class:'herald-arrow'},'→');
+      var cChip=el('span',{class:'herald-chip herald-chip-char'});
+      cChip.style.setProperty('--chip-clr',c.clr);
+      cChip.innerHTML='<span class="hc-avatar">'+c.emoji+'</span><span class="hc-label">'+c.name+'</span>';
+      who.append(pChip,arrow,cChip);
+      if(beat.isHuman)who.appendChild(el('span',{class:'herald-turn-label'},'Turn Summary'));
     }
     card.appendChild(who);
     if(beat.events.length){
       const evts=el('div',{class:'herald-events'});
-      beat.events.forEach(ev=>{const row=el('div',{class:'herald-event'});row.style.borderLeftColor=ev.color;
-        const icon=el('div',{class:'herald-ev-icon'});icon.textContent=ev.icon;
-        const txt=el('div',{class:'herald-ev-text'});txt.textContent=ev.text;row.append(icon,txt);evts.appendChild(row);});
+      beat.events.forEach(function(ev,idx){
+        var row=el('div',{class:'herald-event'});row.style.borderLeftColor=ev.color;
+        row.style.animationDelay=(idx*80)+'ms';
+        var iconWrap=el('div',{class:'herald-ev-icon'});
+        iconWrap.style.setProperty('--ev-clr',ev.color);
+        iconWrap.textContent=ev.icon;
+        // Parse amounts from text for visual badges
+        var txt=el('div',{class:'herald-ev-text'});
+        var t=ev.text;
+        // Highlight gold amounts like "2✦" or "1✦"
+        t=t.replace(/(\d+)✦/g,'<span class="ev-gold">$1✦</span>');
+        // Highlight card counts like "draws 3 cards"
+        t=t.replace(/draws? (\d+) card/g,'draws <span class="ev-cards">$1</span> card');
+        txt.innerHTML=t;
+        row.append(iconWrap,txt);evts.appendChild(row);
+      });
       card.appendChild(evts);
     }else card.appendChild(el('div',{class:'herald-empty'},'No actions taken.'));
   }
@@ -557,31 +580,51 @@ function renderHerald(){
   card.appendChild(cb);wrap.appendChild(card);return wrap;
 }
 
-// ── DRAFT ──────────────────────────────────────────────────────────────────────
-function renderDraftOrder(){
-  const orderBar=el('div',{class:'draft-order'});
-  S.draftOrder.forEach((pid,i)=>{
+// ── PLAYER BAR — persistent across all phases ─────────────────────────────────
+function renderPlayerBar(){
+  const bar=el('div',{class:'draft-order'});
+  // Determine player order — use draftOrder if available, else by id
+  const order=S.draftOrder||S.players.map(function(p){return p.id;});
+  order.forEach(function(pid,i){
     const p=S.players[pid];
-    const state=i<S.draftIdx?'done':i===S.draftIdx?'active':'waiting';
+    if(!p)return;
     const avatar=typeof getAvatar==='function'?getAvatar(pid):(p.ai?'🤖':'👤');
-    const pip=el('div',{class:`draft-pip ${state}`});
-    pip.textContent=state==='done'?'✓':avatar;
+    var state='neutral';
+    var statusText='';
+    if(S.phase==='draft'){
+      state=i<S.draftIdx?'done':i===S.draftIdx?'active':'waiting';
+      statusText=state==='done'?'Picked':state==='active'?'Choosing now…':'Waiting';
+    }else if(S.phase==='herald'||S.phase==='action'){
+      // Highlight the player whose character is currently being called
+      var ch=p.char;
+      var isActive=ch&&charRank(ch)===S.callIdx&&!p.dead;
+      state=isActive?'active':'neutral';
+      var charObj=ch?charById(ch):null;
+      statusText=isActive?(charObj?charObj.emoji+' '+charObj.name:'Active'):(p.dead?'Killed':'');
+    }
+    const pip=el('div',{class:'draft-pip '+ state});
+    pip.textContent=(S.phase==='draft'&&state==='done')?'✓':avatar;
+    if(S.phase!=='draft'&&p.dead)pip.classList.add('dead');
     // Rich hover tooltip
     pip.onmouseenter=function(e){
       var tip=document.getElementById('draft-pip-tip');
       if(!tip){tip=document.createElement('div');tip.id='draft-pip-tip';tip.className='draft-pip-tip';document.body.appendChild(tip);}
       var label=pid===0?'You':p.name;
-      var statusText=state==='done'?'Picked':state==='active'?'Choosing now…':'Waiting';
-      tip.innerHTML='<div class="dpt-avatar">'+avatar+'</div><div class="dpt-name">'+label+'</div><div class="dpt-status dpt-'+state+'">'+statusText+'</div>';
+      var charInfo='';
+      if(S.phase!=='draft'&&p.char){var co=charById(p.char);if(co)charInfo='<div class="dpt-char" style="color:'+co.clr+'">'+co.emoji+' '+co.name+'</div>';}
+      var extra='';
+      if(p.dead)extra='<div class="dpt-status dpt-dead">💀 Killed</div>';
+      else if(statusText)extra='<div class="dpt-status dpt-'+state+'">'+statusText+'</div>';
+      tip.innerHTML='<div class="dpt-avatar">'+avatar+'</div><div class="dpt-name">'+label+'</div>'+charInfo+extra;
       tip.style.display='block';
       var r=pip.getBoundingClientRect();
       tip.style.left=Math.max(8,Math.min(r.left+r.width/2-tip.offsetWidth/2,window.innerWidth-tip.offsetWidth-8))+'px';
       tip.style.top=(r.bottom+8)+'px';
     };
     pip.onmouseleave=function(){var tip=document.getElementById('draft-pip-tip');if(tip)tip.style.display='none';};
-    orderBar.appendChild(pip);
+    bar.appendChild(pip);
   });
-  return orderBar;
+  return bar;
 }
 
 function renderDraft(){
