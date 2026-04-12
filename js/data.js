@@ -71,6 +71,51 @@ const SDESC={
   quarry:      'You may build duplicate districts (same-name districts already in your city).',
 };
 
+// ── Image asset registry ──
+var IMG_EXT = 'svg';  // Change to 'webp' when real art is ready
+var IMG = { char:{}, district:{}, bg:{}, ui:{} };
+
+CHARS.forEach(function(c) {
+  var slug = c.name.toLowerCase().replace(/[^a-z]/g, '_');
+  IMG.char[c.id] = {
+    full: 'img/chars/' + slug + '.' + IMG_EXT,
+    thumb: 'img/chars/thumb/' + slug + '.' + IMG_EXT
+  };
+});
+Object.keys(DEMOJI).forEach(function(id) {
+  IMG.district[id] = {
+    full: 'img/districts/' + id + '.' + IMG_EXT,
+    thumb: 'img/districts/thumb/' + id + '.' + IMG_EXT
+  };
+});
+['lobby','game','draft','gameover'].forEach(function(k) {
+  IMG.bg[k] = 'img/bg/' + k + '.' + IMG_EXT;
+});
+['gold','card','crown','build','sword','score'].forEach(function(k) {
+  IMG.ui[k] = 'img/ui/' + k + '.svg';
+});
+
+// ── Player avatar emoji pool ──
+var AVATAR_POOL=['🦊','🐺','🦅','🐉','🦁','🐻','🦉','🐍','🦇','🐬',
+  '🦚','🐎','🦌','🐢','🦋','🐝','🦂','🐙','🦈','🐘'];
+var PLAYER_AVATARS={};  // {playerId: emoji} — set by lobby before game starts
+
+function assignAvatars(players){
+  var used=[];
+  players.forEach(function(p){
+    if(PLAYER_AVATARS[p.id])used.push(PLAYER_AVATARS[p.id]);
+  });
+  players.forEach(function(p){
+    if(!PLAYER_AVATARS[p.id]){
+      var pool=AVATAR_POOL.filter(function(e){return used.indexOf(e)<0;});
+      var pick=pool[Math.floor(Math.random()*pool.length)]||'⬜';
+      PLAYER_AVATARS[p.id]=pick;
+      used.push(pick);
+    }
+  });
+}
+function getAvatar(pid){return PLAYER_AVATARS[pid]||'⬜';}
+
 const CHAR_PRESETS={
   2:[1,2,3,4,5,6,7,8],
   3:[1,2,3,4,5,6,7,8],

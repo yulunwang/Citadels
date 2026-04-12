@@ -15,8 +15,8 @@ my %mime = (
 );
 
 my $server = IO::Socket::INET->new(
-    LocalAddr => '127.0.0.1', LocalPort => $port,
-    Proto => 'tcp', Listen => 5, ReuseAddr => 1,
+    LocalAddr => '0.0.0.0', LocalPort => $port,
+    Proto => 'tcp', Listen => 50, ReuseAddr => 1,
 ) or die "Cannot bind to port $port: $!\n";
 
 print "Serving $root on http://localhost:$port\n";
