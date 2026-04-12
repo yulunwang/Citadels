@@ -224,7 +224,7 @@ function renderLobby(opts){
       {icon:'🏠',title:'Host Room',desc:'Create a room and share the code with friends',fn:()=>{LS.screen='host_config';renderLobby({});}},
       {icon:'🚪',title:'Join Room',desc:"Enter a friend's room code to play together",fn:()=>{LS.screen='join';renderLobby({});}},
     ].forEach(m=>{
-      const c=el('div',{class:'lobby-mode-card'});
+      const c=el('div',{class:'lobby-mode-card animate-in'});
       c.appendChild(el('div',{class:'lobby-mode-icon'},m.icon));
       const txt=el('div',{class:'lobby-mode-text'});
       txt.appendChild(el('div',{class:'lobby-mode-title'},m.title));

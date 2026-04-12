@@ -215,6 +215,12 @@ function render(){
     const r2=el('div',{class:'tb-player-stats'});
     if(!compact){
       if(p.char&&charRevealed){const c=charById(p.char);
+        // Character thumbnail
+        if(typeof IMG!=='undefined'&&IMG.char[c.id]){
+          var thumbImg=el('img',{src:IMG.char[c.id].thumb,alt:c.name,class:'tb-char-thumb'});
+          thumbImg.onerror=function(){thumbImg.style.display='none';};
+          r1.appendChild(thumbImg);
+        }
         const badge=el('span',{class:'tb-player-char',style:`--char-clr:${c.clr};color:var(--char-clr);border-color:color-mix(in srgb,var(--char-clr) 35%,var(--border-main));background:color-mix(in srgb,var(--char-clr) 10%,var(--bg-card))`});
         badge.textContent=`${c.emoji} ${c.name}`;r1.appendChild(badge);
       }else if(p.char&&!charRevealed&&!isMe){
@@ -490,12 +496,16 @@ function renderHerald(){
   const wrap=el('div',{class:'herald-wrap'});
   const pips=el('div',{class:'herald-pips'});
   for(let i=0;i<total;i++){const q=S.heraldQueue[i];const qc=charByRank(q.charId);
-    const pip=el('div',{class:'herald-pip'+(i>=S.heraldIdx&&i!==S.heraldIdx?' inactive':'')});
-    if(i===S.heraldIdx)pip.style.background=qc.clr;
-    else if(i<S.heraldIdx)pip.style.background=qc.clr+'88';
+    const pipCls='herald-pip'+(i===S.heraldIdx?' current':i<S.heraldIdx?' past':' future');
+    const pip=el('div',{class:pipCls});
+    pip.textContent=qc.emoji;
+    pip.style.borderColor=qc.clr;
+    if(i===S.heraldIdx)pip.style.background=qc.clr+'18';
+    else if(i<S.heraldIdx)pip.style.background=qc.clr+'15';
     pip.title=`${q.charId}. ${qc.name}`;pips.appendChild(pip);}
   wrap.appendChild(pips);
   const card=el('div',{class:'herald-card'});
+  card.style.setProperty('--herald-clr',c.clr);
   card.appendChild(el('div',{class:'herald-char-num'},`Character ${beat.charId} of ${Math.max(0,...S.charPool.map(charRank))}`));
   const iconRow=el('div',{class:'herald-icon-row'});
   var portraitEl;
@@ -650,7 +660,9 @@ function renderDraft(){
     // (face-up removed would tell you what's gone; that breaks the guessing game)
     if(!avail)return;
     const stateClass='available';
-    const card=el('div',{class:`charcard ${stateClass}`,style:`--char-clr:${c.clr}`});
+    const card=el('div',{class:`charcard ${stateClass} animate-in`,style:`--char-clr:${c.clr}`});
+    // Rank badge
+    card.appendChild(el('div',{class:'charcard-rank'},String(c.rank)));
     // Image zone — top portion of card
     const imgZone=el('div',{class:'charcard-img-zone'});
     if(typeof IMG!=='undefined'&&IMG.char[c.id]){
@@ -684,7 +696,14 @@ function renderAction(){
   const me=S.players[0];const charId=me.char;const c=charById(charId);const maxB=charId===7?3:(charId===14||charId===15||charId===16)?2:1;
   const wrap=el('div',null);
   const banner=el('div',{class:'action-banner',style:`--char-clr:${c.clr};background:color-mix(in srgb,var(--char-clr) 8%,var(--bg-card));border-color:color-mix(in srgb,var(--char-clr) 25%,var(--border-main))`});
-  banner.appendChild(el('div',{class:'action-banner-emoji'},c.emoji));
+  // Portrait image or emoji fallback
+  if(typeof IMG!=='undefined'&&IMG.char[charId]){
+    var bannerImg=el('img',{src:IMG.char[charId].full,alt:c.name,class:'action-banner-portrait'});
+    bannerImg.onerror=function(){var span=el('div',{class:'action-banner-emoji'},c.emoji);if(bannerImg.parentNode)bannerImg.parentNode.replaceChild(span,bannerImg);};
+    banner.appendChild(bannerImg);
+  }else{
+    banner.appendChild(el('div',{class:'action-banner-emoji'},c.emoji));
+  }
   const bInfo=el('div',{class:'action-banner-info'});
   const charNameEl=el('div',{class:'action-char-name',style:`color:${c.clr}`},`${c.name}`);
   bInfo.appendChild(charNameEl);
@@ -848,7 +867,9 @@ function renderAction(){
     wrap.appendChild(el('div',{class:'action-navigator-note'},'⚓ Navigator: income collected. No district may be built this turn.'));
   }
   if(S.collected&&S.sub==='choose'){
-    wrap.appendChild(gbtn('End Turn →','#4db87a',()=>{{const _nr=humanEndTurn(S);if(_nr)S=_nr;render();};},'padding:11px 20px;font-size:12px;font-family:Cinzel,serif;margin-top:10px;width:100%'));
+    var endBtn=el('button',{class:'action-end-turn'},'End Turn →');
+    endBtn.onclick=function(){var _nr=humanEndTurn(S);if(_nr)S=_nr;render();};
+    wrap.appendChild(endBtn);
   }
   return wrap;
 }
@@ -1062,16 +1083,33 @@ function renderSpecial(charId){
 function renderGameOver(){
   const fp=S.firstCompleter;
   const scores=S.players.map(p=>({p,score:calcScore(p,fp===p.id)})).sort((a,b)=>b.score-a.score);
+  const maxScore=scores[0]?scores[0].score:1;
   const wrap=el('div',{class:'gameover-wrap'});
   const box=el('div',{class:'gameover-box'});
   box.append(el('div',{class:'gameover-title'},'🏆 Game Over'),
              el('div',{class:'gameover-subtitle'},`Round ${S.round} complete`));
+  // Winner portrait/avatar
+  var winner=scores[0]?scores[0].p:null;
+  if(winner){
+    var winAvatar=typeof getAvatar==='function'?getAvatar(winner.id):'🏆';
+    var winAvatarEl=el('div',{class:'gameover-winner-emoji'},winAvatar);
+    box.appendChild(winAvatarEl);
+  }
   scores.forEach((sc,i)=>{
     const medals=['🥇','🥈','🥉','🏅'];
     const row=el('div',{class:'gameover-row'+(i===0?' first':'')});
     const info=el('div',{class:'gameover-row-info'});
-    info.append(el('div',{class:'gameover-name'},sc.p.name),
+    var avatar=typeof getAvatar==='function'?getAvatar(sc.p.id):'';
+    info.append(el('div',{class:'gameover-name'},(avatar?avatar+' ':'')+sc.p.name),
                 el('div',{class:'gameover-districts'},`${sc.p.city.length} districts built`));
+    // Score bar
+    var scorePct=maxScore>0?Math.round(sc.score/maxScore*100):0;
+    var barWrap=el('div',{class:'gameover-score-bar'});
+    var barFill=el('div',{class:'gameover-score-fill'});
+    barFill.style.setProperty('--score-pct',scorePct+'%');
+    barFill.style.animationDelay=(i*0.1)+'s';
+    barWrap.appendChild(barFill);
+    info.appendChild(barWrap);
     if(sc.p.city.some(d=>d.color==='purple')){
       const purps=el('div',{class:'gameover-purps'});
       sc.p.city.filter(d=>d.color==='purple').forEach(d=>{
