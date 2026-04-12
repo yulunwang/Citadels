@@ -42,6 +42,17 @@ function mkCard(d,opts){
     emojiCol.style.fontSize=(small?14:22)+'px';
   }
   emojiCol.textContent=DEMOJI[d.id]||'🏛';
+  // Try to load district art
+  if(typeof IMG !== 'undefined' && IMG.district[d.id]) {
+    var imgSrc = IMG.district[d.id].full;
+    emojiCol.style.backgroundImage = 'url(' + imgSrc + ')';
+    emojiCol.style.backgroundSize = 'cover';
+    emojiCol.style.backgroundPosition = 'center';
+    var probe = new Image();
+    probe.onload = function() { emojiCol.textContent = ''; };
+    probe.onerror = function() { emojiCol.style.backgroundImage = ''; };
+    probe.src = imgSrc;
+  }
   div.appendChild(emojiCol);
 
   const infoCol=el('div',{class:'dcard-info-col'});
@@ -60,8 +71,53 @@ function mkCard(d,opts){
   }
 
   div.appendChild(infoCol);
-  if(opts.onClick&&!opts.disabled)div.onclick=opts.onClick;
+  if(opts.onClick&&!opts.disabled){
+    div.onclick=opts.onClick;
+  }else if(portrait&&!opts.disabled){
+    // Tap portrait card (hand/city) → enlarged detail popup
+    div.style.cursor='pointer';
+    div.onclick=function(e){e.stopPropagation();showCardDetail(d,cost,disc);};
+  }
   return div;
+}
+
+function showCardDetail(d,cost,disc){
+  var existing=document.getElementById('card-detail-overlay');
+  if(existing){existing.remove();return;}
+  var overlay=el('div',{id:'card-detail-overlay'});
+  overlay.onclick=function(e){if(e.target===overlay)overlay.remove();};
+  var box=el('div',{class:'card-detail-box color-'+d.color});
+  // Art zone
+  var art=el('div',{class:'card-detail-art'});
+  var emoji=DEMOJI[d.id]||'🏛';
+  art.textContent=emoji;
+  if(typeof IMG!=='undefined'&&IMG.district[d.id]){
+    var src=IMG.district[d.id].full;
+    art.style.backgroundImage='url('+src+')';
+    art.style.backgroundSize='cover';
+    art.style.backgroundPosition='center';
+    var probe=new Image();
+    probe.onload=function(){art.textContent='';};
+    probe.onerror=function(){art.style.backgroundImage='';};
+    probe.src=src;
+  }
+  box.appendChild(art);
+  // Info zone
+  var info=el('div',{class:'card-detail-info'});
+  var costStr=disc?cost+'✦ ('+d.cost+'✦ normally)':cost+'✦';
+  info.appendChild(el('div',{class:'card-detail-cost'},costStr));
+  info.appendChild(el('div',{class:'card-detail-name'},d.name));
+  var c=CS[d.color];
+  info.appendChild(el('div',{class:'card-detail-type'},c.label));
+  if(d.special&&SDESC[d.special]){
+    info.appendChild(el('div',{class:'card-detail-desc'},SDESC[d.special]));
+  }
+  var closeBtn=el('button',{class:'card-detail-close'},'✕');
+  closeBtn.onclick=function(){overlay.remove();};
+  info.appendChild(closeBtn);
+  box.appendChild(info);
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
 }
 
 // ── GAME STATE ─────────────────────────────────────────────────────────────────
@@ -74,88 +130,229 @@ function render(){
   const app=document.getElementById('app');app.innerHTML='';
   if(S.phase==='gameover'){app.appendChild(renderGameOver());return;}
 
-  const wrap=el('div',{class:'game-wrap'});
+  const isMobile=window.innerWidth<=768;
+  const wrap=el('div',{class:`game-wrap phase-${S.phase}${isMobile?' mobile':''}`});
+  if(typeof IMG !== 'undefined') {
+    wrap.style.backgroundImage = 'url(' + IMG.bg.game + ')';
+    wrap.style.backgroundSize = 'cover';
+  }
 
   // ── TOP BAR ──────────────────────────────────────────────────────────────────
   const topbar=el('div',{id:'topbar'});
-  const tbHdr=el('div',{class:'tb-header'});
-  tbHdr.appendChild(el('span',{class:'tb-title'},'⚜ Citadels'));
-  tbHdr.appendChild(el('span',{class:'tb-meta'},`Round ${S.round} · Crown: ${S.players[S.crown].name}`));
-  if((S.phase==='action'||S.phase==='herald')&&S.callIdx<=Math.max(0,...S.charPool.map(charRank))){
-    const activeChar=S.players.find(p=>charRank(p.char)===S.callIdx);
-    const c=activeChar?charById(activeChar.char):CHARS.find(ch=>ch.rank===S.callIdx)||{emoji:'?',name:'?',clr:'#888'};
-    tbHdr.appendChild(el('span',{class:'tb-calling',style:`color:${c.clr}`},`${c.emoji} Calling: ${c.name}`));
-  }
-  const endBtn=el('button',{class:'btn-danger'},'✕ End Game');
-  endBtn.onclick=()=>{S={...S,_confirmEnd:true};render();};
-  tbHdr.appendChild(endBtn);
-  topbar.appendChild(tbHdr);
 
-  const tbGrid=el('div',{class:'tb-grid'});
-  const displayOrder=[...S.players].sort((a,b)=>{
-    const ai=S.draftOrder.indexOf(a.id);const bi=S.draftOrder.indexOf(b.id);
-    return(ai===-1?99:ai)-(bi===-1?99:bi);
-  });
-  displayOrder.forEach(p=>{
+  if(isMobile){
+    // ── MOBILE: Mini HUD bar ──
+    const hud=el('div',{class:'mob-hud'});
+    // Left: round + calling info
+    const hudLeft=el('div',{class:'mob-hud-left'});
+    hudLeft.appendChild(el('span',{class:'mob-hud-round'},`R${S.round}`));
+    if((S.phase==='action'||S.phase==='herald')&&S.callIdx<=Math.max(0,...S.charPool.map(charRank))){
+      const activeChar=S.players.find(p=>charRank(p.char)===S.callIdx);
+      const c=activeChar?charById(activeChar.char):CHARS.find(ch=>ch.rank===S.callIdx)||{emoji:'?',name:'?',clr:'#888'};
+      hudLeft.appendChild(el('span',{class:'mob-hud-calling',style:`color:${c.clr}`},`${c.emoji} ${c.name}`));
+    }else if(S.phase==='draft'){
+      hudLeft.appendChild(el('span',{class:'mob-hud-calling'},'📜 Draft'));
+    }
+    hud.appendChild(hudLeft);
+    // Center: your stats pill
+    const meH=S.players[0];
+    const hudStats=el('div',{class:'mob-hud-stats'});
+    if(meH.char){const c=charById(meH.char);hudStats.appendChild(el('span',{class:'mob-hud-char',style:`color:${c.clr}`},c.emoji+' '));}
+    hudStats.appendChild(document.createTextNode('\u00A0'));
+    var statsSpan=el('span',null,'');
+    statsSpan.innerHTML='💰'+meH.gold+' 🃏'+meH.hand.length+' 🏰'+meH.city.length+'/8';
+    hudStats.appendChild(statsSpan);
+    hud.appendChild(hudStats);
+    // Right: opponents button + end game
+    const hudRight=el('div',{class:'mob-hud-right'});
+    const oppBtn=el('button',{class:'mob-opp-btn'},`👥 ${S.players.length-1}`);
+    oppBtn.onclick=function(e){e.stopPropagation();showAllPlayersSheet();};
+    hudRight.appendChild(oppBtn);
+    const endBtn=el('button',{class:'btn-danger mob-end-btn'},'✕');
+    endBtn.onclick=()=>{S={...S,_confirmEnd:true};render();};
+    hudRight.appendChild(endBtn);
+    hud.appendChild(hudRight);
+    topbar.appendChild(hud);
+  }else{
+    // ── DESKTOP: Full topbar ──
+    const tbHdr=el('div',{class:'tb-header'});
+    tbHdr.appendChild(el('span',{class:'tb-title'},'⚜ Citadels'));
+    tbHdr.appendChild(el('span',{class:'tb-meta'},`Round ${S.round} · Crown: ${S.players[S.crown].name}`));
+    if((S.phase==='action'||S.phase==='herald')&&S.callIdx<=Math.max(0,...S.charPool.map(charRank))){
+      const activeChar=S.players.find(p=>charRank(p.char)===S.callIdx);
+      const c=activeChar?charById(activeChar.char):CHARS.find(ch=>ch.rank===S.callIdx)||{emoji:'?',name:'?',clr:'#888'};
+      tbHdr.appendChild(el('span',{class:'tb-calling',style:`color:${c.clr}`},`${c.emoji} Calling: ${c.name}`));
+    }
+    const endBtn=el('button',{class:'btn-danger'},'✕ End Game');
+    endBtn.onclick=()=>{S={...S,_confirmEnd:true};render();};
+    tbHdr.appendChild(endBtn);
+    topbar.appendChild(tbHdr);
+  }
+
+  // Helper: build a player panel div
+  function mkPlayerPanel(p,compact){
     const isActive=(S.phase==='action')&&charRank(p.char)===S.callIdx&&!p.dead;
     const isMe=p.id===0;
-    const pDiv=el('div',{class:'tb-player'+(isActive?' active':'')+(isMe?' me':'')});
+    const cls='tb-player'+(isActive?' active':'')+(isMe?' me':'')+(compact?' tb-player-compact':'');
+    const pDiv=el('div',{class:cls});
+    // Row 1: crown + name (+ YOU/dead badge). In compact mode: name truncates, char badge moves to r2.
     const r1=el('div',{class:'tb-player-row1'});
     if(S.crown===p.id)r1.appendChild(el('span',null,'👑'));
     r1.appendChild(el('span',{class:'tb-player-name'},p.name));
     if(isMe)r1.appendChild(el('span',{class:'badge-you'},'YOU'));
     if(p.dead)r1.appendChild(el('span',{class:'badge-dead'},'☠️'));
+    pDiv.appendChild(r1);
+    // Character visibility
     let charRevealed=isMe;
     if(!charRevealed&&p.char){
-      if(S.phase==='action'){
-        charRevealed=charRank(p.char)<S.callIdx;
-      }else if(S.phase==='herald'){
+      if(S.phase==='action'){charRevealed=charRank(p.char)<S.callIdx;}
+      else if(S.phase==='herald'){
         const beatIdx=S.heraldQueue.findIndex(b=>b.charId===p.char);
         charRevealed=beatIdx>=0&&beatIdx<S.heraldIdx;
       }
     }
-    if(p.char && charRevealed){const c=charById(p.char);
-      const badge=el('span',{class:'tb-player-char',style:`--char-clr:${c.clr};color:var(--char-clr);border-color:color-mix(in srgb,var(--char-clr) 35%,var(--border-main));background:color-mix(in srgb,var(--char-clr) 10%,var(--bg-card))`});
-      badge.textContent=`${c.emoji} ${c.name}`;r1.appendChild(badge);}
-    else if(p.char && !charRevealed && !isMe){
-      const badge=el('span',{class:'tb-player-char badge-hidden'});
-      badge.textContent='🎭 Hidden';r1.appendChild(badge);
-    }
-    pDiv.appendChild(r1);
+    // In full panels: char badge in row1. In compact: char badge in row2 inline with stats.
     const r2=el('div',{class:'tb-player-stats'});
+    if(!compact){
+      if(p.char&&charRevealed){const c=charById(p.char);
+        const badge=el('span',{class:'tb-player-char',style:`--char-clr:${c.clr};color:var(--char-clr);border-color:color-mix(in srgb,var(--char-clr) 35%,var(--border-main));background:color-mix(in srgb,var(--char-clr) 10%,var(--bg-card))`});
+        badge.textContent=`${c.emoji} ${c.name}`;r1.appendChild(badge);
+      }else if(p.char&&!charRevealed&&!isMe){
+        const badge=el('span',{class:'tb-player-char badge-hidden'});badge.textContent='🎭 Hidden';r1.appendChild(badge);
+      }
+    }else{
+      // Compact: tiny char indicator prefixed to stats row
+      if(p.char&&charRevealed){const c=charById(p.char);
+        const badge=el('span',{class:'tb-player-char tb-char-compact',style:`--char-clr:${c.clr};color:var(--char-clr)`});
+        badge.textContent=`${c.emoji}`;r2.appendChild(badge);
+      }else if(p.char&&!charRevealed&&!isMe){
+        const badge=el('span',{class:'tb-char-compact tb-char-hidden'},'🎭');r2.appendChild(badge);
+      }
+    }
     r2.innerHTML=`<span>💰<span class="tb-stat-val"> ${p.gold}✦</span></span>`+
       `<span>🏰<span class="tb-stat-val"> ${p.city.length}/8</span></span>`+
       `<span>🃏<span class="tb-stat-val"> ${p.hand.length}</span></span>`+
-      `<span>📊<span class="tb-stat-val"> ${calcScore(p,S.firstCompleter===p.id)}pts</span></span>`;
+      `<span>📊<span class="tb-stat-val"> ${calcScore(p,S.firstCompleter===p.id)} pts</span></span>`;
     pDiv.appendChild(r2);
-    if(p.city.length){
+    if(!compact&&p.city.length){
       const cityDiv=el('div',{class:'tb-city'});
       p.city.forEach(d=>{
         const isUnique=d.color==='purple'&&d.special&&SDESC[d.special];
         const chip=el('div',{class:'tb-chip'+(isUnique?' has-tip':'')});
         const label=el('span',{class:'tb-chip-label color-'+d.color});
         label.appendChild(document.createTextNode(`${DEMOJI[d.id]||'🏛'} ${d.name} `));
-        const ptsSpan=el('span',{class:'tb-chip-pts'});
-        ptsSpan.textContent=`${d.cost}✦`;
-        label.appendChild(ptsSpan);
-        chip.appendChild(label);
-        if(isUnique){
-          const tip=el('div',{class:'tb-chip-tip'});
-          tip.textContent=`✨ ${d.name}\n${SDESC[d.special]}`;
-          chip.appendChild(tip);
-        }
+        const ptsSpan=el('span',{class:'tb-chip-pts'});ptsSpan.textContent=`${d.cost}✦`;
+        label.appendChild(ptsSpan);chip.appendChild(label);
+        if(isUnique){const tip=el('div',{class:'tb-chip-tip'});tip.textContent=`✨ ${d.name}\n${SDESC[d.special]}`;chip.appendChild(tip);}
         cityDiv.appendChild(chip);
       });
       pDiv.appendChild(cityDiv);
     }
-    tbGrid.appendChild(pDiv);
-  });
-  topbar.appendChild(tbGrid);
+    // Tap any panel to see city details in a bottom sheet
+    pDiv.style.cursor='pointer';
+    pDiv.onclick=function(e){
+      e.stopPropagation();
+      var existing=document.getElementById('player-detail-sheet');
+      if(existing){existing.remove();return;}
+      var sheet=el('div',{id:'player-detail-sheet'});
+      sheet.onclick=function(ev){if(ev.target===sheet)sheet.remove();};
+      var box=el('div',{class:'player-detail-box'});
+      var hdr=el('div',{class:'player-detail-hdr'});
+      hdr.appendChild(el('span',{class:'player-detail-name'},p.name+(isMe?' (You)':'')));
+      var score=calcScore(p,S.firstCompleter===p.id);
+      hdr.appendChild(el('span',{class:'player-detail-score'},`💰${p.gold}✦  🏰${p.city.length}/8  📊${score}pts`));
+      var closeBtn=el('button',{class:'player-detail-close'},'✕');
+      closeBtn.onclick=function(){sheet.remove();};
+      hdr.appendChild(closeBtn);
+      box.appendChild(hdr);
+      if(p.city.length){
+        var cityWrap=el('div',{class:'player-detail-city'});
+        ['yellow','blue','green','red','purple'].forEach(function(col){
+          p.city.filter(function(d){return d.color===col;}).forEach(function(d){cityWrap.appendChild(mkCard(d,{portrait:true,player:p}));});
+        });
+        box.appendChild(cityWrap);
+      }else{
+        box.appendChild(el('p',{class:'player-detail-empty'},'No districts built yet.'));
+      }
+      sheet.appendChild(box);
+      document.body.appendChild(sheet); // attach to body so render() can't wipe it
+    };
+    return pDiv;
+  }
+
+  // All players in a single compact grid (desktop only)
+  const me=S.players[0];
+  if(!isMobile){
+    const tbGrid=el('div',{class:'tb-grid'});
+    const allOrder=[me,...S.players.filter(p=>p.id!==0).sort((a,b)=>{
+      const ai=S.draftOrder.indexOf(a.id);const bi=S.draftOrder.indexOf(b.id);
+      return(ai===-1?99:ai)-(bi===-1?99:bi);
+    })];
+    allOrder.forEach(p=>tbGrid.appendChild(mkPlayerPanel(p,true)));
+    topbar.appendChild(tbGrid);
+  }
   wrap.appendChild(topbar);
+
+  // Mobile: all-players bottom sheet (triggered by opponents button)
+  function showAllPlayersSheet(){
+    var existing=document.getElementById('player-detail-sheet');
+    if(existing){existing.remove();return;}
+    var sheet=el('div',{id:'player-detail-sheet'});
+    sheet.onclick=function(ev){if(ev.target===sheet)sheet.remove();};
+    var box=el('div',{class:'player-detail-box mob-all-players'});
+    var hdr=el('div',{class:'player-detail-hdr'});
+    hdr.appendChild(el('span',{class:'player-detail-name'},'All Players'));
+    var closeBtn=el('button',{class:'player-detail-close'},'✕');
+    closeBtn.onclick=function(){sheet.remove();};
+    hdr.appendChild(closeBtn);
+    box.appendChild(hdr);
+    var allOrder=[...S.players].sort(function(a,b){
+      var ai=S.draftOrder.indexOf(a.id);var bi=S.draftOrder.indexOf(b.id);
+      return(ai===-1?99:ai)-(bi===-1?99:bi);
+    });
+    allOrder.forEach(function(p){
+      var panel=mkPlayerPanel(p,false);
+      panel.style.cursor='default';
+      // Re-bind tap to show city detail inside the sheet
+      panel.onclick=function(e){e.stopPropagation();
+        var existingSub=document.getElementById('player-detail-sheet');
+        if(existingSub)existingSub.remove();
+        // Open individual player detail
+        var subSheet=el('div',{id:'player-detail-sheet'});
+        subSheet.onclick=function(ev){if(ev.target===subSheet)subSheet.remove();};
+        var subBox=el('div',{class:'player-detail-box'});
+        var subHdr=el('div',{class:'player-detail-hdr'});
+        subHdr.appendChild(el('span',{class:'player-detail-name'},p.name+(p.id===0?' (You)':'')));
+        var score=calcScore(p,S.firstCompleter===p.id);
+        subHdr.appendChild(el('span',{class:'player-detail-score'},'💰'+p.gold+'✦  🏰'+p.city.length+'/8  📊'+score+'pts'));
+        var subClose=el('button',{class:'player-detail-close'},'✕');
+        subClose.onclick=function(){subSheet.remove();};
+        subHdr.appendChild(subClose);
+        subBox.appendChild(subHdr);
+        if(p.city.length){
+          var cityWrap=el('div',{class:'player-detail-city'});
+          ['yellow','blue','green','red','purple'].forEach(function(col){
+            p.city.filter(function(d){return d.color===col;}).forEach(function(d){cityWrap.appendChild(mkCard(d,{portrait:true,player:p}));});
+          });
+          subBox.appendChild(cityWrap);
+        }else{subBox.appendChild(el('p',{class:'player-detail-empty'},'No districts built yet.'));}
+        subSheet.appendChild(subBox);
+        document.body.appendChild(subSheet);
+      };
+      box.appendChild(panel);
+    });
+    sheet.appendChild(box);
+    document.body.appendChild(sheet);
+  }
 
   // ── CENTER ────────────────────────────────────────────────────────────────────
   const main=el('div',{id:'main'});
   const center=el('div',{id:'center'});
+  // Player bar — persistent across all game phases
+  if(S.phase==='draft'||S.phase==='herald'||S.phase==='action'){
+    center.appendChild(renderPlayerBar());
+  }
+
   if(S.phase==='draft'){
     const currentDrafter=S.draftOrder[S.draftIdx];
     const draftingPlayer=S.players[currentDrafter];
@@ -179,37 +376,82 @@ function render(){
       center.appendChild(el('div',{class:'state-waiting'},waitMsg));
     }
   }
-  main.appendChild(center);wrap.appendChild(main);
+  main.appendChild(center);
+
+  // ── YOUR CITY (mobile: collapsible in #main; desktop: in #bottom) ──
+  const myScore=calcScore(me,S.firstCompleter===me.id);
+  const botCity=el('div',{id:'bot-city'});
+  if(isMobile&&me.city.length>0){
+    // Collapsible city section — only shown when player has built districts
+    const cityHdr=el('div',{class:'mob-city-hdr'});
+    cityHdr.innerHTML=`<span>🏰 YOUR CITY (${me.city.length}/8) · ${myScore} pts</span><span class="mob-city-toggle">▼</span>`;
+    botCity.appendChild(cityHdr);
+    const cityWrap=el('div',{class:'cards-wrap mob-city-cards'});
+    cityWrap.style.display='none';
+    ['yellow','blue','green','red','purple'].forEach(col=>{
+      me.city.filter(d=>d.color===col).forEach(d=>cityWrap.appendChild(mkCard(d,{portrait:true,player:me})));
+    });
+    botCity.appendChild(cityWrap);
+    cityHdr.onclick=function(){
+      var cards=cityHdr.nextElementSibling;
+      var toggle=cityHdr.querySelector('.mob-city-toggle');
+      if(cards.style.display==='none'){cards.style.display='';toggle.textContent='▲';}
+      else{cards.style.display='none';toggle.textContent='▼';}
+    };
+    main.appendChild(botCity);
+  }
+
+  wrap.appendChild(main);
 
   // ── BOTTOM PANEL ──────────────────────────────────────────────────────────────
   const bottom=el('div',{id:'bottom'});
-  const me=S.players[0];const myScore=calcScore(me,S.firstCompleter===me.id);
 
   const botHand=el('div',{id:'bot-hand'});
-  const handLabel=el('div',{class:'bot-label'});
-  handLabel.innerHTML=`<span>YOUR HAND</span><span class="bot-label-right">💰 ${me.gold}✦ &nbsp;🃏 ${me.hand.length} cards</span>`;
-  botHand.appendChild(handLabel);
-  if(me.char){const c=charById(me.char);
-    const paDiv=el('div',{class:'playing-as',style:`color:${c.clr}`},`${c.emoji} Playing as ${c.name}`);
-    botHand.appendChild(paDiv);}
+  if(isMobile){
+    // Mobile: compact hand label
+    const handLabel=el('div',{class:'bot-label'});
+    const handLeft=el('span',{class:'bot-label-left'});
+    handLeft.appendChild(el('span',null,'HAND'));
+    if(me.char){const c=charById(me.char);
+      handLeft.appendChild(el('span',{class:'bot-char-badge',style:`color:${c.clr};border-color:color-mix(in srgb,${c.clr} 35%,var(--border-main));background:color-mix(in srgb,${c.clr} 10%,var(--bg-card))`},`${c.emoji} ${c.name}`));
+    }
+    handLabel.appendChild(handLeft);
+    botHand.appendChild(handLabel);
+  }else{
+    // Desktop: full hand label
+    const handLabel=el('div',{class:'bot-label'});
+    const handLeft=el('span',{class:'bot-label-left'});
+    handLeft.appendChild(el('span',null,'YOUR HAND'));
+    if(me.char){const c=charById(me.char);
+      const charBadge=el('span',{class:'bot-char-badge',style:`color:${c.clr};border-color:color-mix(in srgb,${c.clr} 35%,var(--border-main));background:color-mix(in srgb,${c.clr} 10%,var(--bg-card))`},`${c.emoji} ${c.name}`);
+      handLeft.appendChild(charBadge);
+    }
+    handLabel.appendChild(handLeft);
+    handLabel.appendChild(el('span',{class:'bot-label-right'},`💰 ${me.gold}✦  🃏 ${me.hand.length}`));
+    botHand.appendChild(handLabel);
+  }
   const handWrap=el('div',{class:'cards-wrap'});
   if(me.hand.length)me.hand.forEach(d=>handWrap.appendChild(mkCard(d,{portrait:true,player:me})));
   else handWrap.appendChild(el('span',{class:'state-empty'},'No cards in hand'));
   botHand.appendChild(handWrap);
 
-  const botCity=el('div',{id:'bot-city'});
-  const cityLabel=el('div',{class:'bot-label'});
-  cityLabel.innerHTML=`<span>YOUR CITY (${me.city.length}/8)</span><span class="bot-label-right">📊 ~${myScore} pts</span>`;
-  botCity.appendChild(cityLabel);
-  const cityWrap=el('div',{class:'cards-wrap'});
-  if(me.city.length){
-    ['yellow','blue','green','red','purple'].forEach(col=>{
-      me.city.filter(d=>d.color===col).forEach(d=>cityWrap.appendChild(mkCard(d,{portrait:true,player:me})));
-    });
-  }else cityWrap.appendChild(el('span',{class:'state-empty'},'Nothing built yet'));
-  botCity.appendChild(cityWrap);
-
-  bottom.append(botHand,botCity);wrap.appendChild(bottom);
+  if(!isMobile){
+    // Desktop: city in bottom panel
+    const cityLabel=el('div',{class:'bot-label'});
+    cityLabel.innerHTML=`<span>YOUR CITY (${me.city.length}/8)</span><span class="bot-label-right">📊 ~${myScore} pts</span>`;
+    botCity.appendChild(cityLabel);
+    const cityWrap=el('div',{class:'cards-wrap'});
+    if(me.city.length){
+      ['yellow','blue','green','red','purple'].forEach(col=>{
+        me.city.filter(d=>d.color===col).forEach(d=>cityWrap.appendChild(mkCard(d,{portrait:true,player:me})));
+      });
+    }else cityWrap.appendChild(el('span',{class:'state-empty'},'Nothing built yet'));
+    botCity.appendChild(cityWrap);
+    bottom.append(botHand,botCity);
+  }else{
+    bottom.appendChild(botHand);
+  }
+  wrap.appendChild(bottom);
 
   // Confirmation modal
   if(S._confirmEnd){
@@ -256,7 +498,19 @@ function renderHerald(){
   const card=el('div',{class:'herald-card'});
   card.appendChild(el('div',{class:'herald-char-num'},`Character ${beat.charId} of ${Math.max(0,...S.charPool.map(charRank))}`));
   const iconRow=el('div',{class:'herald-icon-row'});
-  iconRow.appendChild(el('span',{class:'herald-icon'},c.emoji));
+  var portraitEl;
+  if(typeof IMG !== 'undefined' && IMG.char[c.id]) {
+    portraitEl = el('img', {src: IMG.char[c.id].full, alt: c.name, class: 'herald-portrait'});
+    portraitEl.onerror = function() {
+      var span = el('span', {class:'herald-icon'});
+      span.textContent = c.emoji;
+      if(portraitEl.parentNode) portraitEl.parentNode.replaceChild(span, portraitEl);
+    };
+  } else {
+    portraitEl = el('span', {class:'herald-icon'});
+    portraitEl.textContent = c.emoji;
+  }
+  iconRow.appendChild(portraitEl);
   const titleBlock=el('div',{class:'herald-title-block'});
   const titleEl=el('div',{class:'herald-title'});titleEl.style.color=c.clr;titleEl.textContent=c.name;titleBlock.appendChild(titleEl);
   titleBlock.appendChild(el('div',{class:'herald-ability'},c.ability));
@@ -264,22 +518,42 @@ function renderHerald(){
   if(!beat.holderName){
     card.appendChild(el('div',{class:'herald-empty'},'No one answered this call.'));
   }else{
+    // Visual player→character assignment chip
     const who=el('div',{class:'herald-sub'});
     if(beat.isStartOnly){
-      who.textContent=`${beat.holderName}`;
-    }else if(beat.isHuman){
-      const localName=S.players[0]?.name||'You';
-      const isMe=beat.holderName===localName;
-      who.textContent=isMe?`${beat.holderName} (You) — turn summary:`:`${beat.holderName} — turn summary:`;
+      who.textContent=beat.holderName;
     }else{
-      who.textContent=`${beat.holderName} plays as ${c.name}.`;
+      var holder=S.players.find(function(p){return p.name===beat.holderName;});
+      var hAvatar=holder&&typeof getAvatar==='function'?getAvatar(holder.id):(beat.isHuman?'👤':'🤖');
+      var hName=beat.isHuman?(beat.holderName===(S.players[0]?.name||'You')?'You':beat.holderName):beat.holderName;
+      var pChip=el('span',{class:'herald-chip herald-chip-player'});
+      pChip.innerHTML='<span class="hc-avatar">'+hAvatar+'</span><span class="hc-label">'+hName+'</span>';
+      var arrow=el('span',{class:'herald-arrow'},'→');
+      var cChip=el('span',{class:'herald-chip herald-chip-char'});
+      cChip.style.setProperty('--chip-clr',c.clr);
+      cChip.innerHTML='<span class="hc-avatar">'+c.emoji+'</span><span class="hc-label">'+c.name+'</span>';
+      who.append(pChip,arrow,cChip);
+      if(beat.isHuman)who.appendChild(el('span',{class:'herald-turn-label'},'Turn Summary'));
     }
     card.appendChild(who);
     if(beat.events.length){
       const evts=el('div',{class:'herald-events'});
-      beat.events.forEach(ev=>{const row=el('div',{class:'herald-event'});row.style.borderLeftColor=ev.color;
-        const icon=el('div',{class:'herald-ev-icon'});icon.textContent=ev.icon;
-        const txt=el('div',{class:'herald-ev-text'});txt.textContent=ev.text;row.append(icon,txt);evts.appendChild(row);});
+      beat.events.forEach(function(ev,idx){
+        var row=el('div',{class:'herald-event'});row.style.borderLeftColor=ev.color;
+        row.style.animationDelay=(idx*80)+'ms';
+        var iconWrap=el('div',{class:'herald-ev-icon'});
+        iconWrap.style.setProperty('--ev-clr',ev.color);
+        iconWrap.textContent=ev.icon;
+        // Parse amounts from text for visual badges
+        var txt=el('div',{class:'herald-ev-text'});
+        var t=ev.text;
+        // Highlight gold amounts like "2✦" or "1✦"
+        t=t.replace(/(\d+)✦/g,'<span class="ev-gold">$1✦</span>');
+        // Highlight card counts like "draws 3 cards"
+        t=t.replace(/draws? (\d+) card/g,'draws <span class="ev-cards">$1</span> card');
+        txt.innerHTML=t;
+        row.append(iconWrap,txt);evts.appendChild(row);
+      });
       card.appendChild(evts);
     }else card.appendChild(el('div',{class:'herald-empty'},'No actions taken.'));
   }
@@ -306,23 +580,65 @@ function renderHerald(){
   card.appendChild(cb);wrap.appendChild(card);return wrap;
 }
 
-// ── DRAFT ──────────────────────────────────────────────────────────────────────
+// ── PLAYER BAR — persistent across all phases ─────────────────────────────────
+function renderPlayerBar(){
+  const bar=el('div',{class:'draft-order'});
+  // Determine player order — use draftOrder if available, else by id
+  const order=S.draftOrder||S.players.map(function(p){return p.id;});
+  order.forEach(function(pid,i){
+    const p=S.players[pid];
+    if(!p)return;
+    const avatar=typeof getAvatar==='function'?getAvatar(pid):(p.ai?'🤖':'👤');
+    var state='neutral';
+    var statusText='';
+    if(S.phase==='draft'){
+      state=i<S.draftIdx?'done':i===S.draftIdx?'active':'waiting';
+      statusText=state==='done'?'Picked':state==='active'?'Choosing now…':'Waiting';
+    }else if(S.phase==='herald'||S.phase==='action'){
+      // Highlight the player whose character is currently being called
+      var ch=p.char;
+      var isActive=ch&&charRank(ch)===S.callIdx&&!p.dead;
+      state=isActive?'active':'neutral';
+      var charObj=ch?charById(ch):null;
+      statusText=isActive?(charObj?charObj.emoji+' '+charObj.name:'Active'):(p.dead?'Killed':'');
+    }
+    const pip=el('div',{class:'draft-pip '+ state});
+    pip.textContent=(S.phase==='draft'&&state==='done')?'✓':avatar;
+    if(S.phase!=='draft'&&p.dead)pip.classList.add('dead');
+    // Rich hover tooltip
+    pip.onmouseenter=function(e){
+      var tip=document.getElementById('draft-pip-tip');
+      if(!tip){tip=document.createElement('div');tip.id='draft-pip-tip';tip.className='draft-pip-tip';document.body.appendChild(tip);}
+      var label=pid===0?'You':p.name;
+      var charInfo='';
+      if(S.phase!=='draft'&&p.char){var co=charById(p.char);if(co)charInfo='<div class="dpt-char" style="color:'+co.clr+'">'+co.emoji+' '+co.name+'</div>';}
+      var extra='';
+      if(p.dead)extra='<div class="dpt-status dpt-dead">💀 Killed</div>';
+      else if(statusText)extra='<div class="dpt-status dpt-'+state+'">'+statusText+'</div>';
+      tip.innerHTML='<div class="dpt-avatar">'+avatar+'</div><div class="dpt-name">'+label+'</div>'+charInfo+extra;
+      tip.style.display='block';
+      var r=pip.getBoundingClientRect();
+      tip.style.left=Math.max(8,Math.min(r.left+r.width/2-tip.offsetWidth/2,window.innerWidth-tip.offsetWidth-8))+'px';
+      tip.style.top=(r.bottom+8)+'px';
+    };
+    pip.onmouseleave=function(){var tip=document.getElementById('draft-pip-tip');if(tip)tip.style.display='none';};
+    bar.appendChild(pip);
+  });
+  return bar;
+}
+
 function renderDraft(){
   const wrap=el('div',null);
   const faceDown=S.faceDown||[];const faceUp=S.faceUp||[];
 
   wrap.appendChild(el('div',{class:'draft-title'},'Choose your character for this round:'));
 
-  // Info bar: show what was removed before the draft
-  if(faceDown.length||faceUp.length){
+  // Only hint at how many cards total are out of play — never reveal which ones
+  const totalRemoved=(faceDown.length||0)+(faceUp.length||0);
+  if(totalRemoved){
     const info=el('div',{class:'draft-info'});
-    if(faceDown.length)info.appendChild(el('span',{class:'draft-info-ghost'},
-      `🎴 ${faceDown.length} card${faceDown.length>1?'s':''} set aside face-down before drafting — unknown to everyone`));
-    if(faceDown.length&&faceUp.length)info.appendChild(el('span',{class:'draft-info-sep'},'·'));
-    if(faceUp.length){
-      const names=faceUp.map(id=>{const c=CHARS.find(q=>q.id===id);return c?`${c.emoji} ${c.name}`:'?';}).join(', ');
-      info.appendChild(el('span',{class:'draft-info-removed'},`✕ Removed before draft (visible to all): ${names}`));
-    }
+    info.appendChild(el('span',{class:'draft-info-ghost'},
+      `🎴 ${totalRemoved} card${totalRemoved>1?'s':''} removed before drafting`));
     wrap.appendChild(info);
   }
 
@@ -330,15 +646,31 @@ function renderDraft(){
   CHARS.filter(c=>S.charPool.includes(c.id)).forEach(c=>{
     const avail=S.avail.includes(c.id);
     const removed=faceUp.includes(c.id);
-    const stateClass=avail?'available':removed?'removed':'unavailable';
+    // Only show cards still available to pick — hide drafted + removed cards
+    // (face-up removed would tell you what's gone; that breaks the guessing game)
+    if(!avail)return;
+    const stateClass='available';
     const card=el('div',{class:`charcard ${stateClass}`,style:`--char-clr:${c.clr}`});
-    card.appendChild(el('div',{class:'charcard-emoji'},c.emoji));
-    card.appendChild(el('div',{class:`charcard-name${avail?' available':''}`},`${c.rank}. ${c.name}`));
-    if(removed){
-      card.appendChild(el('div',{class:'charcard-removed-label'},'✕ NOT IN PLAY'));
+    // Image zone — top portion of card
+    const imgZone=el('div',{class:'charcard-img-zone'});
+    if(typeof IMG!=='undefined'&&IMG.char[c.id]){
+      const img=el('img',{src:IMG.char[c.id].full,alt:c.name,class:'charcard-portrait'});
+      img.onerror=function(){imgZone.textContent=c.emoji;imgZone.classList.add('charcard-img-fallback');};
+      imgZone.appendChild(img);
     }else{
-      card.appendChild(el('div',{class:'charcard-ability'},c.ability));
+      imgZone.classList.add('charcard-img-fallback');
+      imgZone.textContent=c.emoji;
     }
+    card.appendChild(imgZone);
+    // Info zone — bottom portion, always clean background
+    const infoZone=el('div',{class:'charcard-info-zone'});
+    infoZone.appendChild(el('div',{class:`charcard-name${avail?' available':''}`},`${c.rank}. ${c.name}`));
+    if(removed){
+      infoZone.appendChild(el('div',{class:'charcard-removed-label'},'✕ NOT IN PLAY'));
+    }else{
+      infoZone.appendChild(el('div',{class:'charcard-ability'},c.ability));
+    }
+    card.appendChild(infoZone);
     if(avail){
       card.onclick=()=>{const result=humanDraft(S,c.id);if(result)S=result;render();};
     }
@@ -455,24 +787,62 @@ function renderAction(){
   }
 
   if(S.collected&&S.sub==='choose'&&!S.noBuild){
-    wrap.appendChild(el('div',{class:'sect-label'},`BUILD DISTRICT (${S.builtCount}/${maxB})`));
     const canBuild=S.builtCount<maxB;
-    const affordable=me.hand.filter(d=>{const cost=buildCost(me,d);return cost<=me.gold&&canBuildDistrict(me,d);});
-    const rest=me.hand.filter(d=>!affordable.includes(d));
-    if(!me.hand.length)wrap.appendChild(el('div',{class:'state-empty',style:'margin-bottom:8px'},'No cards in hand.'));
-    else{
-      if(affordable.length){
+    if(canBuild){
+      wrap.appendChild(el('div',{class:'sect-label'},`BUILD DISTRICT (${S.builtCount}/${maxB}) · 💰 ${me.gold}✦`));
+      if(!me.hand.length)wrap.appendChild(el('div',{class:'state-empty',style:'margin-bottom:8px'},'No cards in hand.'));
+      else{
         const row=el('div',{class:'cards-wrap build-row'});
-        affordable.forEach(d=>row.appendChild(mkCard(d,{player:me,noDesc:true,onClick:canBuild?()=>{{const _nr=humanBuild(S,d.uid);if(_nr)S=_nr;render();};}:null,disabled:!canBuild})));
+        me.hand.forEach(d=>{
+          const cost=buildCost(me,d);
+          const canAfford=cost<=me.gold&&canBuildDistrict(me,d);
+          const card=mkCard(d,{portrait:true,player:me,noDesc:true,disabled:false});
+          if(!canAfford)card.style.opacity='0.45';
+          card.style.cursor='pointer';
+          card.onclick=function(e){e.stopPropagation();showBuildConfirm(d,cost,canAfford);};
+          row.appendChild(card);
+        });
         wrap.appendChild(row);
+        if(!me.hand.some(d=>buildCost(me,d)<=me.gold&&canBuildDistrict(me,d)))
+          wrap.appendChild(el('div',{class:'state-empty',style:'margin-bottom:8px'},'Cannot afford to build.'));
       }
-      if(rest.length){
-        wrap.appendChild(el('div',{class:'build-too-costly'},'Too costly or already built:'));
-        const row2=el('div',{class:'cards-wrap build-row'});
-        rest.forEach(d=>row2.appendChild(mkCard(d,{player:me,disabled:true,noDesc:true})));wrap.appendChild(row2);
-      }
-      if(!affordable.length)wrap.appendChild(el('div',{class:'state-empty',style:'margin-bottom:8px'},'Cannot afford to build.'));
+    }else if(S.builtCount>0){
+      wrap.appendChild(el('div',{class:'build-done-msg'},'✅ District built this turn ('+S.builtCount+'/'+maxB+')'));
     }
+  }
+  // Build confirm popup: shows card detail + build button
+  function showBuildConfirm(d,cost,canAfford){
+    var existing=document.getElementById('card-detail-overlay');
+    if(existing)existing.remove();
+    var overlay=el('div',{id:'card-detail-overlay'});
+    overlay.onclick=function(e){if(e.target===overlay)overlay.remove();};
+    var box=el('div',{class:'card-detail-box color-'+d.color});
+    var art=el('div',{class:'card-detail-art'});
+    art.textContent=DEMOJI[d.id]||'🏛';
+    if(typeof IMG!=='undefined'&&IMG.district[d.id]){
+      var src=IMG.district[d.id].full;
+      art.style.backgroundImage='url('+src+')';art.style.backgroundSize='cover';art.style.backgroundPosition='center';
+      var probe=new Image();probe.onload=function(){art.textContent='';};probe.onerror=function(){art.style.backgroundImage='';};probe.src=src;
+    }
+    box.appendChild(art);
+    var info=el('div',{class:'card-detail-info'});
+    info.appendChild(el('div',{class:'card-detail-cost'},cost+'✦'));
+    info.appendChild(el('div',{class:'card-detail-name'},d.name));
+    info.appendChild(el('div',{class:'card-detail-type'},CS[d.color].label));
+    if(d.special&&SDESC[d.special])info.appendChild(el('div',{class:'card-detail-desc'},SDESC[d.special]));
+    if(canAfford){
+      var buildBtn=el('button',{class:'gbtn build-confirm-btn'},`🏗 Build for ${cost}✦`);
+      buildBtn.style.cssText='margin-top:10px;width:100%;background:#4db87a;color:#fff;border:none;padding:10px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer';
+      buildBtn.onclick=function(){overlay.remove();var _nr=humanBuild(S,d.uid);if(_nr){S=_nr;render();}};
+      info.appendChild(buildBtn);
+    }else{
+      var reason=!canBuildDistrict(me,d)?'Already built':'Not enough gold (need '+cost+'✦, have '+me.gold+'✦)';
+      info.appendChild(el('div',{class:'build-cant-reason'},reason));
+    }
+    var closeBtn=el('button',{class:'card-detail-close'},'✕');
+    closeBtn.onclick=function(){overlay.remove();};
+    info.appendChild(closeBtn);
+    box.appendChild(info);overlay.appendChild(box);document.body.appendChild(overlay);
   }
   if(S.noBuild&&S.collected&&S.sub==='choose'){
     wrap.appendChild(el('div',{class:'action-navigator-note'},'⚓ Navigator: income collected. No district may be built this turn.'));
