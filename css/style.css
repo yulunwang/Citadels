@@ -235,7 +235,7 @@ body{
   background:color-mix(in srgb, var(--char-clr, var(--text-accent)) 10%, var(--bg-card));
   display:flex;align-items:center;justify-content:center;position:relative;
 }
-.charcard-portrait{width:100%;height:100%;object-fit:cover;object-position:center top;display:block}
+.charcard-portrait{width:100%;height:100%;object-fit:cover;object-position:center 15%;display:block}
 .charcard-img-fallback{font-size:52px;line-height:1}
 /* Info zone — clean parchment panel below image */
 .charcard-info-zone{
@@ -728,8 +728,8 @@ body{
   .game-wrap.mobile.phase-draft #bot-city { display: none; }
 
   /* ── Draft: compact cards on mobile ── */
-  .draft-grid { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }
-  .charcard-img-zone { height: 90px; }
+  .draft-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; }
+  .charcard-img-zone { height: 100px; }
   .charcard-img-fallback { font-size: 32px; }
   .charcard-info-zone { padding: 6px 8px 8px; }
   .charcard-name { font-size: 11px; }
