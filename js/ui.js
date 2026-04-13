@@ -128,6 +128,8 @@ function render(){
   if(!S){renderLobby({screen:'home'});return;}
 
   const app=document.getElementById('app');app.innerHTML='';
+  // Clean up floating panels from previous render
+  ['char-ref-panel','char-ref-tip'].forEach(function(id){var e=document.getElementById(id);if(e)e.remove();});
   if(S.phase==='gameover'){app.appendChild(renderGameOver());return;}
 
   const isMobile=window.innerWidth<=768;
@@ -634,6 +636,78 @@ function renderPlayerBar(){
     pip.onmouseleave=function(){var tip=document.getElementById('draft-pip-tip');if(tip)tip.style.display='none';};
     bar.appendChild(pip);
   });
+  // Character reference button
+  var refBtn=el('button',{class:'char-ref-btn'},'?');
+  refBtn.title='Character Reference';
+  refBtn.onclick=function(e){
+    e.stopPropagation();
+    var existing=document.getElementById('char-ref-panel');
+    if(existing){existing.remove();var et=document.getElementById('char-ref-tip');if(et)et.remove();return;}
+    var panel=el('div',{id:'char-ref-panel',class:'char-ref-panel'});
+    var hdr=el('div',{class:'char-ref-hdr'});
+    hdr.appendChild(el('span',{class:'char-ref-title'},'Characters This Round'));
+    var closeBtn=el('button',{class:'char-ref-close'},'✕');
+    closeBtn.onclick=function(){panel.remove();var t=document.getElementById('char-ref-tip');if(t)t.remove();};
+    hdr.appendChild(closeBtn);
+    panel.appendChild(hdr);
+    var pool=(S.charPool||[]).slice().sort(function(a,b){
+      var ra=CHARS.find(function(c){return c.id===a;});
+      var rb=CHARS.find(function(c){return c.id===b;});
+      return ((ra&&ra.rank)||0)-((rb&&rb.rank)||0);
+    });
+    pool.forEach(function(charId){
+      var c=CHARS.find(function(ch){return ch.id===charId;});
+      if(!c)return;
+      var row=el('div',{class:'char-ref-row'});
+      row.appendChild(el('span',{class:'char-ref-rank'},String(c.rank)));
+      row.appendChild(el('span',{class:'char-ref-emoji'},c.emoji));
+      row.appendChild(el('span',{class:'char-ref-name',style:'color:'+c.clr},c.name));
+      row.onmouseenter=function(){
+        var tip=document.getElementById('char-ref-tip');
+        if(!tip){tip=document.createElement('div');tip.id='char-ref-tip';tip.className='char-ref-tip';document.body.appendChild(tip);}
+        tip.innerHTML='<div class="crt-header"><span class="crt-emoji">'+c.emoji+'</span><span class="crt-name" style="color:'+c.clr+'">'+c.name+'</span></div><p class="crt-ability">'+c.ability+'</p>';
+        tip.style.display='block';
+        var pr=panel.getBoundingClientRect();var rr=row.getBoundingClientRect();
+        setTimeout(function(){
+          var tw=tip.offsetWidth;var th=tip.offsetHeight;
+          var tipLeft=pr.right+8;
+          var fitsRight=tipLeft+tw<=window.innerWidth-8;
+          var fitsLeft=pr.left-tw-8>=8;
+          if(fitsRight){tip.style.left=tipLeft+'px';}
+          else if(fitsLeft){tip.style.left=(pr.left-tw-8)+'px';}
+          else{
+            // Not enough room on sides — show below the row, same x as panel
+            tip.style.left=Math.max(8,Math.min(pr.left,window.innerWidth-tw-8))+'px';
+            tip.style.top=Math.min(rr.bottom+6,window.innerHeight-th-8)+'px';
+            return;
+          }
+          var tipTop=rr.top;
+          if(tipTop+th>window.innerHeight-8)tipTop=window.innerHeight-th-8;
+          tip.style.top=Math.max(8,tipTop)+'px';
+        },0);
+      };
+      row.onmouseleave=function(){var tip=document.getElementById('char-ref-tip');if(tip)tip.style.display='none';};
+      panel.appendChild(row);
+    });
+    document.body.appendChild(panel);
+    var br=refBtn.getBoundingClientRect();
+    panel.style.top=(br.bottom+8)+'px';
+    setTimeout(function(){
+      var pw=panel.offsetWidth;
+      var left=br.right-pw;
+      if(left<8)left=8;
+      if(left+pw>window.innerWidth-8)left=window.innerWidth-pw-8;
+      panel.style.left=left+'px';
+    },0);
+    function outsideClick(ev){
+      if(!panel.contains(ev.target)&&ev.target!==refBtn){
+        panel.remove();var t=document.getElementById('char-ref-tip');if(t)t.remove();
+        document.removeEventListener('click',outsideClick,true);
+      }
+    }
+    setTimeout(function(){document.addEventListener('click',outsideClick,true);},50);
+  };
+  bar.appendChild(refBtn);
   return bar;
 }
 

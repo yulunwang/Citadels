@@ -307,7 +307,7 @@ body{
 .action-banner-info{flex:1}
 
 /* ── GAME WRAPPER ── */
-.game-wrap{display:flex;flex-direction:column;height:100vh;overflow:hidden}
+.game-wrap{display:flex;flex-direction:column;height:100vh;height:100dvh;overflow:hidden}
 /* During draft, hide bottom hand/city — player only needs to pick a character */
 .game-wrap.phase-draft #bottom{display:none}
 .game-wrap.phase-draft #main{max-height:none;flex:1 1 auto}
@@ -365,6 +365,27 @@ body{
 .dpt-neutral{color:var(--text-muted)}
 .dpt-dead{color:var(--c-red-txt)}
 .dpt-char{font-size:11px;margin-top:3px;font-weight:600}
+
+/* ── Character Reference Panel ── */
+.char-ref-btn{width:26px;height:26px;border-radius:50%;border:1.5px solid var(--border-main);background:var(--bg-card);color:var(--text-muted);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:background var(--transition-fast),color var(--transition-fast);margin-left:4px;font-family:var(--font-display);padding:0;line-height:1}
+.char-ref-btn:hover{background:var(--bg-hover);color:var(--text-accent);border-color:var(--text-accent)}
+.char-ref-panel{position:fixed;z-index:9000;background:var(--bg-card);border:1px solid var(--border-main);border-radius:var(--radius-lg);box-shadow:var(--shadow-float);min-width:180px;max-width:220px;overflow:hidden}
+.char-ref-hdr{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:color-mix(in srgb,var(--text-accent) 8%,var(--bg-panel));border-bottom:1px solid var(--border-subtle)}
+.char-ref-title{font-family:var(--font-display);font-size:11px;color:var(--text-accent);font-weight:600;letter-spacing:0.5px}
+.char-ref-close{width:20px;height:20px;border-radius:50%;border:none;background:transparent;color:var(--text-muted);font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;transition:background var(--transition-fast),color var(--transition-fast)}
+.char-ref-close:hover{color:var(--text-primary);background:var(--bg-hover)}
+.char-ref-row{display:flex;align-items:center;gap:8px;padding:7px 12px;cursor:default;transition:background var(--transition-fast);border-bottom:1px solid var(--border-subtle)}
+.char-ref-row:last-child{border-bottom:none}
+.char-ref-row:hover{background:var(--bg-hover)}
+.char-ref-rank{width:14px;text-align:center;font-size:10px;font-weight:700;color:var(--text-muted);flex-shrink:0}
+.char-ref-emoji{font-size:16px;flex-shrink:0}
+.char-ref-name{font-family:var(--font-display);font-size:11px;font-weight:600;letter-spacing:0.3px}
+.char-ref-tip{position:fixed;z-index:9100;background:var(--bg-panel);border:1px solid var(--border-main);border-radius:var(--radius-md);box-shadow:var(--shadow-float);padding:10px 12px;max-width:220px;min-width:180px;pointer-events:none;display:none}
+.crt-header{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+.crt-emoji{font-size:18px}
+.crt-name{font-family:var(--font-display);font-size:12px;font-weight:700}
+.crt-ability{font-size:11px;color:var(--text-secondary);margin:0;line-height:1.5}
+
 .draft-title{font-family:var(--font-display);color:var(--text-accent);font-size:clamp(14px,2.5vw,18px);margin-bottom:12px;text-align:center;font-weight:700}
 .draft-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px}
 .draft-info{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:12px;padding:8px 12px;background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius-md);font-size:11px;line-height:1.5}
@@ -652,7 +673,7 @@ body{
 /* ── Mobile (≤768px) ── */
 @media (max-width: 768px) {
   /* 3-zone layout: fixed viewport, no page scroll */
-  .game-wrap.mobile { height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+  .game-wrap.mobile { height: 100vh; height: 100dvh; overflow: hidden; display: flex; flex-direction: column; padding-bottom: env(safe-area-inset-bottom, 0px); }
 
   /* Zone 1: Mini HUD — thin sticky top bar */
   .game-wrap.mobile #topbar { flex: 0 0 auto; max-height: none; overflow: visible; padding: 0; border-bottom: 1px solid var(--border-subtle); }
@@ -688,8 +709,8 @@ body{
   .game-wrap.mobile #bot-city { border: none; padding: 0; width: 100%; }
 
   /* Zone 3: Hand tray — pinned at bottom */
-  .game-wrap.mobile #bottom { flex: 0 0 auto; flex-direction: column; overflow: visible; max-height: none; min-height: 0; border-top: 2px solid var(--border-main); background: var(--bg-panel); }
-  .game-wrap.mobile #bot-hand { width: 100%; border-right: none; max-height: none; padding: 4px 8px 8px; }
+  .game-wrap.mobile #bottom { flex: 0 0 auto; flex-direction: column; overflow: visible; max-height: none; min-height: 0; border-top: 2px solid var(--border-main); background: var(--bg-panel); padding-bottom: 4px; }
+  .game-wrap.mobile #bot-hand { width: 100%; border-right: none; max-height: none; padding: 4px 8px 4px; }
   .game-wrap.mobile #bot-hand .bot-label { margin-bottom: 2px; }
   .game-wrap.mobile #bot-hand .bot-label-left { font-size: 11px; }
   .game-wrap.mobile #bot-hand .bot-char-badge { font-size: 10px; padding: 1px 5px; }
