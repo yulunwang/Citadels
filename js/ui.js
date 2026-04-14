@@ -165,11 +165,46 @@ function render(){
     statsSpan.innerHTML='💰'+meH.gold+' 🃏'+meH.hand.length+' 🏰'+meH.city.length+'/8';
     hudStats.appendChild(statsSpan);
     hud.appendChild(hudStats);
-    // Right: opponents button + end game
+    // Right: opponent chips + end game
     const hudRight=el('div',{class:'mob-hud-right'});
-    const oppBtn=el('button',{class:'mob-opp-btn'},`👥 ${S.players.length-1}`);
-    oppBtn.onclick=function(e){e.stopPropagation();showAllPlayersSheet();};
-    hudRight.appendChild(oppBtn);
+    const chips=el('div',{class:'mob-opp-chips'});
+    S.players.filter(function(p){return p.id!==0;}).forEach(function(p){
+      var avatar=typeof getAvatar==='function'?getAvatar(p.id):(p.ai?'🤖':'👤');
+      var chip=el('div',{class:'mob-opp-chip'+(p.dead?' dead':'')});
+      chip.appendChild(el('span',{class:'mob-opp-chip-avatar'},avatar));
+      var stat=el('span',{class:'mob-opp-chip-stat'});
+      stat.innerHTML='💰'+p.gold+'&thinsp;🏰'+p.city.length;
+      chip.appendChild(stat);
+      chip.onclick=function(e){
+        e.stopPropagation();
+        var existing=document.getElementById('player-detail-sheet');
+        if(existing){existing.remove();return;}
+        var sheet=el('div',{id:'player-detail-sheet'});
+        sheet.onclick=function(ev){if(ev.target===sheet)sheet.remove();};
+        var box=el('div',{class:'player-detail-box'});
+        var hdr=el('div',{class:'player-detail-hdr'});
+        var charObj=p.char?charById(p.char):null;
+        var nameText=p.name+(charObj?' · '+charObj.emoji+' '+charObj.name:'');
+        hdr.appendChild(el('span',{class:'player-detail-name'},nameText));
+        var score=calcScore(p,S.firstCompleter===p.id);
+        hdr.appendChild(el('span',{class:'player-detail-score'},'💰'+p.gold+'  🃏'+p.hand.length+'  🏰'+p.city.length+'/8  ~'+score+'pts'));
+        var closeBtn=el('button',{class:'player-detail-close'},'✕');
+        closeBtn.onclick=function(){sheet.remove();};
+        hdr.appendChild(closeBtn);
+        box.appendChild(hdr);
+        if(p.city.length){
+          var cityWrap=el('div',{class:'player-detail-city'});
+          ['yellow','blue','green','red','purple'].forEach(function(col){
+            p.city.filter(function(d){return d.color===col;}).forEach(function(d){cityWrap.appendChild(mkCard(d,{portrait:true,player:p}));});
+          });
+          box.appendChild(cityWrap);
+        }else{box.appendChild(el('p',{class:'player-detail-empty'},'No districts built yet.'));}
+        sheet.appendChild(box);
+        document.body.appendChild(sheet);
+      };
+      chips.appendChild(chip);
+    });
+    hudRight.appendChild(chips);
     const endBtn=el('button',{class:'btn-danger mob-end-btn'},'✕');
     endBtn.onclick=()=>{S={...S,_confirmEnd:true};render();};
     hudRight.appendChild(endBtn);
@@ -637,7 +672,7 @@ function renderPlayerBar(){
     bar.appendChild(pip);
   });
   // Character reference button
-  var refBtn=el('button',{class:'char-ref-btn'},'?');
+  var refBtn=el('button',{class:'char-ref-btn'},'ℹ');
   refBtn.title='Character Reference';
   refBtn.onclick=function(e){
     e.stopPropagation();

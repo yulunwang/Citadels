@@ -367,8 +367,8 @@ body{
 .dpt-char{font-size:11px;margin-top:3px;font-weight:600}
 
 /* ── Character Reference Panel ── */
-.char-ref-btn{width:26px;height:26px;border-radius:50%;border:1.5px solid var(--border-main);background:var(--bg-card);color:var(--text-muted);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:background var(--transition-fast),color var(--transition-fast);margin-left:4px;font-family:var(--font-display);padding:0;line-height:1}
-.char-ref-btn:hover{background:var(--bg-hover);color:var(--text-accent);border-color:var(--text-accent)}
+.char-ref-btn{width:36px;height:36px;border-radius:50%;border:2px dashed color-mix(in srgb,var(--text-accent) 40%,var(--border-main));background:color-mix(in srgb,var(--text-accent) 6%,var(--bg-card));color:var(--text-accent);font-size:15px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:background var(--transition-fast),border-color var(--transition-fast),box-shadow var(--transition-fast);margin-left:2px;padding:0;line-height:1;opacity:0.75}
+.char-ref-btn:hover{background:color-mix(in srgb,var(--text-accent) 14%,var(--bg-card));border-color:var(--text-accent);opacity:1;box-shadow:0 0 0 3px color-mix(in srgb,var(--text-accent) 18%,transparent)}
 .char-ref-panel{position:fixed;z-index:9000;background:var(--bg-card);border:1px solid var(--border-main);border-radius:var(--radius-lg);box-shadow:var(--shadow-float);min-width:180px;max-width:220px;overflow:hidden}
 .char-ref-hdr{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:color-mix(in srgb,var(--text-accent) 8%,var(--bg-panel));border-bottom:1px solid var(--border-subtle)}
 .char-ref-title{font-family:var(--font-display);font-size:11px;color:var(--text-accent);font-weight:600;letter-spacing:0.5px}
@@ -682,9 +682,13 @@ body{
   .mob-hud-round { font-family: var(--font-display); font-size: 14px; font-weight: 700; color: var(--text-accent); }
   .mob-hud-calling { font-size: 12px; font-weight: 600; }
   .mob-hud-stats { flex: 1; text-align: center; font-size: 12px; color: var(--text-secondary); white-space: nowrap; }
-  .mob-hud-right { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
-  .mob-opp-btn { font-size: 12px; padding: 4px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border-main); background: var(--bg-card); color: var(--text-primary); cursor: pointer; font-weight: 600; }
-  .mob-opp-btn:active { background: var(--bg-hover); }
+  .mob-hud-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+  .mob-opp-chips { display: flex; gap: 4px; align-items: center; }
+  .mob-opp-chip { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 3px 5px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); cursor: pointer; min-width: 36px; transition: background var(--transition-fast), border-color var(--transition-fast); }
+  .mob-opp-chip:active { background: var(--bg-hover); border-color: var(--border-main); }
+  .mob-opp-chip.dead { opacity: 0.4; filter: grayscale(0.8); }
+  .mob-opp-chip-avatar { font-size: 14px; line-height: 1.1; }
+  .mob-opp-chip-stat { font-size: 9px; color: var(--text-secondary); white-space: nowrap; line-height: 1.2; }
   .mob-end-btn { font-size: 12px; padding: 4px 8px; min-height: auto; }
 
   /* Zone 2: Stage — scrollable middle area, capped so hand tray stays visible */
@@ -758,6 +762,7 @@ body{
   .charcard-rank { width: 20px; height: 20px; font-size: 10px; top: 4px; left: 4px; }
   .draft-title { font-size: 13px; margin-bottom: 6px; }
   .draft-pip { width: 30px; height: 30px; font-size: 15px; }
+  .char-ref-btn { width: 30px; height: 30px; font-size: 13px; }
   /* Herald: smaller portrait, simpler pips */
   .herald-portrait { width: 80px; height: 110px; }
   .herald-pip { width: 24px; height: 24px; font-size: 11px; border-width: 1.5px; }
