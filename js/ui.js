@@ -143,9 +143,10 @@ function render(){
   const topbar=el('div',{id:'topbar'});
 
   if(isMobile){
-    // ── MOBILE: Mini HUD bar ──
+    // ── MOBILE: Mini HUD bar (two rows) ──
     const hud=el('div',{class:'mob-hud'});
-    // Left: round + calling info
+    // Row 1: round info + your stats + end button
+    const row1=el('div',{class:'mob-hud-row1'});
     const hudLeft=el('div',{class:'mob-hud-left'});
     hudLeft.appendChild(el('span',{class:'mob-hud-round'},`R${S.round}`));
     if((S.phase==='action'||S.phase==='herald')&&S.callIdx<=Math.max(0,...S.charPool.map(charRank))){
@@ -155,8 +156,7 @@ function render(){
     }else if(S.phase==='draft'){
       hudLeft.appendChild(el('span',{class:'mob-hud-calling'},'📜 Draft'));
     }
-    hud.appendChild(hudLeft);
-    // Center: your stats pill
+    row1.appendChild(hudLeft);
     const meH=S.players[0];
     const hudStats=el('div',{class:'mob-hud-stats'});
     if(meH.char){const c=charById(meH.char);hudStats.appendChild(el('span',{class:'mob-hud-char',style:`color:${c.clr}`},c.emoji+' '));}
@@ -164,9 +164,15 @@ function render(){
     var statsSpan=el('span',null,'');
     statsSpan.innerHTML='💰'+meH.gold+' 🃏'+meH.hand.length+' 🏰'+meH.city.length+'/8';
     hudStats.appendChild(statsSpan);
-    hud.appendChild(hudStats);
-    // Right: opponent chips + end game
+    row1.appendChild(hudStats);
     const hudRight=el('div',{class:'mob-hud-right'});
+    const endBtn=el('button',{class:'btn-danger mob-end-btn'},'✕');
+    endBtn.onclick=()=>{S={...S,_confirmEnd:true};render();};
+    hudRight.appendChild(endBtn);
+    row1.appendChild(hudRight);
+    hud.appendChild(row1);
+    // Row 2: opponent chips (horizontally scrollable)
+    const row2=el('div',{class:'mob-hud-row2'});
     const chips=el('div',{class:'mob-opp-chips'});
     S.players.filter(function(p){return p.id!==0;}).forEach(function(p){
       var avatar=typeof getAvatar==='function'?getAvatar(p.id):(p.ai?'🤖':'👤');
@@ -204,11 +210,8 @@ function render(){
       };
       chips.appendChild(chip);
     });
-    hudRight.appendChild(chips);
-    const endBtn=el('button',{class:'btn-danger mob-end-btn'},'✕');
-    endBtn.onclick=()=>{S={...S,_confirmEnd:true};render();};
-    hudRight.appendChild(endBtn);
-    hud.appendChild(hudRight);
+    row2.appendChild(chips);
+    hud.appendChild(row2);
     topbar.appendChild(hud);
   }else{
     // ── DESKTOP: Full topbar ──
