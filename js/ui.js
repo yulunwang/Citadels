@@ -659,7 +659,7 @@ function renderPlayerBar(){
       if(!tip){tip=document.createElement('div');tip.id='draft-pip-tip';tip.className='draft-pip-tip';document.body.appendChild(tip);}
       var label=pid===0?'You':p.name;
       var charInfo='';
-      if(S.phase!=='draft'&&p.char){var co=charById(p.char);if(co)charInfo='<div class="dpt-char" style="color:'+co.clr+'">'+co.emoji+' '+co.name+'</div>';}
+      if(S.phase!=='draft'&&p.char&&!isActive){var co=charById(p.char);if(co)charInfo='<div class="dpt-char" style="color:'+co.clr+'">'+co.emoji+' '+co.name+'</div>';}
       var extra='';
       if(p.dead)extra='<div class="dpt-status dpt-dead">💀 Killed</div>';
       else if(statusText)extra='<div class="dpt-status dpt-'+state+'">'+statusText+'</div>';
