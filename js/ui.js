@@ -159,8 +159,6 @@ function render(){
     row1.appendChild(hudLeft);
     const meH=S.players[0];
     const hudStats=el('div',{class:'mob-hud-stats'});
-    if(meH.char){const c=charById(meH.char);hudStats.appendChild(el('span',{class:'mob-hud-char',style:`color:${c.clr}`},c.emoji+' '));}
-    hudStats.appendChild(document.createTextNode('\u00A0'));
     var statsSpan=el('span',null,'');
     statsSpan.innerHTML='💰'+meH.gold+' 🃏'+meH.hand.length+' 🏰'+meH.city.length+'/8';
     hudStats.appendChild(statsSpan);
