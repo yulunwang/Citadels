@@ -753,7 +753,7 @@ body{
 
   /* Draft: expand main, hide hand tray */
   .game-wrap.mobile.phase-draft #bottom { display: none; }
-  .game-wrap.mobile.phase-draft #main { max-height: none; flex: 1 1 auto; }
+  .game-wrap.mobile.phase-draft #main { max-height: none; flex: 1 1 0; min-height: 0; }
   .game-wrap.mobile.phase-draft #bot-city { display: none; }
 
   /* ── Draft: compact cards on mobile ── */
