@@ -92,7 +92,8 @@ A full visual redesign is in progress. All agent instructions and design specifi
 - `docs/ui-redesign/agents/phase-{0-4}-*.md` — Step-by-step agent instructions per phase
 
 **Critical rules for UI changes:**
-- NEVER modify `js/engine.js`, `js/net.js`, or `js/ext-api.js`
+- `js/engine.js` may be modified for bug fixes and missing game mechanics
+- NEVER modify `js/net.js` or `js/ext-api.js`
 - All colors must use CSS custom properties (`:root` variables in `css/style.css`)
 - All styling must use CSS classes, not inline styles in JS
 - Images are referenced via the global `IMG` object in `js/data.js`
