@@ -924,15 +924,21 @@ function renderAction(){
         const row=el('div',{class:'cards-wrap build-row'});
         me.hand.forEach(d=>{
           const cost=buildCost(me,d);
-          const canAfford=cost<=me.gold&&canBuildDistrict(me,d);
+          var canAfford=cost<=me.gold&&canBuildDistrict(me,d);
+          // Thieves' Den: affordable if gold + other cards in hand >= cost
+          var isDen=d.id==='thieves_den';
+          if(!canAfford&&isDen&&canBuildDistrict(me,d)){
+            var cardsAvail=me.hand.length-1;
+            canAfford=cost<=me.gold+cardsAvail;
+          }
           const card=mkCard(d,{portrait:true,player:me,noDesc:true,disabled:false});
           if(!canAfford)card.style.opacity='0.45';
           card.style.cursor='pointer';
-          card.onclick=function(e){e.stopPropagation();showBuildConfirm(d,cost,canAfford);};
+          card.onclick=function(e){e.stopPropagation();showBuildConfirm(d,cost,canAfford,isDen);};
           row.appendChild(card);
         });
         wrap.appendChild(row);
-        if(!me.hand.some(d=>buildCost(me,d)<=me.gold&&canBuildDistrict(me,d)))
+        if(!me.hand.some(d=>{var c=buildCost(me,d);if(c<=me.gold&&canBuildDistrict(me,d))return true;if(d.id==='thieves_den'&&canBuildDistrict(me,d)&&c<=me.gold+(me.hand.length-1))return true;return false;}))
           wrap.appendChild(el('div',{class:'state-empty',style:'margin-bottom:8px'},'Cannot afford to build.'));
       }
     }else if(S.builtCount>0){
@@ -940,7 +946,7 @@ function renderAction(){
     }
   }
   // Build confirm popup: shows card detail + build button
-  function showBuildConfirm(d,cost,canAfford){
+  function showBuildConfirm(d,cost,canAfford,isDen){
     var existing=document.getElementById('card-detail-overlay');
     if(existing)existing.remove();
     var overlay=el('div',{id:'card-detail-overlay'});
@@ -959,8 +965,38 @@ function renderAction(){
     info.appendChild(el('div',{class:'card-detail-name'},d.name));
     info.appendChild(el('div',{class:'card-detail-type'},CS[d.color].label));
     if(d.special&&SDESC[d.special])info.appendChild(el('div',{class:'card-detail-desc'},SDESC[d.special]));
-    if(canAfford){
-      var buildBtn=el('button',{class:'gbtn build-confirm-btn'},`🏗 Build for ${cost}✦`);
+    // Thieves' Den: needs card payment UI if not enough gold
+    if(canAfford&&isDen&&cost>me.gold){
+      var deficit=cost-me.gold;
+      var otherCards=me.hand.filter(function(c){return c.uid!==d.uid;});
+      var selected={};
+      info.appendChild(el('div',{class:'den-pay-label'},'Pay '+cost+'✦ with '+me.gold+'✦ gold + discard cards (need '+deficit+' more):'));
+      var cardList=el('div',{class:'den-card-list'});
+      otherCards.forEach(function(c){
+        var item=el('div',{class:'den-card-item'});
+        item.textContent=(DEMOJI[c.id]||'🏛')+' '+c.name+' ('+c.cost+'✦)';
+        item.onclick=function(){
+          if(selected[c.uid]){delete selected[c.uid];item.classList.remove('den-card-selected');}
+          else{selected[c.uid]=true;item.classList.add('den-card-selected');}
+          var cnt=Object.keys(selected).length;
+          buildBtn.textContent='🏗 Build ('+me.gold+'✦ + '+cnt+' card'+(cnt!==1?'s':'')+')';
+          buildBtn.disabled=cnt<deficit;
+          buildBtn.style.opacity=cnt<deficit?'0.5':'1';
+        };
+        cardList.appendChild(item);
+      });
+      info.appendChild(cardList);
+      var buildBtn=el('button',{class:'gbtn build-confirm-btn'},'🏗 Build ('+me.gold+'✦ + 0 cards)');
+      buildBtn.disabled=true;
+      buildBtn.style.cssText='margin-top:10px;width:100%;background:#4db87a;color:#fff;border:none;padding:10px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;opacity:0.5';
+      buildBtn.onclick=function(){
+        var uids=Object.keys(selected);
+        if(uids.length<deficit)return;
+        overlay.remove();var _nr=humanBuild(S,d.uid,uids);if(_nr){S=_nr;render();}
+      };
+      info.appendChild(buildBtn);
+    }else if(canAfford){
+      var buildBtn=el('button',{class:'gbtn build-confirm-btn'},'🏗 Build for '+cost+'✦');
       buildBtn.style.cssText='margin-top:10px;width:100%;background:#4db87a;color:#fff;border:none;padding:10px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer';
       buildBtn.onclick=function(){overlay.remove();var _nr=humanBuild(S,d.uid);if(_nr){S=_nr;render();}};
       info.appendChild(buildBtn);
