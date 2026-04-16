@@ -756,16 +756,16 @@ body{
   .game-wrap.mobile.phase-draft #main { max-height: none; flex: 1 1 0; min-height: 0; overflow-y: auto; }
   .game-wrap.mobile.phase-draft #bot-city { display: none; }
 
-  /* ── Draft: compact cards on mobile ── */
-  .draft-grid { grid-template-columns: 1fr 1fr; gap: 5px; }
-  .charcard { flex-direction: row; align-items: stretch; border-radius: var(--radius-md); }
-  .charcard-img-zone { height: auto; width: 44px; min-height: 44px; flex-shrink: 0; border-radius: var(--radius-md) 0 0 var(--radius-md); }
-  .charcard-portrait { object-position: center 20%; }
-  .charcard-img-fallback { font-size: 20px; }
-  .charcard-info-zone { padding: 5px 6px; gap: 2px; border-top: none; border-left: 1px solid color-mix(in srgb, var(--char-clr, var(--text-accent)) 20%, var(--border-subtle)); }
+  /* ── Draft: compact cards on mobile — 3-column vertical ── */
+  .draft-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .charcard { border-radius: var(--radius-md); }
+  .charcard-img-zone { height: 72px; }
+  .charcard-portrait { object-position: center 15%; }
+  .charcard-img-fallback { font-size: 28px; }
+  .charcard-info-zone { padding: 5px 6px 6px; gap: 2px; }
   .charcard-name { font-size: 10px; }
-  .charcard-ability { font-size: 8px; line-height: 1.25; -webkit-line-clamp: 3; display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
-  .charcard-rank { width: 16px; height: 16px; font-size: 8px; top: 2px; left: 2px; }
+  .charcard-ability { font-size: 8.5px; line-height: 1.3; -webkit-line-clamp: 2; display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
+  .charcard-rank { width: 18px; height: 18px; font-size: 9px; top: 3px; left: 3px; }
   .draft-title { font-size: 12px; margin-bottom: 4px; }
   .draft-info { margin-bottom: 6px; padding: 4px 8px; font-size: 10px; }
   .draft-pip { width: 26px; height: 26px; font-size: 13px; }
