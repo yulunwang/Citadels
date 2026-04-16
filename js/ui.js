@@ -187,7 +187,15 @@ function render(){
         sheet.onclick=function(ev){if(ev.target===sheet)sheet.remove();};
         var box=el('div',{class:'player-detail-box'});
         var hdr=el('div',{class:'player-detail-hdr'});
-        var charObj=p.char?charById(p.char):null;
+        var charRevealed=false;
+        if(p.char){
+          if(S.phase==='action'){charRevealed=charRank(p.char)<S.callIdx;}
+          else if(S.phase==='herald'&&S.heraldQueue){
+            var beatIdx=S.heraldQueue.findIndex(function(b){return b.playerId===p.id;});
+            charRevealed=beatIdx>=0&&beatIdx<S.heraldIdx;
+          }else if(S.phase==='gameover'){charRevealed=true;}
+        }
+        var charObj=charRevealed&&p.char?charById(p.char):null;
         var nameText=p.name+(charObj?' · '+charObj.emoji+' '+charObj.name:'');
         hdr.appendChild(el('span',{class:'player-detail-name'},nameText));
         var score=calcScore(p,S.firstCompleter===p.id);
@@ -537,9 +545,10 @@ function renderHerald(){
     const pipCls='herald-pip'+(i===S.heraldIdx?' current':i<S.heraldIdx?' past':' future');
     const pip=el('div',{class:pipCls});
     pip.textContent=qc.emoji;
-    pip.style.borderColor=qc.clr;
-    if(i===S.heraldIdx)pip.style.background=qc.clr+'18';
-    else if(i<S.heraldIdx)pip.style.background=qc.clr+'15';
+    pip.style.setProperty('--pip-clr',qc.clr);
+    pip.style.borderColor='var(--pip-clr)';
+    if(i===S.heraldIdx)pip.style.background='color-mix(in srgb, var(--pip-clr) 10%, transparent)';
+    else if(i<S.heraldIdx)pip.style.background='color-mix(in srgb, var(--pip-clr) 8%, transparent)';
     pip.title=`${q.charId}. ${qc.name}`;pips.appendChild(pip);}
   wrap.appendChild(pips);
   const card=el('div',{class:'herald-card'});
@@ -735,12 +744,16 @@ function renderPlayerBar(){
       if(left+pw>window.innerWidth-8)left=window.innerWidth-pw-8;
       panel.style.left=left+'px';
     },0);
-    function outsideClick(ev){
-      if(!panel.contains(ev.target)&&ev.target!==refBtn){
-        panel.remove();var t=document.getElementById('char-ref-tip');if(t)t.remove();
-        document.removeEventListener('click',outsideClick,true);
-      }
+    function closePanel(){
+      panel.remove();var t=document.getElementById('char-ref-tip');if(t)t.remove();
+      document.removeEventListener('click',outsideClick,true);
     }
+    function outsideClick(ev){
+      if(!panel.contains(ev.target)&&ev.target!==refBtn){closePanel();}
+    }
+    // Store cleanup reference so re-opens don't accumulate listeners
+    if(refBtn._cleanupCharRef)refBtn._cleanupCharRef();
+    refBtn._cleanupCharRef=function(){document.removeEventListener('click',outsideClick,true);};
     setTimeout(function(){document.addEventListener('click',outsideClick,true);},50);
   };
   bar.appendChild(refBtn);
@@ -787,7 +800,7 @@ function renderDraft(){
     // Info zone — bottom portion, always clean background
     const infoZone=el('div',{class:'charcard-info-zone'});
     infoZone.appendChild(el('div',{class:`charcard-name${avail?' available':''}`},`${c.rank}. ${c.name}`));
-    if(removed){
+    if(removed){// defensive: dealDraft excludes removed chars, but extensions may add face-up removed cards
       infoZone.appendChild(el('div',{class:'charcard-removed-label'},'✕ NOT IN PLAY'));
     }else{
       infoZone.appendChild(el('div',{class:'charcard-ability'},c.ability));
