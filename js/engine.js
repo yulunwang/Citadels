@@ -114,7 +114,17 @@ function aiPickChar(p,avail,state){
   return avail[0|Math.random()*avail.length];
 }
 function aiBestBuild(p,state){
-  let can=p.hand.filter(d=>{const cost=buildCost(p,d);return cost<=p.gold&&canBuildDistrict(p,d);});
+  let can=p.hand.filter(d=>{
+    const cost=buildCost(p,d);
+    if(!canBuildDistrict(p,d))return false;
+    if(cost<=p.gold)return true;
+    // Thieves' Den: can pay with cards from hand (excluding the card itself)
+    if(d.id==='thieves_den'){
+      const cardsAvail=p.hand.length-1; // minus the den itself
+      return cost<=p.gold+cardsAvail;
+    }
+    return false;
+  });
   // Don't trigger game end (build 8th district) if clearly losing — first-completer bonus (+4)
   // won't overcome the deficit, so let the game continue for more scoring opportunities.
   if(can.length&&p.city.length===7&&state&&state.firstCompleter===null){
@@ -474,8 +484,23 @@ function doAITurn(state,pid,charId){
   for(let i=0;i<maxB;i++){
     const dist=aiBestBuild(p(),s);if(!dist)break;built++;
     const cost=buildCost(p(),dist);
-    s={...s,players:s.players.map(q=>q.id===pid?{...q,gold:q.gold-cost,hand:q.hand.filter(c=>c.uid!==dist.uid),city:[...q.city,dist]}:q)};
-    events.push({icon:DEMOJI[dist.id]||'🏛️',text:`${p().name} builds ${dist.name} (${cost}✦ — ${CS[dist.color].label}).`,color:CS[dist.color].txt});
+    let goldPaid=cost,cardsDiscarded=0;
+    // Thieves' Den: AI pays with cheapest cards if not enough gold
+    if(dist.id==='thieves_den'&&cost>p().gold){
+      const deficit=cost-p().gold;
+      goldPaid=p().gold;
+      // Pick cheapest cards to discard (excluding the den itself)
+      const spares=p().hand.filter(c=>c.uid!==dist.uid).sort((a,b)=>a.cost-b.cost);
+      const toDiscard=spares.slice(0,deficit);
+      cardsDiscarded=toDiscard.length;
+      const discardSet=new Set(toDiscard.map(c=>c.uid));
+      s={...s,players:s.players.map(q=>q.id===pid?{...q,gold:0,
+        hand:q.hand.filter(c=>c.uid!==dist.uid&&!discardSet.has(c.uid)),city:[...q.city,dist]}:q)};
+    }else{
+      s={...s,players:s.players.map(q=>q.id===pid?{...q,gold:q.gold-cost,hand:q.hand.filter(c=>c.uid!==dist.uid),city:[...q.city,dist]}:q)};
+    }
+    const payDesc=cardsDiscarded>0?`${goldPaid}✦ + ${cardsDiscarded} card${cardsDiscarded>1?'s':''}`:cost+'✦';
+    events.push({icon:DEMOJI[dist.id]||'🏛️',text:`${p().name} builds ${dist.name} (${payDesc} — ${CS[dist.color].label}).`,color:CS[dist.color].txt});
     s=addLog(s,`${p().name} builds ${dist.name}.`);
     if(p().city.length>=8&&s.firstCompleter===null){s={...s,firstCompleter:pid};
       events.push({icon:'🏆',text:`${p().name} completes 8 districts! Final round!`,color:'#d4a843'});
@@ -550,10 +575,31 @@ function humanKeepCard(state,uid){
     players:state.players.map(p=>p.id===0?{...p,hand:[...p.hand,kept]}:p)},`You keep ${kept.name}.`);
 }
 
-function humanBuild(state,uid){
+function humanBuild(state,uid,discardUids){
   const p=state.players[0];const maxB=p.char===7?3:(p.char===14||p.char===15||p.char===16)?2:1;if(state.builtCount>=maxB)return state;
   const card=p.hand.find(d=>d.uid===uid);if(!card)return state;
-  const cost=buildCost(p,card);if(cost>p.gold||!canBuildDistrict(p,card))return state;
+  const cost=buildCost(p,card);
+  if(!canBuildDistrict(p,card))return state;
+  // Thieves' Den: pay with mix of gold and cards
+  if(card.id==='thieves_den'&&discardUids&&discardUids.length>0){
+    const cardsPayment=discardUids.length;
+    const goldNeeded=cost-cardsPayment;
+    if(goldNeeded<0||goldNeeded>p.gold)return state;
+    // Validate all discard uids exist in hand and aren't the card being built
+    const handWithout=p.hand.filter(d=>d.uid!==uid);
+    for(const duid of discardUids){if(!handWithout.some(d=>d.uid===duid))return state;}
+    const discardSet=new Set(discardUids);
+    let s={...state,builtCount:state.builtCount+1,
+      players:state.players.map(q=>q.id===0?{...q,gold:q.gold-goldNeeded,
+        hand:q.hand.filter(d=>d.uid!==uid&&!discardSet.has(d.uid)),city:[...q.city,card]}:q)};
+    s=addLog(s,`You build ${card.name} (${goldNeeded}✦ + ${cardsPayment} card${cardsPayment>1?'s':''}).`);
+    if(s.players[0].city.length>=8&&s.firstCompleter===null){
+      s={...s,firstCompleter:s.players[0].id};
+      s=addLog(s,`🏰 ${s.players[0].name} completes 8 districts! Final round!`);
+    }
+    return s;
+  }
+  if(cost>p.gold)return state;
   let s={...state,builtCount:state.builtCount+1,
     players:state.players.map(q=>q.id===0?{...q,gold:q.gold-cost,hand:q.hand.filter(d=>d.uid!==uid),city:[...q.city,card]}:q)};
   s=addLog(s,`You build ${card.name} (${cost}✦${card.cost>cost?' — Factory discount':''}).`);

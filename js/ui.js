@@ -128,6 +128,8 @@ function render(){
   if(!S){renderLobby({screen:'home'});return;}
 
   const app=document.getElementById('app');app.innerHTML='';
+  // Clean up floating panels from previous render
+  ['char-ref-panel','char-ref-tip'].forEach(function(id){var e=document.getElementById(id);if(e)e.remove();});
   if(S.phase==='gameover'){app.appendChild(renderGameOver());return;}
 
   const isMobile=window.innerWidth<=768;
@@ -141,9 +143,10 @@ function render(){
   const topbar=el('div',{id:'topbar'});
 
   if(isMobile){
-    // ── MOBILE: Mini HUD bar ──
+    // ── MOBILE: Mini HUD bar (two rows) ──
     const hud=el('div',{class:'mob-hud'});
-    // Left: round + calling info
+    // Row 1: round info + your stats + end button
+    const row1=el('div',{class:'mob-hud-row1'});
     const hudLeft=el('div',{class:'mob-hud-left'});
     hudLeft.appendChild(el('span',{class:'mob-hud-round'},`R${S.round}`));
     if((S.phase==='action'||S.phase==='herald')&&S.callIdx<=Math.max(0,...S.charPool.map(charRank))){
@@ -153,25 +156,68 @@ function render(){
     }else if(S.phase==='draft'){
       hudLeft.appendChild(el('span',{class:'mob-hud-calling'},'📜 Draft'));
     }
-    hud.appendChild(hudLeft);
-    // Center: your stats pill
+    row1.appendChild(hudLeft);
     const meH=S.players[0];
     const hudStats=el('div',{class:'mob-hud-stats'});
-    if(meH.char){const c=charById(meH.char);hudStats.appendChild(el('span',{class:'mob-hud-char',style:`color:${c.clr}`},c.emoji+' '));}
-    hudStats.appendChild(document.createTextNode('\u00A0'));
     var statsSpan=el('span',null,'');
     statsSpan.innerHTML='💰'+meH.gold+' 🃏'+meH.hand.length+' 🏰'+meH.city.length+'/8';
     hudStats.appendChild(statsSpan);
-    hud.appendChild(hudStats);
-    // Right: opponents button + end game
+    row1.appendChild(hudStats);
     const hudRight=el('div',{class:'mob-hud-right'});
-    const oppBtn=el('button',{class:'mob-opp-btn'},`👥 ${S.players.length-1}`);
-    oppBtn.onclick=function(e){e.stopPropagation();showAllPlayersSheet();};
-    hudRight.appendChild(oppBtn);
     const endBtn=el('button',{class:'btn-danger mob-end-btn'},'✕');
     endBtn.onclick=()=>{S={...S,_confirmEnd:true};render();};
     hudRight.appendChild(endBtn);
-    hud.appendChild(hudRight);
+    row1.appendChild(hudRight);
+    hud.appendChild(row1);
+    // Row 2: opponent chips (horizontally scrollable)
+    const row2=el('div',{class:'mob-hud-row2'});
+    const chips=el('div',{class:'mob-opp-chips'});
+    S.players.filter(function(p){return p.id!==0;}).forEach(function(p){
+      var avatar=typeof getAvatar==='function'?getAvatar(p.id):(p.ai?'🤖':'👤');
+      var chip=el('div',{class:'mob-opp-chip'+(p.dead?' dead':'')});
+      chip.appendChild(el('span',{class:'mob-opp-chip-avatar'},avatar));
+      var stat=el('span',{class:'mob-opp-chip-stat'});
+      stat.innerHTML='💰'+p.gold+'&thinsp;🏰'+p.city.length;
+      chip.appendChild(stat);
+      chip.onclick=function(e){
+        e.stopPropagation();
+        var existing=document.getElementById('player-detail-sheet');
+        if(existing){existing.remove();return;}
+        var sheet=el('div',{id:'player-detail-sheet'});
+        sheet.onclick=function(ev){if(ev.target===sheet)sheet.remove();};
+        var box=el('div',{class:'player-detail-box'});
+        var hdr=el('div',{class:'player-detail-hdr'});
+        var charRevealed=false;
+        if(p.char){
+          if(S.phase==='action'){charRevealed=charRank(p.char)<S.callIdx;}
+          else if(S.phase==='herald'&&S.heraldQueue){
+            var beatIdx=S.heraldQueue.findIndex(function(b){return b.playerId===p.id;});
+            charRevealed=beatIdx>=0&&beatIdx<S.heraldIdx;
+          }else if(S.phase==='gameover'){charRevealed=true;}
+        }
+        var charObj=charRevealed&&p.char?charById(p.char):null;
+        var nameText=p.name+(charObj?' · '+charObj.emoji+' '+charObj.name:'');
+        hdr.appendChild(el('span',{class:'player-detail-name'},nameText));
+        var score=calcScore(p,S.firstCompleter===p.id);
+        hdr.appendChild(el('span',{class:'player-detail-score'},'💰'+p.gold+'  🃏'+p.hand.length+'  🏰'+p.city.length+'/8  ~'+score+'pts'));
+        var closeBtn=el('button',{class:'player-detail-close'},'✕');
+        closeBtn.onclick=function(){sheet.remove();};
+        hdr.appendChild(closeBtn);
+        box.appendChild(hdr);
+        if(p.city.length){
+          var cityWrap=el('div',{class:'player-detail-city'});
+          ['yellow','blue','green','red','purple'].forEach(function(col){
+            p.city.filter(function(d){return d.color===col;}).forEach(function(d){cityWrap.appendChild(mkCard(d,{portrait:true,player:p}));});
+          });
+          box.appendChild(cityWrap);
+        }else{box.appendChild(el('p',{class:'player-detail-empty'},'No districts built yet.'));}
+        sheet.appendChild(box);
+        document.body.appendChild(sheet);
+      };
+      chips.appendChild(chip);
+    });
+    row2.appendChild(chips);
+    hud.appendChild(row2);
     topbar.appendChild(hud);
   }else{
     // ── DESKTOP: Full topbar ──
@@ -215,6 +261,12 @@ function render(){
     const r2=el('div',{class:'tb-player-stats'});
     if(!compact){
       if(p.char&&charRevealed){const c=charById(p.char);
+        // Character thumbnail
+        if(typeof IMG!=='undefined'&&IMG.char[c.id]){
+          var thumbImg=el('img',{src:IMG.char[c.id].thumb,alt:c.name,class:'tb-char-thumb'});
+          thumbImg.onerror=function(){thumbImg.style.display='none';};
+          r1.appendChild(thumbImg);
+        }
         const badge=el('span',{class:'tb-player-char',style:`--char-clr:${c.clr};color:var(--char-clr);border-color:color-mix(in srgb,var(--char-clr) 35%,var(--border-main));background:color-mix(in srgb,var(--char-clr) 10%,var(--bg-card))`});
         badge.textContent=`${c.emoji} ${c.name}`;r1.appendChild(badge);
       }else if(p.char&&!charRevealed&&!isMe){
@@ -490,12 +542,17 @@ function renderHerald(){
   const wrap=el('div',{class:'herald-wrap'});
   const pips=el('div',{class:'herald-pips'});
   for(let i=0;i<total;i++){const q=S.heraldQueue[i];const qc=charByRank(q.charId);
-    const pip=el('div',{class:'herald-pip'+(i>=S.heraldIdx&&i!==S.heraldIdx?' inactive':'')});
-    if(i===S.heraldIdx)pip.style.background=qc.clr;
-    else if(i<S.heraldIdx)pip.style.background=qc.clr+'88';
+    const pipCls='herald-pip'+(i===S.heraldIdx?' current':i<S.heraldIdx?' past':' future');
+    const pip=el('div',{class:pipCls});
+    pip.textContent=qc.emoji;
+    pip.style.setProperty('--pip-clr',qc.clr);
+    pip.style.borderColor='var(--pip-clr)';
+    if(i===S.heraldIdx)pip.style.background='color-mix(in srgb, var(--pip-clr) 10%, transparent)';
+    else if(i<S.heraldIdx)pip.style.background='color-mix(in srgb, var(--pip-clr) 8%, transparent)';
     pip.title=`${q.charId}. ${qc.name}`;pips.appendChild(pip);}
   wrap.appendChild(pips);
   const card=el('div',{class:'herald-card'});
+  card.style.setProperty('--herald-clr',c.clr);
   card.appendChild(el('div',{class:'herald-char-num'},`Character ${beat.charId} of ${Math.max(0,...S.charPool.map(charRank))}`));
   const iconRow=el('div',{class:'herald-icon-row'});
   var portraitEl;
@@ -611,7 +668,7 @@ function renderPlayerBar(){
       if(!tip){tip=document.createElement('div');tip.id='draft-pip-tip';tip.className='draft-pip-tip';document.body.appendChild(tip);}
       var label=pid===0?'You':p.name;
       var charInfo='';
-      if(S.phase!=='draft'&&p.char){var co=charById(p.char);if(co)charInfo='<div class="dpt-char" style="color:'+co.clr+'">'+co.emoji+' '+co.name+'</div>';}
+      if(S.phase!=='draft'&&p.char&&!isActive){var co=charById(p.char);if(co)charInfo='<div class="dpt-char" style="color:'+co.clr+'">'+co.emoji+' '+co.name+'</div>';}
       var extra='';
       if(p.dead)extra='<div class="dpt-status dpt-dead">💀 Killed</div>';
       else if(statusText)extra='<div class="dpt-status dpt-'+state+'">'+statusText+'</div>';
@@ -624,6 +681,82 @@ function renderPlayerBar(){
     pip.onmouseleave=function(){var tip=document.getElementById('draft-pip-tip');if(tip)tip.style.display='none';};
     bar.appendChild(pip);
   });
+  // Character reference button
+  var refBtn=el('button',{class:'char-ref-btn'},'ℹ');
+  refBtn.title='Character Reference';
+  refBtn.onclick=function(e){
+    e.stopPropagation();
+    var existing=document.getElementById('char-ref-panel');
+    if(existing){existing.remove();var et=document.getElementById('char-ref-tip');if(et)et.remove();return;}
+    var panel=el('div',{id:'char-ref-panel',class:'char-ref-panel'});
+    var hdr=el('div',{class:'char-ref-hdr'});
+    hdr.appendChild(el('span',{class:'char-ref-title'},'Characters This Round'));
+    var closeBtn=el('button',{class:'char-ref-close'},'✕');
+    closeBtn.onclick=function(){panel.remove();var t=document.getElementById('char-ref-tip');if(t)t.remove();};
+    hdr.appendChild(closeBtn);
+    panel.appendChild(hdr);
+    var pool=(S.charPool||[]).slice().sort(function(a,b){
+      var ra=CHARS.find(function(c){return c.id===a;});
+      var rb=CHARS.find(function(c){return c.id===b;});
+      return ((ra&&ra.rank)||0)-((rb&&rb.rank)||0);
+    });
+    pool.forEach(function(charId){
+      var c=CHARS.find(function(ch){return ch.id===charId;});
+      if(!c)return;
+      var row=el('div',{class:'char-ref-row'});
+      row.appendChild(el('span',{class:'char-ref-rank'},String(c.rank)));
+      row.appendChild(el('span',{class:'char-ref-emoji'},c.emoji));
+      row.appendChild(el('span',{class:'char-ref-name',style:'color:'+c.clr},c.name));
+      row.onmouseenter=function(){
+        var tip=document.getElementById('char-ref-tip');
+        if(!tip){tip=document.createElement('div');tip.id='char-ref-tip';tip.className='char-ref-tip';document.body.appendChild(tip);}
+        tip.innerHTML='<div class="crt-header"><span class="crt-emoji">'+c.emoji+'</span><span class="crt-name" style="color:'+c.clr+'">'+c.name+'</span></div><p class="crt-ability">'+c.ability+'</p>';
+        tip.style.display='block';
+        var pr=panel.getBoundingClientRect();var rr=row.getBoundingClientRect();
+        setTimeout(function(){
+          var tw=tip.offsetWidth;var th=tip.offsetHeight;
+          var tipLeft=pr.right+8;
+          var fitsRight=tipLeft+tw<=window.innerWidth-8;
+          var fitsLeft=pr.left-tw-8>=8;
+          if(fitsRight){tip.style.left=tipLeft+'px';}
+          else if(fitsLeft){tip.style.left=(pr.left-tw-8)+'px';}
+          else{
+            // Not enough room on sides — show below the row, same x as panel
+            tip.style.left=Math.max(8,Math.min(pr.left,window.innerWidth-tw-8))+'px';
+            tip.style.top=Math.min(rr.bottom+6,window.innerHeight-th-8)+'px';
+            return;
+          }
+          var tipTop=rr.top;
+          if(tipTop+th>window.innerHeight-8)tipTop=window.innerHeight-th-8;
+          tip.style.top=Math.max(8,tipTop)+'px';
+        },0);
+      };
+      row.onmouseleave=function(){var tip=document.getElementById('char-ref-tip');if(tip)tip.style.display='none';};
+      panel.appendChild(row);
+    });
+    document.body.appendChild(panel);
+    var br=refBtn.getBoundingClientRect();
+    panel.style.top=(br.bottom+8)+'px';
+    setTimeout(function(){
+      var pw=panel.offsetWidth;
+      var left=br.right-pw;
+      if(left<8)left=8;
+      if(left+pw>window.innerWidth-8)left=window.innerWidth-pw-8;
+      panel.style.left=left+'px';
+    },0);
+    function closePanel(){
+      panel.remove();var t=document.getElementById('char-ref-tip');if(t)t.remove();
+      document.removeEventListener('click',outsideClick,true);
+    }
+    function outsideClick(ev){
+      if(!panel.contains(ev.target)&&ev.target!==refBtn){closePanel();}
+    }
+    // Store cleanup reference so re-opens don't accumulate listeners
+    if(refBtn._cleanupCharRef)refBtn._cleanupCharRef();
+    refBtn._cleanupCharRef=function(){document.removeEventListener('click',outsideClick,true);};
+    setTimeout(function(){document.addEventListener('click',outsideClick,true);},50);
+  };
+  bar.appendChild(refBtn);
   return bar;
 }
 
@@ -650,7 +783,9 @@ function renderDraft(){
     // (face-up removed would tell you what's gone; that breaks the guessing game)
     if(!avail)return;
     const stateClass='available';
-    const card=el('div',{class:`charcard ${stateClass}`,style:`--char-clr:${c.clr}`});
+    const card=el('div',{class:`charcard ${stateClass} animate-in`,style:`--char-clr:${c.clr}`});
+    // Rank badge
+    card.appendChild(el('div',{class:'charcard-rank'},String(c.rank)));
     // Image zone — top portion of card
     const imgZone=el('div',{class:'charcard-img-zone'});
     if(typeof IMG!=='undefined'&&IMG.char[c.id]){
@@ -665,7 +800,7 @@ function renderDraft(){
     // Info zone — bottom portion, always clean background
     const infoZone=el('div',{class:'charcard-info-zone'});
     infoZone.appendChild(el('div',{class:`charcard-name${avail?' available':''}`},`${c.rank}. ${c.name}`));
-    if(removed){
+    if(removed){// defensive: dealDraft excludes removed chars, but extensions may add face-up removed cards
       infoZone.appendChild(el('div',{class:'charcard-removed-label'},'✕ NOT IN PLAY'));
     }else{
       infoZone.appendChild(el('div',{class:'charcard-ability'},c.ability));
@@ -684,7 +819,14 @@ function renderAction(){
   const me=S.players[0];const charId=me.char;const c=charById(charId);const maxB=charId===7?3:(charId===14||charId===15||charId===16)?2:1;
   const wrap=el('div',null);
   const banner=el('div',{class:'action-banner',style:`--char-clr:${c.clr};background:color-mix(in srgb,var(--char-clr) 8%,var(--bg-card));border-color:color-mix(in srgb,var(--char-clr) 25%,var(--border-main))`});
-  banner.appendChild(el('div',{class:'action-banner-emoji'},c.emoji));
+  // Portrait image or emoji fallback
+  if(typeof IMG!=='undefined'&&IMG.char[charId]){
+    var bannerImg=el('img',{src:IMG.char[charId].full,alt:c.name,class:'action-banner-portrait'});
+    bannerImg.onerror=function(){var span=el('div',{class:'action-banner-emoji'},c.emoji);if(bannerImg.parentNode)bannerImg.parentNode.replaceChild(span,bannerImg);};
+    banner.appendChild(bannerImg);
+  }else{
+    banner.appendChild(el('div',{class:'action-banner-emoji'},c.emoji));
+  }
   const bInfo=el('div',{class:'action-banner-info'});
   const charNameEl=el('div',{class:'action-char-name',style:`color:${c.clr}`},`${c.name}`);
   bInfo.appendChild(charNameEl);
@@ -795,15 +937,21 @@ function renderAction(){
         const row=el('div',{class:'cards-wrap build-row'});
         me.hand.forEach(d=>{
           const cost=buildCost(me,d);
-          const canAfford=cost<=me.gold&&canBuildDistrict(me,d);
+          var canAfford=cost<=me.gold&&canBuildDistrict(me,d);
+          // Thieves' Den: affordable if gold + other cards in hand >= cost
+          var isDen=d.id==='thieves_den';
+          if(!canAfford&&isDen&&canBuildDistrict(me,d)){
+            var cardsAvail=me.hand.length-1;
+            canAfford=cost<=me.gold+cardsAvail;
+          }
           const card=mkCard(d,{portrait:true,player:me,noDesc:true,disabled:false});
           if(!canAfford)card.style.opacity='0.45';
           card.style.cursor='pointer';
-          card.onclick=function(e){e.stopPropagation();showBuildConfirm(d,cost,canAfford);};
+          card.onclick=function(e){e.stopPropagation();showBuildConfirm(d,cost,canAfford,isDen);};
           row.appendChild(card);
         });
         wrap.appendChild(row);
-        if(!me.hand.some(d=>buildCost(me,d)<=me.gold&&canBuildDistrict(me,d)))
+        if(!me.hand.some(d=>{var c=buildCost(me,d);if(c<=me.gold&&canBuildDistrict(me,d))return true;if(d.id==='thieves_den'&&canBuildDistrict(me,d)&&c<=me.gold+(me.hand.length-1))return true;return false;}))
           wrap.appendChild(el('div',{class:'state-empty',style:'margin-bottom:8px'},'Cannot afford to build.'));
       }
     }else if(S.builtCount>0){
@@ -811,7 +959,7 @@ function renderAction(){
     }
   }
   // Build confirm popup: shows card detail + build button
-  function showBuildConfirm(d,cost,canAfford){
+  function showBuildConfirm(d,cost,canAfford,isDen){
     var existing=document.getElementById('card-detail-overlay');
     if(existing)existing.remove();
     var overlay=el('div',{id:'card-detail-overlay'});
@@ -830,8 +978,38 @@ function renderAction(){
     info.appendChild(el('div',{class:'card-detail-name'},d.name));
     info.appendChild(el('div',{class:'card-detail-type'},CS[d.color].label));
     if(d.special&&SDESC[d.special])info.appendChild(el('div',{class:'card-detail-desc'},SDESC[d.special]));
-    if(canAfford){
-      var buildBtn=el('button',{class:'gbtn build-confirm-btn'},`🏗 Build for ${cost}✦`);
+    // Thieves' Den: needs card payment UI if not enough gold
+    if(canAfford&&isDen&&cost>me.gold){
+      var deficit=cost-me.gold;
+      var otherCards=me.hand.filter(function(c){return c.uid!==d.uid;});
+      var selected={};
+      info.appendChild(el('div',{class:'den-pay-label'},'Pay '+cost+'✦ with '+me.gold+'✦ gold + discard cards (need '+deficit+' more):'));
+      var cardList=el('div',{class:'den-card-list'});
+      otherCards.forEach(function(c){
+        var item=el('div',{class:'den-card-item'});
+        item.textContent=(DEMOJI[c.id]||'🏛')+' '+c.name+' ('+c.cost+'✦)';
+        item.onclick=function(){
+          if(selected[c.uid]){delete selected[c.uid];item.classList.remove('den-card-selected');}
+          else{selected[c.uid]=true;item.classList.add('den-card-selected');}
+          var cnt=Object.keys(selected).length;
+          buildBtn.textContent='🏗 Build ('+me.gold+'✦ + '+cnt+' card'+(cnt!==1?'s':'')+')';
+          buildBtn.disabled=cnt<deficit;
+          buildBtn.style.opacity=cnt<deficit?'0.5':'1';
+        };
+        cardList.appendChild(item);
+      });
+      info.appendChild(cardList);
+      var buildBtn=el('button',{class:'gbtn build-confirm-btn'},'🏗 Build ('+me.gold+'✦ + 0 cards)');
+      buildBtn.disabled=true;
+      buildBtn.style.cssText='margin-top:10px;width:100%;background:#4db87a;color:#fff;border:none;padding:10px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;opacity:0.5';
+      buildBtn.onclick=function(){
+        var uids=Object.keys(selected);
+        if(uids.length<deficit)return;
+        overlay.remove();var _nr=humanBuild(S,d.uid,uids);if(_nr){S=_nr;render();}
+      };
+      info.appendChild(buildBtn);
+    }else if(canAfford){
+      var buildBtn=el('button',{class:'gbtn build-confirm-btn'},'🏗 Build for '+cost+'✦');
       buildBtn.style.cssText='margin-top:10px;width:100%;background:#4db87a;color:#fff;border:none;padding:10px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer';
       buildBtn.onclick=function(){overlay.remove();var _nr=humanBuild(S,d.uid);if(_nr){S=_nr;render();}};
       info.appendChild(buildBtn);
@@ -848,7 +1026,9 @@ function renderAction(){
     wrap.appendChild(el('div',{class:'action-navigator-note'},'⚓ Navigator: income collected. No district may be built this turn.'));
   }
   if(S.collected&&S.sub==='choose'){
-    wrap.appendChild(gbtn('End Turn →','#4db87a',()=>{{const _nr=humanEndTurn(S);if(_nr)S=_nr;render();};},'padding:11px 20px;font-size:12px;font-family:Cinzel,serif;margin-top:10px;width:100%'));
+    var endBtn=el('button',{class:'action-end-turn'},'End Turn →');
+    endBtn.onclick=function(){var _nr=humanEndTurn(S);if(_nr)S=_nr;render();};
+    wrap.appendChild(endBtn);
   }
   return wrap;
 }
@@ -1062,16 +1242,33 @@ function renderSpecial(charId){
 function renderGameOver(){
   const fp=S.firstCompleter;
   const scores=S.players.map(p=>({p,score:calcScore(p,fp===p.id)})).sort((a,b)=>b.score-a.score);
+  const maxScore=scores[0]?scores[0].score:1;
   const wrap=el('div',{class:'gameover-wrap'});
   const box=el('div',{class:'gameover-box'});
   box.append(el('div',{class:'gameover-title'},'🏆 Game Over'),
              el('div',{class:'gameover-subtitle'},`Round ${S.round} complete`));
+  // Winner portrait/avatar
+  var winner=scores[0]?scores[0].p:null;
+  if(winner){
+    var winAvatar=typeof getAvatar==='function'?getAvatar(winner.id):'🏆';
+    var winAvatarEl=el('div',{class:'gameover-winner-emoji'},winAvatar);
+    box.appendChild(winAvatarEl);
+  }
   scores.forEach((sc,i)=>{
     const medals=['🥇','🥈','🥉','🏅'];
     const row=el('div',{class:'gameover-row'+(i===0?' first':'')});
     const info=el('div',{class:'gameover-row-info'});
-    info.append(el('div',{class:'gameover-name'},sc.p.name),
+    var avatar=typeof getAvatar==='function'?getAvatar(sc.p.id):'';
+    info.append(el('div',{class:'gameover-name'},(avatar?avatar+' ':'')+sc.p.name),
                 el('div',{class:'gameover-districts'},`${sc.p.city.length} districts built`));
+    // Score bar
+    var scorePct=maxScore>0?Math.round(sc.score/maxScore*100):0;
+    var barWrap=el('div',{class:'gameover-score-bar'});
+    var barFill=el('div',{class:'gameover-score-fill'});
+    barFill.style.setProperty('--score-pct',scorePct+'%');
+    barFill.style.animationDelay=(i*0.1)+'s';
+    barWrap.appendChild(barFill);
+    info.appendChild(barWrap);
     if(sc.p.city.some(d=>d.color==='purple')){
       const purps=el('div',{class:'gameover-purps'});
       sc.p.city.filter(d=>d.color==='purple').forEach(d=>{
