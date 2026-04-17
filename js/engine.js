@@ -24,6 +24,7 @@ function calcScore(player,isFirst){
     if(d.special==='basilica')s+=player.city.filter(x=>x.cost%2!==0).length;
     if(d.special==='capitol'){const cc={};player.city.forEach(x=>{cc[x.color]=(cc[x.color]||0)+1;});if(Object.values(cc).some(v=>v>=3))s+=3;}
     if(d.special==='ivory_tower'&&player.city.filter(x=>x.color==='purple').length===1)s+=5;
+    if(d.special==='secret_vault')s+=3;
   });
   // Extension score hooks
   EXT._scoreHooks.forEach(fn=>{s+=fn(player,isFirst,s);});
@@ -41,8 +42,8 @@ function newGame(cfg){
   const crown=0|Math.random()*n;
   const dealt=dealDraft(charPool,n);
   const players=[
-    {id:0,name:'You',ai:false,gold:2,hand:[],city:[],char:null,dead:false,stolenTarget:null,smithyUsed:false,seerUsed:false,magicianUsed:false,wizardUsed:false,pendingKill:null},
-    ...Array.from({length:numAI},(_,i)=>({id:i+1,name:AI_NAMES[i]||'AI '+(i+2),ai:true,gold:2,hand:[],city:[],char:null,dead:false,stolenTarget:null,smithyUsed:false,seerUsed:false,magicianUsed:false,wizardUsed:false,pendingKill:null}))
+    {id:0,name:'You',ai:false,gold:2,hand:[],city:[],char:null,dead:false,stolenTarget:null,smithyUsed:false,labUsed:false,seerUsed:false,magicianUsed:false,wizardUsed:false,pendingKill:null},
+    ...Array.from({length:numAI},(_,i)=>({id:i+1,name:AI_NAMES[i]||'AI '+(i+2),ai:true,gold:2,hand:[],city:[],char:null,dead:false,stolenTarget:null,smithyUsed:false,labUsed:false,seerUsed:false,magicianUsed:false,wizardUsed:false,pendingKill:null}))
   ];
   const d=[...deck];players.forEach(p=>{p.hand=d.splice(0,4);});
   return{phase:'draft',sub:'idle',round:1,deck:d,trash:[],players,crown,
@@ -86,6 +87,11 @@ function dealDraft(charPool,numPlayers){
 }
 function charRank(id){const c=CHARS.find(q=>q.id===id);return c?c.rank:id;}
 function charById(id){return CHARS.find(q=>q.id===id)||{id,rank:id,name:'?',clr:'#888',emoji:'?',ability:''};}
+
+// Count districts of a given color, treating flex_color (School of Magic, Haunted City) as that color
+function cityColorCount(player,color){
+  return player.city.filter(d=>d.color===color||d.special==='flex_color').length;
+}
 
 function buildCost(player,district){
   if(district.color==='purple'&&district.special!=='factory'&&player.city.some(d=>d.id==='factory'))
@@ -172,7 +178,7 @@ function humanDraft(state,charId){
 function startActionPhase(state){
   let s={...state,phase:'action',sub:'idle',callIdx:1,
     collected:false,builtCount:0,noBuild:false,wizardTargetId:null,drawOpts:[],selCards:[],heraldQueue:[],heraldIdx:0,heraldAcks:[],_pendingSOTDraw:0,
-    players:state.players.map(p=>({...p,smithyUsed:false,seerUsed:false,magicianUsed:false,wizardUsed:false}))};
+    players:state.players.map(p=>({...p,smithyUsed:false,labUsed:false,seerUsed:false,magicianUsed:false,wizardUsed:false}))};
   s=addLog(s,`Round ${s.round}: The Herald calls characters...`);
   return advanceCall(s,_applyLocalSlot);
 }
@@ -252,7 +258,7 @@ function applyStartOfTurn(state,charId,pid,defer){
     newCrown=pid;
     if(charId===12){
       // Patrician: draw 1 card per noble district (deferred for local human to avoid early hand reveal)
-      const cardCount=p().city.filter(d=>d.color==='yellow').length;
+      const cardCount=cityColorCount(p(),'yellow');
       events.push({icon:'🏅',text:cardCount>0&&!defer?`${p().name} takes the Crown and draws ${cardCount} card${cardCount>1?'s':''} from Noble districts!`:`${p().name} takes the Crown!`,color:'#d4a843'});
       s={...s,crown:newCrown};
       if(cardCount>0){
@@ -260,18 +266,18 @@ function applyStartOfTurn(state,charId,pid,defer){
         else{const drawn=s.deck.slice(0,Math.min(cardCount,s.deck.length));s={...s,deck:s.deck.slice(drawn.length),players:s.players.map(q=>q.id===pid?{...q,hand:[...q.hand,...drawn]}:q)};}
       }
     }else{
-      bonus=p().city.filter(d=>d.color==='yellow').length;
+      bonus=cityColorCount(p(),'yellow');
       events.push({icon:'👑',text:bonus>0?`${p().name} takes the Crown and earns ${bonus}✦ from Noble districts!`:`${p().name} takes the Crown!`,color:'#d4a843'});
       s={...s,crown:newCrown};
       if(bonus>0)s={...s,players:s.players.map(q=>q.id===pid?{...q,gold:q.gold+bonus}:q)};
     }
   }else if(charId===5){
-    bonus=p().city.filter(d=>d.color==='blue').length;
+    bonus=cityColorCount(p(),'blue');
     if(bonus>0){events.push({icon:'⛪',text:`${p().name} earns ${bonus}✦ from Religious districts.`,color:'#5a9fd4'});
       s={...s,players:s.players.map(q=>q.id===pid?{...q,gold:q.gold+bonus}:q)};}
   }else if(charId===13){
     // Abbot: +1 gold per religious + steal 1 from richest
-    bonus=p().city.filter(d=>d.color==='blue').length;
+    bonus=cityColorCount(p(),'blue');
     const richest=s.players.filter(q=>q.id!==pid&&!q.dead&&q.gold>0).sort((a,b)=>b.gold-a.gold)[0];
     if(bonus>0||richest){
       let msg=bonus>0?`${p().name} (Abbot) earns ${bonus}✦ from Religious districts`:'';
@@ -280,15 +286,15 @@ function applyStartOfTurn(state,charId,pid,defer){
       events.push({icon:'🧎',text:msg+'.',color:'#5a9fd4'});
     }
   }else if(charId===6){
-    bonus=1+p().city.filter(d=>d.color==='green').length;
+    bonus=1+cityColorCount(p(),'green');
     events.push({icon:'💰',text:`${p().name} earns ${bonus}✦ (Merchant bonus + Trade income).`,color:'#4db87a'});
     s={...s,players:s.players.map(q=>q.id===pid?{...q,gold:q.gold+bonus}:q)};
   }else if(charId===16){
-    bonus=p().city.filter(d=>d.color==='green').length;
+    bonus=cityColorCount(p(),'green');
     if(bonus>0){events.push({icon:'🏦',text:`${p().name} earns ${bonus}✦ from Trade districts (Trader).`,color:'#4db87a'});
       s={...s,players:s.players.map(q=>q.id===pid?{...q,gold:q.gold+bonus}:q)};}
   }else if(charId===8){
-    bonus=p().city.filter(d=>d.color==='red').length;
+    bonus=cityColorCount(p(),'red');
     if(bonus>0){events.push({icon:'⚔️',text:`${p().name} earns ${bonus}✦ from Military districts.`,color:'#d45a5a'});
       s={...s,players:s.players.map(q=>q.id===pid?{...q,gold:q.gold+bonus}:q)};}
   }else if(charId===9){
@@ -373,17 +379,18 @@ function doAITurn(state,pid,charId){
     const hasLib=p().city.some(d=>d.id==='library');
     const hasObs=p().city.some(d=>d.id==='observatory');
     if(p().hand.length<3&&s.deck.length>0){
-      const cnt=hasLib?Math.min(2,s.deck.length):hasObs?Math.min(3,s.deck.length):1;
+      // Observatory: draw 3, keep best 1 (discard rest to bottom of deck)
+      // Library: draw 2, keep both — these are independent; Observatory takes priority if both present
+      const cnt=hasObs?Math.min(3,s.deck.length):hasLib?Math.min(2,s.deck.length):1;
       const drawn=s.deck.slice(0,cnt);
       if(hasObs&&cnt>1){
-        // Observatory: draw 3 keep best 1, discard rest back to deck
         const best=[...drawn].sort((a,b)=>b.cost-a.cost)[0];
         const disc=drawn.filter(d=>d.uid!==best.uid);
         s={...s,deck:[...s.deck.slice(cnt),...disc],players:s.players.map(q=>q.id===pid?{...q,hand:[...q.hand,best]}:q)};
         events.push({icon:'🔭',text:`${p().name} draws ${cnt}, keeps ${best.name} (Observatory).`,color:'#888'});
       }else{
         s={...s,deck:s.deck.slice(cnt),players:s.players.map(q=>q.id===pid?{...q,hand:[...q.hand,...drawn]}:q)};
-        events.push({icon:'🃏',text:`${p().name} draws ${cnt} card${cnt>1?'s':''} for income.`,color:'#888'});
+        events.push({icon:'🃏',text:`${p().name} draws ${cnt} card${cnt>1?'s':''} for income${hasLib&&cnt>1?' (Library)':''}.`,color:'#888'});
       }
     }else{
       s={...s,players:s.players.map(q=>q.id===pid?{...q,gold:q.gold+2}:q)};
@@ -392,17 +399,23 @@ function doAITurn(state,pid,charId){
   }
   // Specials
   if(charId===1){
-    const humanPlayers=s.players.filter(q=>!q.ai&&q.id!==pid);
-    const mainTarget=humanPlayers.sort((a,b)=>b.city.length-a.city.length)[0];
-    const humanChar=mainTarget?.char;
-    const validT=CHARS.filter(c=>c.id!==1&&s.charPool.includes(c.id)).map(c=>c.rank);
-    const humanRank=humanChar?charRank(humanChar):null;
-    const target=humanRank&&humanRank!==1?humanRank:validT[0|Math.random()*validT.length];
+    // AI Assassin uses heuristics — does NOT peek at hidden characters
+    const validRanks=CHARS.filter(c=>c.id!==1&&s.charPool.includes(c.id)).map(c=>c.rank);
+    // Prefer high-value targets: King (4) if behind on crown, Warlord (8) if city is big, Merchant (6) if low on gold
+    const myP=p();
+    const leadingOpp=s.players.filter(q=>q.id!==pid&&!q.dead).sort((a,b)=>b.city.length-a.city.length)[0];
+    let preferredRank=null;
+    if(leadingOpp&&leadingOpp.city.length>=myP.city.length){
+      // Target likely high-income chars on leading opponents: 6(Merchant) or 4(King) or 8(Warlord)
+      const highValueRanks=[6,4,8,3].filter(r=>validRanks.includes(r));
+      if(highValueRanks.length)preferredRank=highValueRanks[0|Math.random()*highValueRanks.length];
+    }
+    const target=preferredRank||validRanks[0|Math.random()*validRanks.length];
     const victim=s.players.find(q=>charRank(q.char)===target);
     if(victim&&victim.id!==pid){s={...s,players:s.players.map(q=>q.id===victim.id?{...q,dead:true}:q)};
       events.push({icon:'🗡️',text:`${p().name} assassinates the ${charById(victim.char).name}!`,color:'#cc7777'});}
   }else if(charId===2){
-    const others=s.players.filter(q=>q.id!==pid&&q.char&&charRank(q.char)!==1&&charRank(q.char)!==2);
+    const others=s.players.filter(q=>q.id!==pid&&q.char&&!q.dead&&charRank(q.char)!==1&&charRank(q.char)!==2);
     if(others.length){const richest=others.sort((a,b)=>b.gold-a.gold)[0];
       s={...s,players:s.players.map(q=>q.id===pid?{...q,stolenTarget:charRank(richest.char)}:q)};
       events.push({icon:'🦹',text:`${p().name} declares theft on the ${charById(richest.char).name}.`,color:'#b0b0b0'});}
@@ -416,7 +429,8 @@ function doAITurn(state,pid,charId){
       // Discard unaffordable cards and redraw the same number
       const unaffordable=p().hand.filter(d=>buildCost(p(),d)>p().gold+6);
       const toDiscard=unaffordable.length>0?unaffordable:p().hand.slice(0,1);
-      const deck=[...s.deck];const drawn=deck.splice(0,Math.min(toDiscard.length,deck.length));
+      // Per rules: discarded cards go to bottom of deck, draw same number from top
+      const deck=[...s.deck,...toDiscard];const drawn=deck.splice(0,Math.min(toDiscard.length,deck.length));
       s={...s,deck,players:s.players.map(q=>q.id===pid?{...q,hand:[...q.hand.filter(d=>!toDiscard.includes(d)),...drawn]}:q)};
       events.push({icon:'🧙',text:`${p().name} (Magician) discards ${toDiscard.length} and redraws.`,color:'#9b6fff'});
     }else events.push({icon:'🧙',text:`${p().name} (Magician) keeps their hand.`,color:'#9b6fff'});
@@ -453,7 +467,7 @@ function doAITurn(state,pid,charId){
       events.push({icon:'🔯',text:`${p().name} (Seer) takes ${taken.length} card${taken.length>1?'s':''} from opponents.`,color:'#9b6fff'});
     }else events.push({icon:'🔯',text:`${p().name} (Seer): no opponents had cards.`,color:'#9b6fff'});
   }else if(charId===8){
-    const targets=s.players.filter(q=>q.id!==pid&&!(q.char===5&&!q.dead)&&q.city.length>0);
+    const targets=s.players.filter(q=>q.id!==pid&&!(q.char===5&&!q.dead)&&q.city.length>0&&q.city.length<8);
     const target=targets.sort((a,b)=>b.city.length-a.city.length)[0]||null;
     if(target){
       const wallBonus=target.city.some(d=>d.id==='great_wall');
@@ -478,6 +492,15 @@ function doAITurn(state,pid,charId){
     const drawn=s.deck.slice(0,Math.min(3,s.deck.length));
     s={...s,deck:s.deck.slice(drawn.length),players:s.players.map(q=>q.id===pid?{...q,gold:q.gold-2,hand:[...q.hand,...drawn],smithyUsed:true}:q)};
     events.push({icon:'⚒️',text:`${p().name} uses the Smithy: pay 2✦, draw ${drawn.length} cards.`,color:'#c084fc'});
+  }
+  // Laboratory: discard lowest-cost unaffordable card for 2 gold (if useful)
+  if(p().city.some(d=>d.id==='laboratory')&&!p().labUsed&&p().hand.length>0){
+    const unaffordable=p().hand.filter(d=>buildCost(p(),d)>p().gold&&d.id!=='laboratory');
+    const toDiscard=unaffordable.length>0?unaffordable.sort((a,b)=>a.cost-b.cost)[0]:null;
+    if(toDiscard){
+      s={...s,deck:[...s.deck,toDiscard],players:s.players.map(q=>q.id===pid?{...q,gold:q.gold+2,hand:q.hand.filter(d=>d.uid!==toDiscard.uid),labUsed:true}:q)};
+      events.push({icon:'⚗️',text:`${p().name} uses the Laboratory: discard ${toDiscard.name}, gain 2✦.`,color:'#c084fc'});
+    }
   }
   // Build
   const maxB=charId===7?3:(charId===14||charId===15||charId===16)?2:1;let built=0;
@@ -618,6 +641,16 @@ function humanUseSmithy(state){
     players:state.players.map(p=>p.id===0?{...p,gold:p.gold-2,hand:[...p.hand,...drawn],smithyUsed:true}:p)},`Smithy: pay 2✦, draw ${drawn.length} cards.`);
 }
 
+function humanUseLab(state,uid){
+  const me=state.players[0];
+  if(!me.city.some(d=>d.id==='laboratory')||me.labUsed||!me.hand.length)return state;
+  const card=me.hand.find(d=>d.uid===uid);if(!card)return state;
+  // Discard the card to the bottom of the deck, gain 2 gold
+  return addLog({...state,deck:[...state.deck,card],
+    players:state.players.map(p=>p.id===0?{...p,gold:p.gold+2,hand:p.hand.filter(d=>d.uid!==uid),labUsed:true}:p)},
+    `Laboratory: discard ${card.name}, gain 2✦.`);
+}
+
 function humanSeer(state){
   const me=state.players.find(p=>p.id===0);
   if(me.seerUsed)return state;
@@ -709,17 +742,17 @@ function humanMagDiscard(s,uids){
   if(!uids.length)return{...s,sub:'choose',selCards:[]};
   const me=s.players[0];if(me.magicianUsed)return{...s,sub:'choose',selCards:[]};
   const disc=me.hand.filter(d=>uids.includes(d.uid));
-  let deck=[...s.deck];let trash=[...s.trash];
-  if(deck.length<uids.length&&trash.length>0){deck=[...deck,...shuffle(trash)];trash=[];}
+  // Per rules: discarded cards go to the BOTTOM of the deck, then draw equal number from top
+  let deck=[...s.deck,...disc];
   const drawn=deck.splice(0,Math.min(uids.length,deck.length));
-  return addLog({...s,sub:'choose',selCards:[],deck,trash:[...trash,...disc],
+  return addLog({...s,sub:'choose',selCards:[],deck,
     players:s.players.map(p=>p.id===0?{...p,magicianUsed:true,hand:[...p.hand.filter(d=>!uids.includes(d.uid)),...drawn]}:p)},
     `You discard ${uids.length}, draw ${drawn.length}.`);
 }
 
 function humanWarlord(s,tpid,duid){
   const me=s.players[0],tp=s.players.find(p=>p.id===tpid);
-  if(!tp||tp.id===0||(tp.char===5&&!tp.dead))return{...s,sub:'choose'};
+  if(!tp||tp.id===0||(tp.char===5&&!tp.dead)||tp.city.length>=8)return{...s,sub:'choose'};
   const dist=tp.city.find(d=>d.uid===duid);if(!dist||dist.id==='keep')return{...s,sub:'choose'};
   const wallBonus=tp.city.some(d=>d.id==='great_wall');
   const c1=wallBonus?dist.cost:Math.max(0,dist.cost-1);if(c1>me.gold)return{...s,sub:'choose'};

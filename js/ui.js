@@ -860,8 +860,8 @@ function renderAction(){
       row.appendChild(gbtn('💰 Take 2 Gold','#d4a843',()=>{{const _nr=humanCollectGold(S);if(_nr)S=_nr;render();};},'padding:10px 18px;font-size:12px;font-family:Cinzel,serif'));
       if(S.deck.length){
         const label=charId===14?'📖 Draw 7, Keep 1 (Scholar)':
-                    me.city.some(d=>d.id==='library')?'📚 Draw 2, Keep BOTH (Library)':
-                    me.city.some(d=>d.id==='observatory')?'🔭 Draw 3, Keep 1 (Observatory)':'🃏 Draw 2, Keep 1';
+                    me.city.some(d=>d.id==='observatory')?'🔭 Draw 3, Keep 1 (Observatory)':
+                    me.city.some(d=>d.id==='library')?'📚 Draw 2, Keep BOTH (Library)':'🃏 Draw 2, Keep 1';
         row.appendChild(gbtn(label,'#5a9fd4',()=>{{const _nr=humanCollectCards(S);if(_nr)S=_nr;render();};},'padding:10px 18px;font-size:12px;font-family:Cinzel,serif'));
       }
       wrap.appendChild(row);
@@ -916,16 +916,39 @@ function renderAction(){
     return wrap;
   }
 
-  if(S.collected&&S.sub==='choose'&&me.city.some(d=>d.id==='smithy')&&!me.smithyUsed&&me.gold>=2&&S.deck.length){
+  if(S.collected&&S.sub==='choose'&&(
+    (me.city.some(d=>d.id==='smithy')&&!me.smithyUsed&&me.gold>=2&&S.deck.length)||
+    (me.city.some(d=>d.id==='laboratory')&&!me.labUsed&&me.hand.length>0)
+  )){
     wrap.appendChild(el('div',{class:'sect-label'},'ACTIVE BUILDINGS'));
-    const smithyRow=el('div',{class:'action-smithy-row'});
-    smithyRow.appendChild(el('span',{class:'action-smithy-icon'},'⚒️'));
-    const smithyInfo=el('div',{class:'action-smithy-info'});
-    smithyInfo.appendChild(el('div',{class:'action-smithy-title'},'Smithy'));
-    smithyInfo.appendChild(el('div',{class:'action-smithy-desc'},'Pay 2✦ to draw 3 district cards (once per turn)'));
-    smithyRow.appendChild(smithyInfo);
-    smithyRow.appendChild(gbtn('Use (−2✦)','#c084fc',()=>{{const _nr=humanUseSmithy(S);if(_nr)S=_nr;render();};}));
-    wrap.appendChild(smithyRow);
+    if(me.city.some(d=>d.id==='smithy')&&!me.smithyUsed&&me.gold>=2&&S.deck.length){
+      const smithyRow=el('div',{class:'action-smithy-row'});
+      smithyRow.appendChild(el('span',{class:'action-smithy-icon'},'⚒️'));
+      const smithyInfo=el('div',{class:'action-smithy-info'});
+      smithyInfo.appendChild(el('div',{class:'action-smithy-title'},'Smithy'));
+      smithyInfo.appendChild(el('div',{class:'action-smithy-desc'},'Pay 2✦ to draw 3 district cards (once per turn)'));
+      smithyRow.appendChild(smithyInfo);
+      smithyRow.appendChild(gbtn('Use (−2✦)','#c084fc',()=>{{const _nr=humanUseSmithy(S);if(_nr)S=_nr;render();};}));
+      wrap.appendChild(smithyRow);
+    }
+    if(me.city.some(d=>d.id==='laboratory')&&!me.labUsed&&me.hand.length>0){
+      const labRow=el('div',{class:'action-smithy-row'});
+      labRow.appendChild(el('span',{class:'action-smithy-icon'},'⚗️'));
+      const labInfo=el('div',{class:'action-smithy-info'});
+      labInfo.appendChild(el('div',{class:'action-smithy-title'},'Laboratory'));
+      labInfo.appendChild(el('div',{class:'action-smithy-desc'},'Discard 1 card to gain 2✦ (once per turn) — click a hand card below'));
+      labRow.appendChild(labInfo);
+      wrap.appendChild(labRow);
+      // Show hand cards as discard targets
+      const labCardRow=el('div',{class:'cards-wrap build-row'});
+      me.hand.forEach(function(d){
+        const c=mkCard(d,{portrait:true,player:me,noDesc:true});
+        c.style.cursor='pointer';
+        c.onclick=function(e){e.stopPropagation();var _nr=humanUseLab(S,d.uid);if(_nr&&_nr!==S){S=_nr;render();}};
+        labCardRow.appendChild(c);
+      });
+      wrap.appendChild(labCardRow);
+    }
   }
 
   if(S.collected&&S.sub==='choose'&&!S.noBuild){
@@ -1203,7 +1226,7 @@ function renderSpecial(charId){
     if(S.sub==='warlord_pick'){
       wrap.appendChild(el('div',{class:'action-warlord-prompt'},'Destroy which district?'));
       const targets=[];
-      S.players.forEach(p=>{if(p.id===me.id)return;if(p.char===5&&!p.dead)return;
+      S.players.forEach(p=>{if(p.id===me.id)return;if(p.char===5&&!p.dead)return;if(p.city.length>=8)return;
         const wall=p.city.some(w=>w.id==='great_wall');
         p.city.forEach(d=>{if(d.id==='keep')return;const c1=wall?d.cost:Math.max(0,d.cost-1);
           if(c1<=me.gold)targets.push({pid:p.id,pname:p.name,d,c1,wall});});});
