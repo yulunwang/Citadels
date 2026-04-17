@@ -641,6 +641,9 @@ function humanUseSmithy(state){
     players:state.players.map(p=>p.id===0?{...p,gold:p.gold-2,hand:[...p.hand,...drawn],smithyUsed:true}:p)},`Smithy: pay 2✦, draw ${drawn.length} cards.`);
 }
 
+// TODO(multiplayer): net.js applyAction() and _patchActionsForPeer() need a 'useLab' entry
+//   to sync Laboratory usage across peers. net.js is intentionally not modified here — add
+//   case 'useLab': out=humanUseLab(ns,data.uid) and humanUseLab=(_s,uid)=>{peerSend('useLab',{uid});} there.
 function humanUseLab(state,uid){
   const me=state.players[0];
   if(!me.city.some(d=>d.id==='laboratory')||me.labUsed||!me.hand.length)return state;
@@ -718,6 +721,7 @@ function humanEndTurn(state){
   const me=s.players[0];const charId=me.char;const humanEvents=[];
   if(s.collected)humanEvents.push({icon:'✦',text:'Collected income.',color:'#d4a843'});
   if(me.smithyUsed)humanEvents.push({icon:'⚒️',text:'Used the Smithy.',color:'#c084fc'});
+  if(me.labUsed)humanEvents.push({icon:'⚗️',text:'Used the Laboratory.',color:'#c084fc'});
   humanEvents.push(...demolishEvent);
   const built=s.builtCount;
   if(built>0)me.city.slice(-built).forEach(d=>humanEvents.push({icon:DEMOJI[d.id]||'🏛️',text:`Built ${d.name} (${buildCost(me,d)}✦).`,color:CS[d.color].txt}));
