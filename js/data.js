@@ -42,7 +42,7 @@ const DEMOJI={
   thieves_den:'🗝️',keep:'🛡️',graveyard:'⚰️',observatory:'🔭',
   smithy:'⚒️',library:'📚',school_of_magic:'✨',wishing_well:'🪄',
   map_room:'🗺️',secret_vault:'🤫',great_wall:'🧱',
-  quarry:'⛏️',basilica:'🕌',capitol:'🏤',ivory_tower:'🗽',
+  quarry:'⛏️',basilica:'🕌',capitol:'🏤',ivory_tower:'🗽',laboratory:'⚗️',
 };
 
 // Special-ability tooltip descriptions (extensions may add keys via ext.sdesc)
@@ -69,6 +69,7 @@ const SDESC={
   capitol:     'Worth +3 VP at game end if you have 3 or more districts of the same color.',
   ivory_tower: 'Worth +5 VP at game end if this is your only purple district.',
   quarry:      'You may build duplicate districts (same-name districts already in your city).',
+  laboratory:  'Once per turn: discard 1 card from your hand to receive 2✦.',
 };
 
 // ── Image asset registry ──
@@ -165,6 +166,7 @@ function mkDeck(){
   add('basilica','Basilica',6,'purple','basilica');
   add('capitol','Capitol',5,'purple','capitol');
   add('ivory_tower','Ivory Tower',3,'purple','ivory_tower');
+  add('laboratory','Laboratory',5,'purple','laboratory');
   // Extension districts registered via EXT.register({ districts: [...] })
   EXT._extraDistricts.forEach(d=>D.push({...d,uid:'d'+(UID++)}));
   return D;
