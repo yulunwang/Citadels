@@ -26,8 +26,8 @@ const {
   newGame, runAIDraft, advanceCall, heraldAck,
   humanCollectGold, humanCollectCards, humanKeepCard,
   humanBuild, humanEndTurn, humanKill, humanSteal,
-  humanMagSwap, humanMagDiscard, humanWarlord, humanUseSmithy,
-  humanSeer, canBuildDistrict,
+  humanMagSwap, humanMagDiscard, humanWarlord, humanUseSmithy, humanUseLab,
+  humanSeer, canBuildDistrict, cityColorCount,
   doAITurn, applyStartOfTurn, endRound, calcScore,
   charRank, charById,
 } = ctx;
@@ -549,6 +549,92 @@ test('Full game with Full Mix charPool completes', () => {
   }
   assert(s.phase === 'gameover', `Full-mix game stuck in '${s.phase}' after ${steps} steps`);
   console.log(`     Full-mix game: ${s.round} rounds, ${steps} steps`);
+});
+
+// ── PR #11 REGRESSION TESTS ───────────────────────────────────────────────
+console.log('\n══ PR #11 regressions ══\n');
+
+test('Secret Vault: worth +3 VP at game end', () => {
+  // A city with only Secret Vault (cost 3) should score 3 (build cost) + 3 (special) = 6
+  const p = {
+    city: [{uid:'sv1', id:'secret_vault', name:"Secret Vault", cost:3, color:'purple', special:'secret_vault'}],
+    hand: [],
+  };
+  eq(calcScore(p, false), 6, 'Secret Vault scores 3 build + 3 bonus = 6');
+});
+
+test('Secret Vault: +3 VP stacks with other districts', () => {
+  const p = {
+    city: [
+      {uid:'sv1', id:'secret_vault', name:"Secret Vault", cost:3, color:'purple', special:'secret_vault'},
+      {uid:'m1',  id:'manor',        name:'Manor',        cost:3, color:'yellow', special:null},
+    ],
+    hand: [],
+  };
+  // 3 (vault) + 3 (vault bonus) + 3 (manor) = 9
+  eq(calcScore(p, false), 9, 'Secret Vault +3 stacks with other districts');
+});
+
+test('cityColorCount: School of Magic counts for every color', () => {
+  const player = {
+    city: [
+      {uid:'s1', id:'school_of_magic', cost:6, color:'purple', special:'flex_color'},
+      {uid:'m1', id:'manor',           cost:3, color:'yellow', special:null},
+    ],
+  };
+  // School of Magic (flex_color) should count toward any color query
+  eq(cityColorCount(player, 'yellow'), 2, 'School of Magic counted as yellow');
+  eq(cityColorCount(player, 'blue'),   1, 'School of Magic counted as blue');
+  eq(cityColorCount(player, 'green'),  1, 'School of Magic counted as green');
+  eq(cityColorCount(player, 'red'),    1, 'School of Magic counted as red');
+});
+
+test('cityColorCount: Haunted City counts for every color', () => {
+  const player = {
+    city: [
+      {uid:'h1', id:'haunted_city', cost:2, color:'purple', special:'flex_color'},
+      {uid:'t1', id:'temple',       cost:1, color:'blue',   special:null},
+    ],
+  };
+  eq(cityColorCount(player, 'blue'),   2, 'Haunted City counted as blue');
+  eq(cityColorCount(player, 'yellow'), 1, 'Haunted City counted as yellow');
+  eq(cityColorCount(player, 'purple'), 2, 'Haunted City counted as purple (own color too)');
+});
+
+test('King SOT: School of Magic counts toward yellow income', () => {
+  let s = newGame({numAI:1, charPool:[1,2,3,4,5,6,7,8]});
+  const city = [
+    {uid:'y1', id:'manor',           cost:3, color:'yellow', special:null},
+    {uid:'s1', id:'school_of_magic', cost:6, color:'purple', special:'flex_color'},
+  ];
+  s = { ...s, players: s.players.map((p,i) => ({
+    ...p, char:[4,3][i], dead:false, gold:0, city: i===0 ? city : [],
+  })) };
+  const goldBefore = s.players[0].gold;
+  const { state } = applyStartOfTurn(s, 4, 0);
+  // King: +1 gold per yellow district; School of Magic counts → 2 gold
+  eq(state.players[0].gold, goldBefore + 2, 'King earns 2 gold (manor + School of Magic)');
+});
+
+test('Warlord: cannot destroy district in a completed (8-district) city', () => {
+  let s = newGame({numAI:1, charPool:[1,2,3,4,5,6,7,8]});
+  // Build out player 1's city to exactly 8 districts
+  const fullCity = Array.from({length:8}, (_,i) => ({
+    uid:`fc${i}`, id:'manor', name:'Manor', cost:3, color:'yellow', special:null,
+  }));
+  const target = fullCity[0];
+  s = { ...s, players: s.players.map((p,i) => ({
+    ...p,
+    char:[8,3][i], dead:false,
+    gold: i===0 ? 10 : 0,
+    city: i===1 ? fullCity : [],
+  })) };
+  const cityBefore = s.players[1].city.length;
+  const goldBefore = s.players[0].gold;
+  // Attempt warlord destroy — should be a no-op when target city is complete
+  const ns = humanWarlord(s, 1, target.uid);
+  eq(ns.players[1].city.length, cityBefore, 'Completed city: no district destroyed');
+  eq(ns.players[0].gold, goldBefore, 'Completed city: no gold spent');
 });
 
 // ── SUMMARY ───────────────────────────────────────────────────────────────
