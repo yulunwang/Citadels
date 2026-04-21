@@ -267,7 +267,7 @@ function renderLobby(opts){
       box.appendChild(el('div',{class:'lobby-section-title'},'🏠 Room — Players'));
       box.appendChild(renderAvatarPicker());
 
-      const hnRow=el('div',{style:'margin-bottom:16px'});
+      const hnRow=el('div',{class:'mb-lg'});
       hnRow.appendChild(el('div',{class:'lobby-label-sm'},'YOUR NAME'));
       const hnIn=document.createElement('input');
       hnIn.value=LS.hostName||'';hnIn.placeholder='Your display name (e.g. Alex)';
@@ -376,10 +376,10 @@ function renderLobby(opts){
       const statusColor=isActive?'var(--c-green-txt)':sl.ai?'var(--text-muted)':'var(--text-muted)';
       const borderCls=isActive?'border-color:var(--c-green-bdr)':'';
 
-      const row=el('div',{class:'lobby-order-row',style:isActive?'border:1px solid var(--c-green-bdr)':'border:1px solid var(--border-subtle)'});
+      const row=el('div',{class:`lobby-order-row${isActive?' active':''}` });
       row.appendChild(el('span',{class:'lobby-order-num'},`${i+1}.`));
       row.appendChild(el('span',{class:'lobby-order-icon'},icon));
-      const nameSpan=el('span',{class:'lobby-slot-name',style:'flex:1'});
+      const nameSpan=el('span',{class:'lobby-slot-name flex-1'});
       nameSpan.textContent=displayName;
       row.appendChild(nameSpan);
       row.appendChild(el('span',{style:`font-size:10px;color:${statusColor}`},statusText));
@@ -414,12 +414,12 @@ function renderLobby(opts){
   else if(LS.screen==='join'){
     box.appendChild(el('div',{class:'lobby-section-title'},'🚪 Join a Room'));
     box.appendChild(renderAvatarPicker());
-    const nRow=el('div',{style:'margin-bottom:12px'});
+    const nRow=el('div',{class:'mb-md'});
     nRow.appendChild(el('div',{class:'lobby-label-sm'},'YOUR NAME'));
     const nIn=document.createElement('input');nIn.value=LS.joinName;nIn.placeholder='Your display name';
     nIn.className='lobby-input';
     nIn.oninput=()=>LS.joinName=nIn.value;nRow.appendChild(nIn);box.appendChild(nRow);
-    const cRow=el('div',{style:'margin-bottom:20px'});
+    const cRow=el('div',{class:'mb-xl'});
     cRow.appendChild(el('div',{class:'lobby-label-sm'},'ROOM CODE'));
     const cIn=document.createElement('input');cIn.value=LS.joinCode;cIn.placeholder='XXXXXX';cIn.maxLength=6;
     cIn.className='lobby-input-code';
@@ -446,7 +446,7 @@ function renderLobby(opts){
       const slList=el('div',{class:'lobby-players-list'});
       NET.slots.forEach(sl=>{
         const isMe=NET.peer&&sl.peerId===NET.peer.id;
-        const row=el('div',{class:'lobby-peer-row'+(isMe?' me':''),style:isMe?'border:1px solid var(--c-green-bdr)':'border:1px solid var(--border-subtle)'});
+        const row=el('div',{class:'lobby-peer-row'+(isMe?' me':'')});
         const icon=sl.slot===0?'👤':sl.peerId?'🟢':sl.ai?'🤖':'⏳';
         row.appendChild(el('span',{class:'lobby-peer-icon'},icon));
         const nameEl=el('span',{class:'lobby-peer-name'+(isMe?' me-name':'')});
