@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080">
+  <defs>
+    <linearGradient id="lg" x1="0" y1="0" x2="0.3" y2="1">
+      <stop offset="0%" stop-color="#faf7f0"/>
+      <stop offset="100%" stop-color="#ece5d8"/>
+    </linearGradient>
+    <radialGradient id="vig" cx="50%" cy="50%" r="70%">
+      <stop offset="60%" stop-color="transparent"/>
+      <stop offset="100%" stop-color="rgba(180,160,120,0.12)"/>
+    </radialGradient>
+    <filter id="grain">
+      <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch"/>
+      <feColorMatrix type="saturate" values="0"/>
+      <feBlend in="SourceGraphic" mode="multiply" result="blend"/>
+      <feComposite in="blend" in2="SourceGraphic" operator="in"/>
+    </filter>
+  </defs>
+  <rect width="1920" height="1080" fill="url(#lg)"/>
+  <rect width="1920" height="1080" fill="url(#vig)"/>
+  <!-- Faint center compass rose -->
+  <g opacity="0.025" transform="translate(960,540)">
+    <circle r="120" fill="none" stroke="#8a7d68" stroke-width="1"/>
+    <path d="M0,-130 L8,-8 L0,-20 L-8,-8 Z" fill="#8a7d68"/>
+    <path d="M130,0 L8,8 L20,0 L8,-8 Z" fill="#8a7d68"/>
+    <path d="M0,130 L-8,8 L0,20 L8,8 Z" fill="#8a7d68"/>
+    <path d="M-130,0 L-8,-8 L-20,0 L-8,8 Z" fill="#8a7d68"/>
+    <circle r="8" fill="#8a7d68"/>
+  </g>
+</svg>

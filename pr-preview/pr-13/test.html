@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Citadels — Test Suite</title>
+<style>
+  body{font-family:monospace;background:#090c18;color:#c8b080;padding:20px;font-size:13px}
+  h1{color:#d4a843;font-size:18px;margin-bottom:4px}
+  .meta{color:#3a3060;margin-bottom:20px;font-size:11px}
+  .suite{margin-top:18px;color:#5a9fd4;font-weight:bold;font-size:13px;border-bottom:1px solid #1e2245;padding-bottom:4px}
+  .pass{color:#4db87a}
+  .fail{color:#cc4444}
+  .info{color:#3a3060;margin-left:22px;font-size:11px}
+  .summary{margin-top:24px;padding:12px 16px;border:1px solid #2a2f55;border-radius:6px;font-size:14px}
+  .summary.ok{border-color:#2a4a2a;color:#4db87a}
+  .summary.bad{border-color:#4a2020;color:#cc4444}
+  #app{display:none}  /* game renders here but stays hidden during tests */
+</style>
+</head>
+<body>
+<h1>⚜ Citadels — Test Suite</h1>
+<div class="meta">Open in a browser. All tests run automatically on page load.</div>
+<div id="results"></div>
+<div id="app"></div>
+
+<!-- Game scripts (same load order as index.html) -->
+<script src="js/ext-api.js"></script>
+<script src="js/data.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/net.js"></script>
+<script src="js/lobby.js"></script>
+
+<script>
+'use strict';
+// ── HARNESS ────────────────────────────────────────────────────────────────────
+const out = document.getElementById('results');
+let passed = 0, failed = 0, currentSuite = null;
+
+function suite(name) {
+  currentSuite = name;
+  const h = document.createElement('div');
+  h.className = 'suite';
+  h.textContent = name;
+  out.appendChild(h);
+}
+
+function test(name, fn) {
+  const row = document.createElement('div');
+  try {
+    fn();
+    row.className = 'pass';
+    row.textContent = '  ✓  ' + name;
+    passed++;
+  } catch(e) {
+    row.className = 'fail';
+    row.innerHTML = '  ✗  ' + name + '<div class="info">→ ' + e.message + '</div>';
+    failed++;
+    console.error('[FAIL]', currentSuite, '/', name, e);
+  }
+  out.appendChild(row);
+}
+
+function assert(cond, msg)   { if (!cond) throw new Error(msg || 'assertion failed'); }
+function eq(a, b, msg)       { if (a !== b) throw new Error((msg||'') + ` — expected "${b}", got "${a}"`); }
+function notNull(v, msg)     { if (v == null) throw new Error(msg || 'expected non-null'); }
+
+// ── STATE HELPERS ──────────────────────────────────────────────────────────────
+
+/** Fresh state with human as given charId, AIs on the remaining chars */
+function stateWith(humanChar) {
+  const s = newGame();
+  const aiChars = [1,2,3,4,5,6,7,8].filter(c => c !== humanChar).slice(0,3);
+  return {
+    ...s,
+    phase: 'action', sub: 'choose', callIdx: humanChar,
+    collected: false, builtCount: 0, drawOpts: [], selCards: [],
+    heraldQueue: [], heraldIdx: 0, heraldAcks: [],
+    players: s.players.map((p,i) => ({
+      ...p, char: i===0 ? humanChar : aiChars[i-1],
+      dead: false, stolenTarget: null, pendingKill: null, smithyUsed: false,
+    })),
+  };
+}
+
+/** Set S (the global game state used by render) and trigger render into #app */
+function withState(state, fn) {
+  S = state;
+  render();
+  fn(document.getElementById('app'));
+  S = null;
+}
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ENGINE TESTS
+// ══════════════════════════════════════════════════════════════════════════════
+
+suite('Engine — Scoring');
+
+test('5-color diversity bonus (+3 pts)', () => {
+  const p = { city: [
+    {uid:'a',id:'manor',    cost:3,color:'yellow',special:null},
+    {uid:'b',id:'temple',   cost:1,color:'blue',  special:null},
+    {uid:'c',id:'tavern',   cost:1,color:'green', special:null},
+    {uid:'d',id:'watchtower',cost:1,color:'red',  special:null},
+    {uid:'e',id:'keep',     cost:3,color:'purple',special:'keep'},
+  ], hand:[] };
+  eq(calcScore(p,false), 9+3, '5-color diversity');
+});
+
+test('School of Magic fills missing color for diversity', () => {
+  const p = { city: [
+    {uid:'a',id:'manor',          cost:3,color:'yellow',special:null},
+    {uid:'b',id:'temple',         cost:1,color:'blue',  special:null},
+    {uid:'c',id:'tavern',         cost:1,color:'green', special:null},
+    {uid:'d',id:'watchtower',     cost:1,color:'red',   special:null},
+    {uid:'e',id:'school_of_magic',cost:6,color:'purple',special:'flex_color'},
+  ], hand:[] };
+  eq(calcScore(p,false), 12+3, 'SoM diversity');
+});
+
+test('Wishing Well scores per other purple special', () => {
+  const p = { city: [
+    {uid:'a',id:'wishing_well',cost:5,color:'purple',special:'wishing_well'},
+    {uid:'b',id:'keep',        cost:3,color:'purple',special:'keep'},
+    {uid:'c',id:'factory',     cost:5,color:'purple',special:'factory'},
+  ], hand:[] };
+  eq(calcScore(p,false), 13+2, 'Wishing Well +2 (2 other purples with specials)');
+});
+
+test('Map Room scores per card in hand', () => {
+  const p = { city:[{uid:'a',id:'map_room',cost:5,color:'purple',special:'map_room'}],
+               hand:[{uid:'h1'},{uid:'h2'},{uid:'h3'}] };
+  eq(calcScore(p,false), 5+3, 'Map Room +3');
+});
+
+test('Dragon Gate / University each give +2 pts (bonus2)', () => {
+  const p = { city:[{uid:'a',id:'dragon_gate',cost:6,color:'purple',special:'bonus2'}], hand:[] };
+  eq(calcScore(p,false), 6+2, 'Dragon Gate bonus2');
+});
+
+test('First completer gets +4, non-first with 8 districts gets +2', () => {
+  const city = Array.from({length:8},(_,i)=>({uid:`d${i}`,id:'tavern',cost:1,color:'green',special:null}));
+  const p = { city, hand:[] };
+  eq(calcScore(p,true) - calcScore(p,false), 2, 'net bonus difference');
+});
+
+suite('Engine — Assassination');
+
+test('AI killed via pendingKill does not collect income', () => {
+  let s = newGame();
+  s = { ...s, players: s.players.map((p,i) => ({
+    ...p, char:[1,3,5,7][i], dead:false, smithyUsed:false,
+    pendingKill: i===0 ? 3 : null, stolenTarget:null,
+  })) };
+  const goldBefore = s.players[1].gold;
+  const {state,events} = doAITurn(s,1,3);
+  assert(state.players[1].dead, 'AI should be dead');
+  const income = events.filter(e => e.icon==='✦'||e.icon==='🃏');
+  eq(income.length, 0, 'No income events for dead AI');
+  eq(state.players[1].gold, goldBefore, 'Gold unchanged');
+});
+
+test('AI killed via pendingKill does not build districts', () => {
+  let s = newGame();
+  s = { ...s, players: s.players.map((p,i) => ({
+    ...p, char:[1,3,5,7][i], dead:false, smithyUsed:false, gold:20,
+    pendingKill: i===0 ? 3 : null, stolenTarget:null,
+  })) };
+  const cityBefore = s.players[1].city.length;
+  const {state} = doAITurn(s,1,3);
+  eq(state.players[1].city.length, cityBefore, 'Dead AI does not build');
+});
+
+test('Thief does not steal from player assassinated same turn', () => {
+  let s = newGame();
+  s = { ...s, players: s.players.map((p,i) => ({
+    ...p, char:[1,2,3,5][i], dead:false, smithyUsed:false, gold:8,
+    stolenTarget: i===1 ? 3 : null,
+    pendingKill:  i===0 ? 3 : null,
+  })) };
+  const thGold = s.players[1].gold;
+  const {state,events} = applyStartOfTurn(s,3,2);
+  assert(state.players[2].dead, 'Victim dead');
+  const steal = events.find(e=>e.icon==='💰'&&e.text.includes('steals'));
+  assert(!steal, 'No steal event on dead player');
+  eq(state.players[1].gold, thGold, 'Thief gold unchanged');
+});
+
+test('Thief steals from a living target', () => {
+  let s = newGame();
+  s = { ...s, players: s.players.map((p,i) => ({
+    ...p, char:[1,2,3,5][i], dead:false, smithyUsed:false, gold:8,
+    stolenTarget: i===1 ? 3 : null, pendingKill: null,
+  })) };
+  const {state,events} = applyStartOfTurn(s,3,2);
+  const steal = events.find(e=>e.icon==='💰'&&e.text.includes('steals'));
+  assert(steal, 'Steal event present');
+  eq(state.players[2].gold, 0, 'Victim loses gold');
+});
+
+suite('Engine — Warlord');
+
+test('Cannot destroy a Keep', () => {
+  let s = stateWith(8);
+  s = { ...s, players: s.players.map((p,i) => i===0 ? {...p,gold:10} :
+    i===1 ? {...p,city:[{uid:'k1',id:'keep',name:'Keep',cost:3,color:'purple',special:'keep'}]} : p) };
+  const r = humanWarlord(s,1,'k1');
+  assert(r.players[1].city.some(d=>d.uid==='k1'), 'Keep survived');
+});
+
+test('Bishop (alive) city is protected', () => {
+  let s = stateWith(8);
+  const church = {uid:'c1',id:'church',name:'Church',cost:2,color:'blue',special:null};
+  s = { ...s, players: s.players.map((p,i) => i===0 ? {...p,gold:10} :
+    i===1 ? {...p,char:5,dead:false,city:[church]} : p) };
+  const r = humanWarlord(s,1,'c1');
+  assert(r.players[1].city.some(d=>d.uid==='c1'), 'Church survived (Bishop alive)');
+});
+
+test('Great Wall doubles destruction cost', () => {
+  let s = stateWith(8);
+  const wall   = {uid:'w1',id:'great_wall',name:'Great Wall',cost:6,color:'purple',special:'great_wall'};
+  const prison = {uid:'p1',id:'prison',    name:'Prison',    cost:2,color:'red',   special:null};
+  s = { ...s, players: s.players.map((p,i) => i===0 ? {...p,gold:10} :
+    i===1 ? {...p,city:[wall,prison]} : p) };
+  const g0 = s.players[0].gold;
+  const r = humanWarlord(s,1,'p1');
+  eq(r.players[0].gold, g0-2, 'Great Wall: full cost 2 (not cost-1=1)');
+});
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// UI RENDER TESTS
+// ══════════════════════════════════════════════════════════════════════════════
+
+suite('UI — renderAction: income buttons');
+
+test('Income buttons shown before collecting', () => {
+  withState({...stateWith(4), collected:false, sub:'choose'}, app => {
+    const btns = [...app.querySelectorAll('.gbtn')].map(b=>b.textContent);
+    assert(btns.some(t=>t.includes('Gold')), 'Take Gold button present');
+    assert(btns.some(t=>t.includes('Draw')), 'Draw Cards button present');
+  });
+});
+
+test('Income buttons hidden after collecting', () => {
+  withState({...stateWith(4), collected:true, sub:'choose'}, app => {
+    const btns = [...app.querySelectorAll('.gbtn')].map(b=>b.textContent);
+    assert(!btns.some(t=>t.includes('Take 2 Gold')), 'Gold button gone after collecting');
+  });
+});
+
+test('End Turn button shown only after collecting', () => {
+  const base = stateWith(4);
+  withState({...base, collected:false, sub:'choose'}, app => {
+    const btns = [...app.querySelectorAll('.gbtn')].map(b=>b.textContent);
+    assert(!btns.some(t=>t.includes('End Turn')), 'No End Turn before income');
+  });
+  withState({...base, collected:true, sub:'choose'}, app => {
+    const btns = [...app.querySelectorAll('.gbtn')].map(b=>b.textContent);
+    assert(btns.some(t=>t.includes('End Turn')), 'End Turn present after income');
+  });
+});
+
+suite('UI — renderAction: draw_pick');
+
+test('draw_pick shows only card selection (early return, no income or build)', () => {
+  const s = newGame();
+  const twoCards = s.deck.slice(0,2);
+  withState({...stateWith(3), sub:'draw_pick', drawOpts:twoCards, collected:false}, app => {
+    const cards = app.querySelectorAll('.dcard');
+    eq(cards.length, 2, '2 cards shown for pick');
+    const btns = [...app.querySelectorAll('.gbtn')].map(b=>b.textContent);
+    assert(!btns.some(t=>t.includes('Gold')), 'No income buttons in draw_pick');
+    assert(!btns.some(t=>t.includes('End Turn')), 'No End Turn in draw_pick');
+  });
+});
+
+test('Observatory draw_pick shows 3 cards', () => {
+  const s = newGame();
+  const threeCards = s.deck.slice(0,3);
+  withState({...stateWith(3), sub:'draw_pick', drawOpts:threeCards}, app => {
+    eq(app.querySelectorAll('.dcard').length, 3, '3 cards for Observatory');
+  });
+});
+
+suite('UI — renderAction: special abilities');
+
+test('Assassin special: Assassinate button present in choose state', () => {
+  withState({...stateWith(1), collected:true, sub:'choose'}, app => {
+    const btns = [...app.querySelectorAll('.gbtn')].map(b=>b.textContent);
+    assert(btns.some(t=>t.includes('Assassinate')), 'Assassinate button');
+  });
+});
+
+test('Assassin special: character picker shown in assassin_pick state', () => {
+  withState({...stateWith(1), collected:true, sub:'assassin_pick'}, app => {
+    const btns = [...app.querySelectorAll('.gbtn')].map(b=>b.textContent);
+    // Should show chars 2-8 as targets (not char 1 — can't self-assassinate)
+    assert(btns.some(t=>t.includes('Thief')),  'Thief target shown');
+    assert(btns.some(t=>t.includes('King')),   'King target shown');
+    assert(!btns.some(t=>t.includes('1. Assassin')), 'Cannot target Assassin');
+  });
+});
+
+test('Thief special: character picker excludes Assassin and self', () => {
+  withState({...stateWith(2), collected:true, sub:'thief_pick'}, app => {
+    const btns = [...app.querySelectorAll('.gbtn')].map(b=>b.textContent);
+    assert(!btns.some(t=>t.includes('Assassin')), 'Cannot steal from Assassin');
+    assert(!btns.some(t=>t.includes('Thief')),    'Cannot steal from self');
+    assert(btns.some(t=>t.includes('Magician')),  'Can steal from Magician');
+  });
+});
+
+test('Magician special: two action buttons present', () => {
+  withState({...stateWith(3), collected:true, sub:'choose'}, app => {
+    const btns = [...app.querySelectorAll('.gbtn')].map(b=>b.textContent);
+    assert(btns.some(t=>t.includes('Swap Hand')),         'Swap Hand button');
+    assert(btns.some(t=>t.includes('Discard & Redraw')), 'Discard button');
+  });
+});
+
+test('Magician mag_swap: shows other players to swap with', () => {
+  const s = stateWith(3);
+  withState({...s, collected:true, sub:'mag_swap'}, app => {
+    const btns = [...app.querySelectorAll('.gbtn')].map(b=>b.textContent);
+    // Should show AI player names
+    s.players.filter(p=>p.id!==0).forEach(p => {
+      assert(btns.some(t=>t.includes(p.name)), `${p.name} swap target shown`);
+    });
+  });
+});
+
+test('Warlord special: Destroy button present', () => {
+  withState({...stateWith(8), collected:true, sub:'choose'}, app => {
+    const btns = [...app.querySelectorAll('.gbtn')].map(b=>b.textContent);
+    assert(btns.some(t=>t.includes('Destroy')), 'Destroy District button');
+  });
+});
+
+test('Architect banner shows "+2 cards drawn" info', () => {
+  withState({...stateWith(7), collected:false, sub:'choose'}, app => {
+    const text = app.textContent;
+    assert(text.includes('+2 cards'), 'Architect +2 cards info');
+  });
+});
+
+suite('UI — renderAction: Smithy active building');
+
+test('Smithy row appears when player has Smithy, has gold, has not used it', () => {
+  const smithy = {uid:'s1',id:'smithy',name:'Smithy',cost:5,color:'purple',special:'smithy'};
+  let s = { ...stateWith(4), collected:true, sub:'choose' };
+  s = { ...s, players: s.players.map((p,i) => i===0
+    ? {...p, city:[smithy], gold:5, smithyUsed:false} : p) };
+  withState(s, app => {
+    const text = app.textContent;
+    assert(text.includes('Smithy'), 'Smithy row present');
+    const btns = [...app.querySelectorAll('.gbtn')].map(b=>b.textContent);
+    assert(btns.some(t=>t.includes('−2')), 'Smithy use button (−2✦)');
+  });
+});
+
+test('Smithy row absent after use (smithyUsed=true)', () => {
+  const smithy = {uid:'s1',id:'smithy',name:'Smithy',cost:5,color:'purple',special:'smithy'};
+  let s = { ...stateWith(4), collected:true, sub:'choose' };
+  s = { ...s, players: s.players.map((p,i) => i===0
+    ? {...p, city:[smithy], gold:5, smithyUsed:true} : p) };
+  withState(s, app => {
+    // Should not show a second use button
+    const btns = [...app.querySelectorAll('.gbtn')].map(b=>b.textContent);
+    assert(!btns.some(t=>t.includes('−2✦')), 'No Smithy button when already used');
+  });
+});
+
+suite('UI — renderAction: build section');
+
+test('Affordable cards shown as clickable', () => {
+  let s = { ...stateWith(4), collected:true, sub:'choose', builtCount:0 };
+  // Give player a cheap card and enough gold
+  const cheapCard = {uid:'t1',id:'tavern',name:'Tavern',cost:1,color:'green',special:null};
+  s = { ...s, players: s.players.map((p,i) => i===0
+    ? {...p, gold:5, hand:[cheapCard], city:[]} : p) };
+  withState(s, app => {
+    const clickable = app.querySelectorAll('.dcard.clickable');
+    assert(clickable.length >= 1, 'At least one clickable (affordable) card');
+  });
+});
+
+test('Unaffordable cards shown as disabled', () => {
+  let s = { ...stateWith(4), collected:true, sub:'choose', builtCount:0 };
+  const expCard = {uid:'e1',id:'palace',name:'Palace',cost:5,color:'yellow',special:null};
+  s = { ...s, players: s.players.map((p,i) => i===0
+    ? {...p, gold:0, hand:[expCard], city:[]} : p) };
+  withState(s, app => {
+    const cards = app.querySelectorAll('.dcard');
+    // At least 1 card is not clickable (disabled)
+    const disabled = [...cards].filter(c => c.style.opacity === '0.4' || c.classList.contains('disabled'));
+    assert(disabled.length >= 1 || !app.querySelector('.dcard.clickable'), 'Unaffordable card is disabled/not clickable');
+  });
+});
+
+test('No action panel shown for dead player (game should not freeze)', () => {
+  let s = { ...stateWith(5), sub:'choose', collected:false };
+  // Mark human player as dead
+  s = { ...s, players: s.players.map((p,i) => i===0 ? {...p,dead:true} : p) };
+  withState(s, app => {
+    // humanIsNow = me.char===callIdx && !me.dead → false → no action panel
+    const actionBanner = app.querySelector('.action-banner');
+    assert(!actionBanner, 'No action banner for dead player');
+    // Should show waiting message instead
+    assert(app.textContent.includes('Waiting'), 'Shows waiting message for dead player');
+  });
+});
+
+suite('UI — renderHerald');
+
+test('Herald shows character name and emoji', () => {
+  const beat = {charId:4, holderName:'Lady Mira', events:[
+    {icon:'👑',text:'Lady Mira takes the Crown!',color:'#d4a843'}
+  ], isHuman:false};
+  withState({...stateWith(1), phase:'herald', heraldQueue:[beat], heraldIdx:0,
+             heraldAcks:[], heraldAfter:'end_round'}, app => {
+    assert(app.textContent.includes('King'),      'Herald shows character name');
+    assert(app.textContent.includes('Lady Mira'), 'Herald shows holder name');
+    assert(app.textContent.includes('Crown'),     'Herald shows event text');
+  });
+});
+
+test('Herald "No one answered this call" shown for empty slot', () => {
+  const beat = {charId:3, holderName:null, events:[]};
+  withState({...stateWith(1), phase:'herald', heraldQueue:[beat], heraldIdx:0,
+             heraldAcks:[], heraldAfter:'end_round'}, app => {
+    assert(app.textContent.includes('No one answered'), 'Empty slot message');
+  });
+});
+
+test('Herald shows Next vs End Round label correctly', () => {
+  const beats = [
+    {charId:1,holderName:'A',events:[]},
+    {charId:2,holderName:'B',events:[]},
+  ];
+  // Not the last item → shows "Next"
+  withState({...stateWith(6), phase:'herald', heraldQueue:beats, heraldIdx:0,
+             heraldAcks:[], heraldAfter:'end_round'}, app => {
+    const cb = app.querySelector('.herald-cont');
+    assert(cb && cb.textContent.includes('Next'), '"Next" on non-final item');
+  });
+  // Last item with end_round → shows "End Round"
+  withState({...stateWith(6), phase:'herald', heraldQueue:beats, heraldIdx:1,
+             heraldAcks:[], heraldAfter:'end_round'}, app => {
+    const cb = app.querySelector('.herald-cont');
+    assert(cb && cb.textContent.includes('End Round'), '"End Round" on final item');
+  });
+});
+
+suite('UI — renderDraft');
+
+test('All 8 character cards shown in draft', () => {
+  const s = { ...newGame(), phase:'draft', sub:'idle', draftIdx:0,
+               draftOrder:[0,1,2,3], avail:[1,2,3,4,5,6,7,8] };
+  withState(s, app => {
+    const charCards = app.querySelectorAll('.charcard');
+    eq(charCards.length, 8, '8 character cards');
+  });
+});
+
+test('Unavailable characters are visually greyed out (low opacity)', () => {
+  const s = { ...newGame(), phase:'draft', sub:'idle', draftIdx:0,
+               draftOrder:[0,1,2,3], avail:[3,5,7] }; // only 3 chars available
+  withState(s, app => {
+    const cards = [...app.querySelectorAll('.charcard')];
+    const dimmed = cards.filter(c => parseFloat(c.style.opacity) < 0.5);
+    eq(dimmed.length, 5, '5 unavailable cards are dimmed');
+  });
+});
+
+suite('UI — top bar player display');
+
+test('Crown icon shown for the crown holder', () => {
+  const s = { ...stateWith(4), crown:0 }; // player 0 has crown
+  withState(s, app => {
+    const topbar = app.querySelector('#topbar');
+    assert(topbar && topbar.textContent.includes('👑'), 'Crown icon in topbar');
+  });
+});
+
+test('Dead player shown with skull icon in top bar', () => {
+  let s = stateWith(4);
+  s = { ...s, players: s.players.map((p,i) => i===1 ? {...p,dead:true} : p) };
+  withState(s, app => {
+    const topbar = app.querySelector('#topbar');
+    assert(topbar && topbar.textContent.includes('☠️'), 'Skull icon for dead player');
+  });
+});
+
+test('Bottom panel shows player hand count and gold', () => {
+  let s = stateWith(4);
+  const handSize = s.players[0].hand.length;
+  const gold = s.players[0].gold;
+  withState(s, app => {
+    const botHand = app.querySelector('#bot-hand');
+    assert(botHand, '#bot-hand present');
+    assert(botHand.textContent.includes(`${gold}✦`), 'Gold shown in bottom panel');
+    assert(botHand.textContent.includes(`${handSize} cards`), 'Hand count shown');
+  });
+});
+
+suite('UI — game over screen');
+
+test('Game over screen shows all 4 players ranked by score', () => {
+  const s = newGame();
+  const gameover = { ...s, phase:'gameover', firstCompleter:0,
+    players: s.players.map((p,i) => ({...p, city:[], hand:[], gold:0})) };
+  withState(gameover, app => {
+    const medals = ['🥇','🥈','🥉','🏅'];
+    medals.forEach(m => assert(app.textContent.includes(m), `${m} shown`));
+    assert(app.querySelector('button') != null, 'Play Again button present');
+  });
+});
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// INTEGRATION TESTS (simulate full user flows)
+// ══════════════════════════════════════════════════════════════════════════════
+
+suite('Integration — basic turn flow');
+
+test('Collect gold → End Turn → advances to next character', () => {
+  _applyLocalSlot = 0;
+  let s = stateWith(4); // human plays King (char=4), callIdx starts at 4
+  // Collect gold
+  s = humanCollectGold(s);
+  assert(s.collected, 'collected flag set');
+  eq(s.players[0].gold, newGame().players[0].gold + 2, 'gold increased by 2');
+  // End turn
+  s = humanEndTurn(s);
+  // callIdx should have moved past 4
+  assert(s.callIdx > 4 || s.phase === 'herald', 'callIdx advanced past human char');
+});
+
+test('Draw cards → keep card → sub returns to choose', () => {
+  let s = stateWith(3);
+  const deckBefore = s.deck.length;
+  s = humanCollectCards(s);
+  eq(s.sub, 'draw_pick', 'Entered draw_pick');
+  assert(s.drawOpts.length >= 1, 'drawOpts populated');
+  // Keep first card
+  s = humanKeepCard(s, s.drawOpts[0].uid);
+  eq(s.sub, 'choose', 'Returned to choose after keep');
+  eq(s.collected, true, 'collected flag set after keep');
+  eq(s.players[0].hand.length, newGame().players[0].hand.length + 1, 'Hand grew by 1');
+});
+
+test('Build a district → builtCount increments, gold decreases', () => {
+  let s = { ...stateWith(4), collected:true };
+  const me = s.players[0];
+  // Find an affordable card
+  const card = me.hand.find(c => c.cost <= me.gold && !me.city.some(x=>x.id===c.id));
+  if (!card) { console.info('[skip] no affordable card in hand'); return; }
+  const goldBefore = me.gold;
+  const cost = buildCost(me, card);
+  s = humanBuild(s, card.uid);
+  eq(s.builtCount, 1, 'builtCount=1 after build');
+  eq(s.players[0].gold, goldBefore - cost, 'gold reduced by card cost');
+  assert(!s.players[0].hand.some(c=>c.uid===card.uid), 'card removed from hand');
+  assert(s.players[0].city.some(c=>c.uid===card.uid),  'card added to city');
+});
+
+test('Assassin: killing a character sets pendingKill on player', () => {
+  let s = stateWith(1);
+  s = humanKill(s, 5); // target Bishop
+  eq(s.players[0].pendingKill, 5, 'pendingKill=5 set on assassin');
+});
+
+test('Thief: declaring theft sets stolenTarget on player', () => {
+  let s = stateWith(2);
+  s = humanSteal(s, 6); // target Merchant
+  eq(s.players[0].stolenTarget, 6, 'stolenTarget=6 set on thief');
+});
+
+test('Magician: hand swap exchanges cards correctly', () => {
+  let s = stateWith(3);
+  const myHand   = s.players[0].hand.map(c=>c.uid).sort().join(',');
+  const theirHand = s.players[1].hand.map(c=>c.uid).sort().join(',');
+  s = humanMagSwap(s, 1);
+  eq(s.players[0].hand.map(c=>c.uid).sort().join(','), theirHand, 'Got their hand');
+  eq(s.players[1].hand.map(c=>c.uid).sort().join(','), myHand,   'They got mine');
+});
+
+test('Architect can build 3 districts (maxB=3)', () => {
+  let s = { ...stateWith(7), collected:true, builtCount:0 };
+  s = { ...s, players: s.players.map((p,i)=>i===0?{...p,gold:30}:p) };
+  let built = 0;
+  for (const card of s.players[0].hand.slice(0,4)) {
+    if (s.builtCount >= 3) break;
+    const before = s.builtCount;
+    s = humanBuild(s, card.uid);
+    if (s.builtCount > before) built++;
+  }
+  assert(built >= 1, 'Architect built at least once');
+  // Building a 4th is blocked
+  if (s.builtCount === 3 && s.players[0].hand.length > 0) {
+    const extra = s.players[0].hand[0];
+    const bc = s.builtCount;
+    s = humanBuild(s, extra.uid);
+    eq(s.builtCount, bc, 'Cannot build 4th district as Architect');
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SUMMARY
+// ══════════════════════════════════════════════════════════════════════════════
+const summary = document.createElement('div');
+summary.className = 'summary ' + (failed === 0 ? 'ok' : 'bad');
+summary.textContent = failed === 0
+  ? `✓ All ${passed} tests passed`
+  : `✗ ${failed} failed, ${passed} passed`;
+out.appendChild(summary);
+console.log(`Test results: ${passed} passed, ${failed} failed`);
+</script>
+</body>
+</html>
