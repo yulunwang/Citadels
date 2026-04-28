@@ -108,6 +108,11 @@ body{
 .tb-title{font-family:var(--font-display);font-size:clamp(14px,2vw,18px);color:var(--text-accent);font-weight:700}
 .tb-meta{font-size:12px;color:var(--text-muted)}
 .tb-calling{font-size:12px;font-family:var(--font-display);margin-left:auto;color:var(--char-clr,var(--text-accent))}
+/* ── Language toggle button ── */
+.lang-toggle{font-family:var(--font-display);font-size:11px;padding:3px 8px;border:1px solid var(--border-main);border-radius:var(--radius-sm);background:transparent;color:var(--text-muted);cursor:pointer;transition:background var(--transition-fast),color var(--transition-fast),border-color var(--transition-fast);white-space:nowrap;flex-shrink:0}
+.lang-toggle:hover{background:var(--bg-hover);color:var(--text-primary);border-color:var(--border-strong)}
+/* Lobby: absolutely-positioned in top-right corner */
+.lobby-lang-toggle{position:fixed;top:12px;right:14px;z-index:100}
 /* ── Card detail popup (tap any portrait card) ── */
 #card-detail-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.55);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:600;display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn .15s both}
 .card-detail-box{background:var(--bg-panel);border-radius:var(--radius-lg);border:1px solid var(--border-main);width:220px;box-shadow:var(--shadow-overlay);overflow:hidden;animation:fadeSlideUp .2s both;display:flex;flex-direction:column}
