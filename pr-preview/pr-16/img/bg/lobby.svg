@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080">
+  <defs>
+    <radialGradient id="rg" cx="50%" cy="45%" r="70%">
+      <stop offset="0%" stop-color="#fffdf7"/>
+      <stop offset="55%" stop-color="#f4f0e8"/>
+      <stop offset="100%" stop-color="#e8dfc8"/>
+    </radialGradient>
+    <pattern id="pat" x="0" y="0" width="80" height="80" patternUnits="userSpaceOnUse">
+      <path d="M40 10 L50 30 L40 25 L30 30 Z" fill="#b8860b" fill-opacity="0.04"/>
+    </pattern>
+  </defs>
+  <rect width="1920" height="1080" fill="url(#rg)"/>
+  <rect width="1920" height="1080" fill="url(#pat)"/>
+</svg>
