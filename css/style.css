@@ -528,6 +528,13 @@ body{
 .lobby-mode-card{background:var(--bg-card);border:1px solid var(--border-main);border-radius:var(--radius-lg);padding:16px 20px;cursor:pointer;transition:all var(--transition-fast);display:flex;align-items:center;gap:16px;box-shadow:var(--shadow-sm)}
 .lobby-mode-card:hover{background:var(--bg-hover);box-shadow:var(--shadow-hover);border-color:var(--text-accent);transform:translateY(-2px)}
 .lobby-mode-card:active{transform:translateY(0);box-shadow:var(--shadow-sm)}
+/* ── Rejoin / Resume banner ───────────────────────────────────────────────── */
+.lobby-rejoin-card{background:color-mix(in srgb,#5a9fd4 8%,var(--bg-panel));border:1px solid color-mix(in srgb,#5a9fd4 35%,var(--border-main));border-radius:var(--radius-lg);padding:14px 16px;margin-bottom:14px;display:flex;flex-wrap:wrap;align-items:flex-start;gap:10px;box-shadow:var(--shadow-sm)}
+.lobby-rejoin-icon{font-size:28px;flex-shrink:0;width:44px;height:44px;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,#5a9fd4 15%,var(--bg-card));border-radius:var(--radius-md);border:1px solid color-mix(in srgb,#5a9fd4 30%,var(--border-main))}
+.lobby-rejoin-body{flex:1;min-width:0}
+.lobby-rejoin-title{font-family:var(--font-display);font-size:13px;color:#5a9fd4;font-weight:700;margin-bottom:3px}
+.lobby-rejoin-desc{font-size:11px;color:var(--text-muted);line-height:1.45}
+.lobby-rejoin-btns{display:flex;gap:8px;width:100%;margin-top:4px}
 .lobby-mode-icon{font-size:32px;flex-shrink:0;width:48px;height:48px;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--text-accent) 8%,var(--bg-card));border-radius:var(--radius-md);border:1px solid color-mix(in srgb,var(--text-accent) 18%,var(--border-main))}
 .lobby-mode-text{flex:1;min-width:0}
 .lobby-mode-title{font-family:var(--font-display);font-size:14px;color:var(--text-accent);margin-bottom:2px;font-weight:700}
