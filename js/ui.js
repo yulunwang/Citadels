@@ -58,15 +58,14 @@ function mkCard(d,opts){
   const infoCol=el('div',{class:'dcard-info-col'});
   const costEl=el('div',{class:disc?'dcard-cost dcard-cost-disc':'dcard-cost'});
   costEl.textContent=disc?`${cost}✦ (${d.cost}✦)`:`${cost}✦`;
-  const nm=el('div',{class:'dcard-name'});nm.textContent=d.name;
-  const c=CS[d.color];
-  const tp=el('div',{class:'dcard-type'});tp.textContent=c.label;
+  const nm=el('div',{class:'dcard-name'});nm.textContent=dn(d);
+  const tp=el('div',{class:'dcard-type'});tp.textContent=clabel(d.color);
   infoCol.append(costEl,nm,tp);
 
   const showDesc=!opts.noDesc&&(portrait||(!small&&d.special))&&d.special&&SDESC[d.special];
   if(showDesc){
     const desc=el('div',{class:'dcard-desc'});
-    desc.textContent=SDESC[d.special];
+    desc.textContent=sdesc(d.special);
     infoCol.appendChild(desc);
   }
 
@@ -104,13 +103,12 @@ function showCardDetail(d,cost,disc){
   box.appendChild(art);
   // Info zone
   var info=el('div',{class:'card-detail-info'});
-  var costStr=disc?cost+'✦ ('+d.cost+'✦ normally)':cost+'✦';
+  var costStr=disc?t('cost.normally',{cost,orig:d.cost}):cost+'✦';
   info.appendChild(el('div',{class:'card-detail-cost'},costStr));
-  info.appendChild(el('div',{class:'card-detail-name'},d.name));
-  var c=CS[d.color];
-  info.appendChild(el('div',{class:'card-detail-type'},c.label));
+  info.appendChild(el('div',{class:'card-detail-name'},dn(d)));
+  info.appendChild(el('div',{class:'card-detail-type'},clabel(d.color)));
   if(d.special&&SDESC[d.special]){
-    info.appendChild(el('div',{class:'card-detail-desc'},SDESC[d.special]));
+    info.appendChild(el('div',{class:'card-detail-desc'},sdesc(d.special)));
   }
   var closeBtn=el('button',{class:'card-detail-close'},'✕');
   closeBtn.onclick=function(){overlay.remove();};
@@ -152,9 +150,9 @@ function render(){
     if((S.phase==='action'||S.phase==='herald')&&S.callIdx<=Math.max(0,...S.charPool.map(charRank))){
       const activeChar=S.players.find(p=>charRank(p.char)===S.callIdx);
       const c=activeChar?charById(activeChar.char):CHARS.find(ch=>ch.rank===S.callIdx)||{emoji:'?',name:'?',clr:'#888'};
-      hudLeft.appendChild(el('span',{class:'mob-hud-calling',style:`--char-clr:${c.clr}`},`${c.emoji} ${c.name}`));
+      hudLeft.appendChild(el('span',{class:'mob-hud-calling',style:`--char-clr:${c.clr}`},`${c.emoji} ${cn(c.id)}`));
     }else if(S.phase==='draft'){
-      hudLeft.appendChild(el('span',{class:'mob-hud-calling'},'📜 Draft'));
+      hudLeft.appendChild(el('span',{class:'mob-hud-calling'},t('topbar.draft')));
     }
     row1.appendChild(hudLeft);
     const meH=S.players[0];
@@ -164,7 +162,8 @@ function render(){
     hudStats.appendChild(statsSpan);
     row1.appendChild(hudStats);
     const hudRight=el('div',{class:'mob-hud-right'});
-    const endBtn=el('button',{class:'btn-danger mob-end-btn'},'✕');
+    hudRight.appendChild(mkLangToggle());
+    const endBtn=el('button',{class:'btn-danger mob-end-btn'},t('topbar.end_btn_short'));
     endBtn.onclick=()=>{S={...S,_confirmEnd:true};render();};
     hudRight.appendChild(endBtn);
     row1.appendChild(hudRight);
@@ -196,7 +195,7 @@ function render(){
           }else if(S.phase==='gameover'){charRevealed=true;}
         }
         var charObj=charRevealed&&p.char?charById(p.char):null;
-        var nameText=p.name+(charObj?' · '+charObj.emoji+' '+charObj.name:'');
+        var nameText=p.name+(charObj?' · '+charObj.emoji+' '+cn(charObj.id):'');
         hdr.appendChild(el('span',{class:'player-detail-name'},nameText));
         var score=calcScore(p,S.firstCompleter===p.id);
         hdr.appendChild(el('span',{class:'player-detail-score'},'💰'+p.gold+'  🃏'+p.hand.length+'  🏰'+p.city.length+'/8  ~'+score+'pts'));
@@ -210,7 +209,7 @@ function render(){
             p.city.filter(function(d){return d.color===col;}).forEach(function(d){cityWrap.appendChild(mkCard(d,{portrait:true,player:p}));});
           });
           box.appendChild(cityWrap);
-        }else{box.appendChild(el('p',{class:'player-detail-empty'},'No districts built yet.'));}
+        }else{box.appendChild(el('p',{class:'player-detail-empty'},t('player.no_city')));}
         sheet.appendChild(box);
         document.body.appendChild(sheet);
       };
@@ -222,14 +221,15 @@ function render(){
   }else{
     // ── DESKTOP: Full topbar ──
     const tbHdr=el('div',{class:'tb-header'});
-    tbHdr.appendChild(el('span',{class:'tb-title'},'⚜ Citadels'));
-    tbHdr.appendChild(el('span',{class:'tb-meta'},`Round ${S.round} · Crown: ${S.players[S.crown].name}`));
+    tbHdr.appendChild(el('span',{class:'tb-title'},t('topbar.title')));
+    tbHdr.appendChild(el('span',{class:'tb-meta'},t('topbar.round_crown',{n:S.round,name:S.players[S.crown].name})));
     if((S.phase==='action'||S.phase==='herald')&&S.callIdx<=Math.max(0,...S.charPool.map(charRank))){
       const activeChar=S.players.find(p=>charRank(p.char)===S.callIdx);
       const c=activeChar?charById(activeChar.char):CHARS.find(ch=>ch.rank===S.callIdx)||{emoji:'?',name:'?',clr:'#888'};
-      tbHdr.appendChild(el('span',{class:'tb-calling',style:`--char-clr:${c.clr}`},`${c.emoji} Calling: ${c.name}`));
+      tbHdr.appendChild(el('span',{class:'tb-calling',style:`--char-clr:${c.clr}`},t('topbar.calling',{emoji:c.emoji,name:cn(c.id)})));
     }
-    const endBtn=el('button',{class:'btn-danger'},'✕ End Game');
+    tbHdr.appendChild(mkLangToggle());
+    const endBtn=el('button',{class:'btn-danger'},t('topbar.end_game'));
     endBtn.onclick=()=>{S={...S,_confirmEnd:true};render();};
     tbHdr.appendChild(endBtn);
     topbar.appendChild(tbHdr);
@@ -245,7 +245,7 @@ function render(){
     const r1=el('div',{class:'tb-player-row1'});
     if(S.crown===p.id)r1.appendChild(el('span',null,'👑'));
     r1.appendChild(el('span',{class:'tb-player-name'},p.name));
-    if(isMe)r1.appendChild(el('span',{class:'badge-you'},'YOU'));
+    if(isMe)r1.appendChild(el('span',{class:'badge-you'},t('badge.you')));
     if(p.dead)r1.appendChild(el('span',{class:'badge-dead'},'☠️'));
     pDiv.appendChild(r1);
     // Character visibility
@@ -268,9 +268,9 @@ function render(){
           r1.appendChild(thumbImg);
         }
         const badge=el('span',{class:'tb-player-char',style:`--char-clr:${c.clr};color:var(--char-clr);border-color:color-mix(in srgb,var(--char-clr) 35%,var(--border-main));background:color-mix(in srgb,var(--char-clr) 10%,var(--bg-card))`});
-        badge.textContent=`${c.emoji} ${c.name}`;r1.appendChild(badge);
+        badge.textContent=`${c.emoji} ${cn(c.id)}`;r1.appendChild(badge);
       }else if(p.char&&!charRevealed&&!isMe){
-        const badge=el('span',{class:'tb-player-char badge-hidden'});badge.textContent='🎭 Hidden';r1.appendChild(badge);
+        const badge=el('span',{class:'tb-player-char badge-hidden'});badge.textContent=t('badge.hidden');r1.appendChild(badge);
       }
     }else{
       // Compact: tiny char indicator prefixed to stats row
@@ -284,7 +284,7 @@ function render(){
     r2.innerHTML=`<span>💰<span class="tb-stat-val"> ${p.gold}✦</span></span>`+
       `<span>🏰<span class="tb-stat-val"> ${p.city.length}/8</span></span>`+
       `<span>🃏<span class="tb-stat-val"> ${p.hand.length}</span></span>`+
-      `<span>📊<span class="tb-stat-val"> ${calcScore(p,S.firstCompleter===p.id)} pts</span></span>`;
+      `<span>📊<span class="tb-stat-val"> ${calcScore(p,S.firstCompleter===p.id)} ${t('pts.suffix')}</span></span>`;
     pDiv.appendChild(r2);
     if(!compact&&p.city.length){
       const cityDiv=el('div',{class:'tb-city'});
@@ -292,10 +292,10 @@ function render(){
         const isUnique=d.color==='purple'&&d.special&&SDESC[d.special];
         const chip=el('div',{class:'tb-chip'+(isUnique?' has-tip':'')});
         const label=el('span',{class:'tb-chip-label color-'+d.color});
-        label.appendChild(document.createTextNode(`${DEMOJI[d.id]||'🏛'} ${d.name} `));
+        label.appendChild(document.createTextNode(`${DEMOJI[d.id]||'🏛'} ${dn(d)} `));
         const ptsSpan=el('span',{class:'tb-chip-pts'});ptsSpan.textContent=`${d.cost}✦`;
         label.appendChild(ptsSpan);chip.appendChild(label);
-        if(isUnique){const tip=el('div',{class:'tb-chip-tip'});tip.textContent=`✨ ${d.name}\n${SDESC[d.special]}`;chip.appendChild(tip);}
+        if(isUnique){const tip=el('div',{class:'tb-chip-tip'});tip.textContent=`✨ ${dn(d)}\n${sdesc(d.special)}`;chip.appendChild(tip);}
         cityDiv.appendChild(chip);
       });
       pDiv.appendChild(cityDiv);
@@ -310,7 +310,7 @@ function render(){
       sheet.onclick=function(ev){if(ev.target===sheet)sheet.remove();};
       var box=el('div',{class:'player-detail-box'});
       var hdr=el('div',{class:'player-detail-hdr'});
-      hdr.appendChild(el('span',{class:'player-detail-name'},p.name+(isMe?' (You)':'')));
+      hdr.appendChild(el('span',{class:'player-detail-name'},p.name+(isMe?t('player.you'):'')));
       var score=calcScore(p,S.firstCompleter===p.id);
       hdr.appendChild(el('span',{class:'player-detail-score'},`💰${p.gold}✦  🏰${p.city.length}/8  📊${score}pts`));
       var closeBtn=el('button',{class:'player-detail-close'},'✕');
@@ -324,7 +324,7 @@ function render(){
         });
         box.appendChild(cityWrap);
       }else{
-        box.appendChild(el('p',{class:'player-detail-empty'},'No districts built yet.'));
+        box.appendChild(el('p',{class:'player-detail-empty'},t('player.no_city')));
       }
       sheet.appendChild(box);
       document.body.appendChild(sheet); // attach to body so render() can't wipe it
@@ -353,7 +353,7 @@ function render(){
     sheet.onclick=function(ev){if(ev.target===sheet)sheet.remove();};
     var box=el('div',{class:'player-detail-box mob-all-players'});
     var hdr=el('div',{class:'player-detail-hdr'});
-    hdr.appendChild(el('span',{class:'player-detail-name'},'All Players'));
+    hdr.appendChild(el('span',{class:'player-detail-name'},t('all_players')));
     var closeBtn=el('button',{class:'player-detail-close'},'✕');
     closeBtn.onclick=function(){sheet.remove();};
     hdr.appendChild(closeBtn);
@@ -374,7 +374,7 @@ function render(){
         subSheet.onclick=function(ev){if(ev.target===subSheet)subSheet.remove();};
         var subBox=el('div',{class:'player-detail-box'});
         var subHdr=el('div',{class:'player-detail-hdr'});
-        subHdr.appendChild(el('span',{class:'player-detail-name'},p.name+(p.id===0?' (You)':'')));
+        subHdr.appendChild(el('span',{class:'player-detail-name'},p.name+(p.id===0?t('player.you'):'')));
         var score=calcScore(p,S.firstCompleter===p.id);
         subHdr.appendChild(el('span',{class:'player-detail-score'},'💰'+p.gold+'✦  🏰'+p.city.length+'/8  📊'+score+'pts'));
         var subClose=el('button',{class:'player-detail-close'},'✕');
@@ -387,7 +387,7 @@ function render(){
             p.city.filter(function(d){return d.color===col;}).forEach(function(d){cityWrap.appendChild(mkCard(d,{portrait:true,player:p}));});
           });
           subBox.appendChild(cityWrap);
-        }else{subBox.appendChild(el('p',{class:'player-detail-empty'},'No districts built yet.'));}
+        }else{subBox.appendChild(el('p',{class:'player-detail-empty'},t('player.no_city')));}
         subSheet.appendChild(subBox);
         document.body.appendChild(subSheet);
       };
@@ -411,8 +411,8 @@ function render(){
     if(currentDrafter===0)center.appendChild(renderDraft());
     else{
       const msg=draftingPlayer&&!draftingPlayer.ai
-        ?`⏳ Waiting for ${draftingPlayer.name} to choose their character...`
-        :'⏳ Others are choosing characters...';
+        ?t('state.waiting_peer',{name:draftingPlayer.name})
+        :t('state.waiting_others');
       center.appendChild(el('div',{class:'state-waiting'},msg));
     }
   }else if(S.phase==='herald'){
@@ -424,7 +424,7 @@ function render(){
     else{
       const activePlayer=S.players.find(p=>charRank(p.char)===S.callIdx&&!p.dead&&!p.ai);
       const waitMsg=activePlayer&&activePlayer.id!==0
-        ?`⏳ Waiting for ${activePlayer.name}...`:'⏳ Waiting...';
+        ?t('state.waiting_player',{name:activePlayer.name}):t('state.waiting_dot');
       center.appendChild(el('div',{class:'state-waiting'},waitMsg));
     }
   }
@@ -436,7 +436,7 @@ function render(){
   if(isMobile&&me.city.length>0){
     // Collapsible city section — only shown when player has built districts
     const cityHdr=el('div',{class:'mob-city-hdr'});
-    cityHdr.innerHTML=`<span>🏰 YOUR CITY (${me.city.length}/8) · ${myScore} pts</span><span class="mob-city-toggle">▼</span>`;
+    cityHdr.innerHTML=`<span>${t('city.label',{n:me.city.length,pts:myScore})}</span><span class="mob-city-toggle">▼</span>`;
     botCity.appendChild(cityHdr);
     const cityWrap=el('div',{class:'cards-wrap mob-city-cards'});
     cityWrap.style.display='none';
@@ -463,9 +463,9 @@ function render(){
     // Mobile: compact hand label
     const handLabel=el('div',{class:'bot-label'});
     const handLeft=el('span',{class:'bot-label-left'});
-    handLeft.appendChild(el('span',null,'HAND'));
+    handLeft.appendChild(el('span',null,t('hand.label_mobile')));
     if(me.char){const c=charById(me.char);
-      handLeft.appendChild(el('span',{class:'bot-char-badge',style:`--char-clr:${c.clr}`},`${c.emoji} ${c.name}`));
+      handLeft.appendChild(el('span',{class:'bot-char-badge',style:`--char-clr:${c.clr}`},`${c.emoji} ${cn(c.id)}`));
     }
     handLabel.appendChild(handLeft);
     botHand.appendChild(handLabel);
@@ -473,9 +473,9 @@ function render(){
     // Desktop: full hand label
     const handLabel=el('div',{class:'bot-label'});
     const handLeft=el('span',{class:'bot-label-left'});
-    handLeft.appendChild(el('span',null,'YOUR HAND'));
+    handLeft.appendChild(el('span',null,t('hand.label')));
     if(me.char){const c=charById(me.char);
-      const charBadge=el('span',{class:'bot-char-badge',style:`--char-clr:${c.clr}`},`${c.emoji} ${c.name}`);
+      const charBadge=el('span',{class:'bot-char-badge',style:`--char-clr:${c.clr}`},`${c.emoji} ${cn(c.id)}`);
       handLeft.appendChild(charBadge);
     }
     handLabel.appendChild(handLeft);
@@ -484,20 +484,20 @@ function render(){
   }
   const handWrap=el('div',{class:'cards-wrap'});
   if(me.hand.length)me.hand.forEach(d=>handWrap.appendChild(mkCard(d,{portrait:true,player:me})));
-  else handWrap.appendChild(el('span',{class:'state-empty'},'No cards in hand'));
+  else handWrap.appendChild(el('span',{class:'state-empty'},t('hand.empty')));
   botHand.appendChild(handWrap);
 
   if(!isMobile){
     // Desktop: city in bottom panel
     const cityLabel=el('div',{class:'bot-label'});
-    cityLabel.innerHTML=`<span>YOUR CITY (${me.city.length}/8)</span><span class="bot-label-right">📊 ~${myScore} pts</span>`;
+    cityLabel.innerHTML=`<span>${t('city.desktop',{n:me.city.length})}</span><span class="bot-label-right">📊 ~${myScore} ${t('pts.suffix')}</span>`;
     botCity.appendChild(cityLabel);
     const cityWrap=el('div',{class:'cards-wrap'});
     if(me.city.length){
       ['yellow','blue','green','red','purple'].forEach(col=>{
         me.city.filter(d=>d.color===col).forEach(d=>cityWrap.appendChild(mkCard(d,{portrait:true,player:me})));
       });
-    }else cityWrap.appendChild(el('span',{class:'state-empty'},'Nothing built yet'));
+    }else cityWrap.appendChild(el('span',{class:'state-empty'},t('hand.nothing_built')));
     botCity.appendChild(cityWrap);
     bottom.append(botHand,botCity);
   }else{
@@ -509,12 +509,12 @@ function render(){
   if(S._confirmEnd){
     const overlay=el('div',{class:'confirm-overlay'});
     const box=el('div',{class:'confirm-box'});
-    box.appendChild(el('h3',null,'End the Game?'));
-    box.appendChild(el('p',null,'This will immediately end the current game and return to the home screen. All progress will be lost.'));
+    box.appendChild(el('h3',null,t('confirm.end.title')));
+    box.appendChild(el('p',null,t('confirm.end.body')));
     const btns=el('div',{class:'confirm-btns'});
-    const cancelBtn=el('button',{class:'btn-cancel'},'Keep Playing');
+    const cancelBtn=el('button',{class:'btn-cancel'},t('confirm.end.cancel'));
     cancelBtn.onclick=()=>{S={...S,_confirmEnd:false};render();};
-    const confirmBtn=el('button',{class:'btn-danger'},'End Game');
+    const confirmBtn=el('button',{class:'btn-danger'},t('confirm.end.confirm'));
     confirmBtn.onclick=()=>{
       try{NET.peer?.destroy();}catch(e){}
       NET.mode='solo';NET.peer=null;NET.hostConn=null;NET.conns={};
@@ -538,7 +538,7 @@ function renderHerald(){
   const beat=S.heraldQueue[S.heraldIdx];if(!beat)return el('div',null,'');
   const c=charByRank(beat.charId);const total=S.heraldQueue.length;
   const isLast=S.heraldIdx===total-1;
-  const nextLabel=isLast?(S.heraldAfter==='end_round'?'End Round ›':'Your Turn ›'):'Next ›';
+  const nextLabel=isLast?(S.heraldAfter==='end_round'?t('herald.end_round'):t('herald.your_turn')):t('herald.next');
   const wrap=el('div',{class:'herald-wrap'});
   const pips=el('div',{class:'herald-pips'});
   for(let i=0;i<total;i++){const q=S.heraldQueue[i];const qc=charByRank(q.charId);
@@ -549,11 +549,11 @@ function renderHerald(){
     pip.style.borderColor='var(--pip-clr)';
     if(i===S.heraldIdx)pip.style.background='color-mix(in srgb, var(--pip-clr) 10%, transparent)';
     else if(i<S.heraldIdx)pip.style.background='color-mix(in srgb, var(--pip-clr) 8%, transparent)';
-    pip.title=`${q.charId}. ${qc.name}`;pips.appendChild(pip);}
+    pip.title=`${q.charId}. ${cn(qc.id)}`;pips.appendChild(pip);}
   wrap.appendChild(pips);
   const card=el('div',{class:'herald-card'});
   card.style.setProperty('--herald-clr',c.clr);
-  card.appendChild(el('div',{class:'herald-char-num'},`Character ${beat.charId} of ${Math.max(0,...S.charPool.map(charRank))}`));
+  card.appendChild(el('div',{class:'herald-char-num'},t('herald.char_n_of_m',{n:beat.charId,m:Math.max(0,...S.charPool.map(charRank))})));
   const iconRow=el('div',{class:'herald-icon-row'});
   var portraitEl;
   if(typeof IMG !== 'undefined' && IMG.char[c.id]) {
@@ -569,11 +569,11 @@ function renderHerald(){
   }
   iconRow.appendChild(portraitEl);
   const titleBlock=el('div',{class:'herald-title-block'});
-  const titleEl=el('div',{class:'herald-title'});titleEl.style.color=c.clr;titleEl.textContent=c.name;titleBlock.appendChild(titleEl);
-  titleBlock.appendChild(el('div',{class:'herald-ability'},c.ability));
+  const titleEl=el('div',{class:'herald-title'});titleEl.style.color=c.clr;titleEl.textContent=cn(c.id);titleBlock.appendChild(titleEl);
+  titleBlock.appendChild(el('div',{class:'herald-ability'},ca(c.id)));
   iconRow.appendChild(titleBlock);card.appendChild(iconRow);
   if(!beat.holderName){
-    card.appendChild(el('div',{class:'herald-empty'},'No one answered this call.'));
+    card.appendChild(el('div',{class:'herald-empty'},t('herald.no_one')));
   }else{
     // Visual player→character assignment chip
     const who=el('div',{class:'herald-sub'});
@@ -582,15 +582,15 @@ function renderHerald(){
     }else{
       var holder=S.players.find(function(p){return p.name===beat.holderName;});
       var hAvatar=holder&&typeof getAvatar==='function'?getAvatar(holder.id):(beat.isHuman?'👤':'🤖');
-      var hName=beat.isHuman?(beat.holderName===(S.players[0]?.name||'You')?'You':beat.holderName):beat.holderName;
+      var hName=beat.isHuman?(beat.holderName===(S.players[0]?.name||'You')?S.players[0]?.name||'You':beat.holderName):beat.holderName;
       var pChip=el('span',{class:'herald-chip herald-chip-player'});
       pChip.innerHTML='<span class="hc-avatar">'+hAvatar+'</span><span class="hc-label">'+hName+'</span>';
       var arrow=el('span',{class:'herald-arrow'},'→');
       var cChip=el('span',{class:'herald-chip herald-chip-char'});
       cChip.style.setProperty('--chip-clr',c.clr);
-      cChip.innerHTML='<span class="hc-avatar">'+c.emoji+'</span><span class="hc-label">'+c.name+'</span>';
+      cChip.innerHTML='<span class="hc-avatar">'+c.emoji+'</span><span class="hc-label">'+cn(c.id)+'</span>';
       who.append(pChip,arrow,cChip);
-      if(beat.isHuman)who.appendChild(el('span',{class:'herald-turn-label'},'Turn Summary'));
+      if(beat.isHuman)who.appendChild(el('span',{class:'herald-turn-label'},t('herald.turn_summary')));
     }
     card.appendChild(who);
     if(beat.events.length){
@@ -612,7 +612,7 @@ function renderHerald(){
         row.append(iconWrap,txt);evts.appendChild(row);
       });
       card.appendChild(evts);
-    }else card.appendChild(el('div',{class:'herald-empty'},'No actions taken.'));
+    }else card.appendChild(el('div',{class:'herald-empty'},t('herald.no_actions')));
   }
   const cb=el('button',{class:'herald-cont'});
   cb.style.cssText=`--btn-clr:${c.clr};background:color-mix(in srgb,var(--btn-clr) 12%,var(--bg-panel));border-color:color-mix(in srgb,var(--btn-clr) 35%,var(--border-main));color:var(--btn-clr)`;
@@ -623,11 +623,11 @@ function renderHerald(){
     const ackedCount=(S.heraldAcks||[]).length;
     const totalHumans=humans.length;
     if(iHaveAcked){
-      cb.textContent=`✓ Ready (${ackedCount}/${totalHumans} players ready)`;
+      cb.textContent=t('herald.ready',{n:ackedCount,m:totalHumans});
       cb.style.opacity='0.5';cb.style.cursor='default';
       cb.onclick=null;
     }else{
-      cb.textContent=`${nextLabel} (${ackedCount}/${totalHumans} ready)`;
+      cb.textContent=t('herald.next_multi',{label:nextLabel,n:ackedCount,m:totalHumans});
       cb.onclick=()=>{{const _nr=heraldNext(S);if(_nr)S=_nr;render();};};
     }
   }else{
@@ -650,14 +650,14 @@ function renderPlayerBar(){
     var statusText='';
     if(S.phase==='draft'){
       state=i<S.draftIdx?'done':i===S.draftIdx?'active':'waiting';
-      statusText=state==='done'?'Picked':state==='active'?'Choosing now…':'Waiting';
+      statusText=state==='done'?t('state.picked'):state==='active'?t('state.choosing'):t('state.waiting');
     }else if(S.phase==='herald'||S.phase==='action'){
       // Highlight the player whose character is currently being called
       var ch=p.char;
       var isActive=ch&&charRank(ch)===S.callIdx&&!p.dead;
       state=isActive?'active':'neutral';
       var charObj=ch?charById(ch):null;
-      statusText=isActive?(charObj?charObj.emoji+' '+charObj.name:'Active'):(p.dead?'Killed':'');
+      statusText=isActive?(charObj?charObj.emoji+' '+cn(charObj.id):t('state.active')):(p.dead?t('state.killed'):'');
     }
     const pip=el('div',{class:'draft-pip '+ state});
     pip.textContent=(S.phase==='draft'&&state==='done')?'✓':avatar;
@@ -668,9 +668,9 @@ function renderPlayerBar(){
       if(!tip){tip=document.createElement('div');tip.id='draft-pip-tip';tip.className='draft-pip-tip';document.body.appendChild(tip);}
       var label=pid===0?'You':p.name;
       var charInfo='';
-      if(S.phase!=='draft'&&p.char&&!isActive){var co=charById(p.char);if(co)charInfo='<div class="dpt-char" style="color:'+co.clr+'">'+co.emoji+' '+co.name+'</div>';}
+      if(S.phase!=='draft'&&p.char&&!isActive){var co=charById(p.char);if(co)charInfo='<div class="dpt-char" style="color:'+co.clr+'">'+co.emoji+' '+cn(co.id)+'</div>';}
       var extra='';
-      if(p.dead)extra='<div class="dpt-status dpt-dead">💀 Killed</div>';
+      if(p.dead)extra='<div class="dpt-status dpt-dead">💀 '+t('state.killed')+'</div>';
       else if(statusText)extra='<div class="dpt-status dpt-'+state+'">'+statusText+'</div>';
       tip.innerHTML='<div class="dpt-avatar">'+avatar+'</div><div class="dpt-name">'+label+'</div>'+charInfo+extra;
       tip.style.display='block';
@@ -683,14 +683,14 @@ function renderPlayerBar(){
   });
   // Character reference button
   var refBtn=el('button',{class:'char-ref-btn'},'ℹ');
-  refBtn.title='Character Reference';
+  refBtn.title=t('char_ref.title');
   refBtn.onclick=function(e){
     e.stopPropagation();
     var existing=document.getElementById('char-ref-panel');
     if(existing){existing.remove();var et=document.getElementById('char-ref-tip');if(et)et.remove();return;}
     var panel=el('div',{id:'char-ref-panel',class:'char-ref-panel'});
     var hdr=el('div',{class:'char-ref-hdr'});
-    hdr.appendChild(el('span',{class:'char-ref-title'},'Characters This Round'));
+    hdr.appendChild(el('span',{class:'char-ref-title'},t('char_ref.title')));
     var closeBtn=el('button',{class:'char-ref-close'},'✕');
     closeBtn.onclick=function(){panel.remove();var t=document.getElementById('char-ref-tip');if(t)t.remove();};
     hdr.appendChild(closeBtn);
@@ -706,11 +706,11 @@ function renderPlayerBar(){
       var row=el('div',{class:'char-ref-row'});
       row.appendChild(el('span',{class:'char-ref-rank'},String(c.rank)));
       row.appendChild(el('span',{class:'char-ref-emoji'},c.emoji));
-      row.appendChild(el('span',{class:'char-ref-name',style:'--char-clr:'+c.clr},c.name));
+      row.appendChild(el('span',{class:'char-ref-name',style:'--char-clr:'+c.clr},cn(c.id)));
       row.onmouseenter=function(){
         var tip=document.getElementById('char-ref-tip');
         if(!tip){tip=document.createElement('div');tip.id='char-ref-tip';tip.className='char-ref-tip';document.body.appendChild(tip);}
-        tip.innerHTML='<div class="crt-header"><span class="crt-emoji">'+c.emoji+'</span><span class="crt-name" style="--char-clr:'+c.clr+'">'+c.name+'</span></div><p class="crt-ability">'+c.ability+'</p>';
+        tip.innerHTML='<div class="crt-header"><span class="crt-emoji">'+c.emoji+'</span><span class="crt-name" style="--char-clr:'+c.clr+'">'+cn(c.id)+'</span></div><p class="crt-ability">'+ca(c.id)+'</p>';
         tip.style.display='block';
         var pr=panel.getBoundingClientRect();var rr=row.getBoundingClientRect();
         setTimeout(function(){
@@ -764,14 +764,14 @@ function renderDraft(){
   const wrap=el('div',null);
   const faceDown=S.faceDown||[];const faceUp=S.faceUp||[];
 
-  wrap.appendChild(el('div',{class:'draft-title'},'Choose your character for this round:'));
+  wrap.appendChild(el('div',{class:'draft-title'},t('draft.choose')));
 
   // Only hint at how many cards total are out of play — never reveal which ones
   const totalRemoved=(faceDown.length||0)+(faceUp.length||0);
   if(totalRemoved){
     const info=el('div',{class:'draft-info'});
     info.appendChild(el('span',{class:'draft-info-ghost'},
-      `🎴 ${totalRemoved} card${totalRemoved>1?'s':''} removed before drafting`));
+      totalRemoved>1?t('draft.removed_p',{n:totalRemoved}):t('draft.removed_s',{n:totalRemoved})));
     wrap.appendChild(info);
   }
 
@@ -799,11 +799,11 @@ function renderDraft(){
     card.appendChild(imgZone);
     // Info zone — bottom portion, always clean background
     const infoZone=el('div',{class:'charcard-info-zone'});
-    infoZone.appendChild(el('div',{class:`charcard-name${avail?' available':''}`},`${c.rank}. ${c.name}`));
+    infoZone.appendChild(el('div',{class:`charcard-name${avail?' available':''}`},`${c.rank}. ${cn(c.id)}`));
     if(removed){// defensive: dealDraft excludes removed chars, but extensions may add face-up removed cards
-      infoZone.appendChild(el('div',{class:'charcard-removed-label'},'✕ NOT IN PLAY'));
+      infoZone.appendChild(el('div',{class:'charcard-removed-label'},t('draft.not_in_play')));
     }else{
-      infoZone.appendChild(el('div',{class:'charcard-ability'},c.ability));
+      infoZone.appendChild(el('div',{class:'charcard-ability'},ca(c.id)));
     }
     card.appendChild(infoZone);
     if(avail){
@@ -832,18 +832,18 @@ function renderAction(){
     banner.appendChild(el('div',{class:'action-banner-emoji'},c.emoji));
   }
   const bInfo=el('div',{class:'action-banner-info'});
-  const charNameEl=el('div',{class:'action-char-name',style:`--char-clr:${c.clr}`},`${c.name}`);
+  const charNameEl=el('div',{class:'action-char-name',style:`--char-clr:${c.clr}`},cn(c.id));
   bInfo.appendChild(charNameEl);
-  bInfo.appendChild(el('div',{class:'action-char-ability'},c.ability));
-  if(charId===7)bInfo.appendChild(el('div',{class:'action-note'},`✓ +2 cards drawn already (${me.hand.length} in hand). Build up to 3 districts.`));
-  if(charId===14)bInfo.appendChild(el('div',{class:'action-note'},'✓ Scholar: draw 7, keep 1 for income. Build up to 2 districts.'));
-  if(charId===15)bInfo.appendChild(el('div',{class:'action-note-purple'},'✓ Seer: use special to take 1 card from each opponent. Build up to 2 districts.'));
-  if(charId===16)bInfo.appendChild(el('div',{class:'action-note-green'},`✓ Trader: +${me.city.filter(d=>d.color==='green').length}✦ from Trade districts applied. Build up to 2 districts.`));
+  bInfo.appendChild(el('div',{class:'action-char-ability'},ca(c.id)));
+  if(charId===7)bInfo.appendChild(el('div',{class:'action-note'},t('note.arch_hand',{n:me.hand.length})));
+  if(charId===14)bInfo.appendChild(el('div',{class:'action-note'},t('note.scholar_action')));
+  if(charId===15)bInfo.appendChild(el('div',{class:'action-note-purple'},t('note.seer_action')));
+  if(charId===16)bInfo.appendChild(el('div',{class:'action-note-green'},t('note.trader_action',{n:me.city.filter(d=>d.color==='green').length})));
   banner.appendChild(bInfo);wrap.appendChild(banner);
 
   if(S.sub==='draw_pick'){
-    const drawPickLabel=charId===14?`Choose one card to keep (Scholar: ${S.drawOpts.length} shown):`:
-      `Choose one card to keep${me.city.some(d=>d.id==='observatory')?' (Observatory: 3 shown)':''}:`;
+    const drawPickLabel=charId===14?t('draw_pick.scholar',{n:S.drawOpts.length}):
+      me.city.some(d=>d.id==='observatory')?t('draw_pick.obs'):t('draw_pick.normal');
     wrap.appendChild(el('div',{class:'draw-pick-label'},drawPickLabel));
     const row=el('div',{class:'draw-pick-row'});
     S.drawOpts.forEach(d=>row.appendChild(mkCard(d,{portrait:true,onClick:()=>{{const _nr=humanKeepCard(S,d.uid);if(_nr)S=_nr;render();};}})));
@@ -852,20 +852,20 @@ function renderAction(){
 
   // Income
   if(!S.collected){
-    wrap.appendChild(el('div',{class:'sect-label'},'COLLECT INCOME'));
+    wrap.appendChild(el('div',{class:'sect-label'},t('income.label')));
     if(charId===10){
       const row=el('div',{class:'income-row-nav'});
-      row.appendChild(gbtn('⚓ Take 4 Gold','#4a90d9',()=>{{const _nr=humanNavigator(S,'gold');if(_nr)S=_nr;render();};},'padding:10px 18px;font-size:12px;font-family:Cinzel,serif'));
-      if(S.deck.length)row.appendChild(gbtn('⚓ Draw 4 Cards','#4a90d9',()=>{{const _nr=humanNavigator(S,'cards');if(_nr)S=_nr;render();};},'padding:10px 18px;font-size:12px;font-family:Cinzel,serif'));
+      row.appendChild(gbtn(t('income.nav_gold'),'#4a90d9',()=>{{const _nr=humanNavigator(S,'gold');if(_nr)S=_nr;render();};},'padding:10px 18px;font-size:12px;font-family:Cinzel,serif'));
+      if(S.deck.length)row.appendChild(gbtn(t('income.nav_cards'),'#4a90d9',()=>{{const _nr=humanNavigator(S,'cards');if(_nr)S=_nr;render();};},'padding:10px 18px;font-size:12px;font-family:Cinzel,serif'));
       wrap.appendChild(row);
-      wrap.appendChild(el('div',{class:'action-note-warning'},'⚠ Navigator cannot build a district this turn.'));
+      wrap.appendChild(el('div',{class:'action-note-warning'},t('income.nav_warning')));
     }else{
       const row=el('div',{class:'income-row'});
-      row.appendChild(gbtn('💰 Take 2 Gold','#d4a843',()=>{{const _nr=humanCollectGold(S);if(_nr)S=_nr;render();};},'padding:10px 18px;font-size:12px;font-family:Cinzel,serif'));
+      row.appendChild(gbtn(t('income.take_gold'),'#d4a843',()=>{{const _nr=humanCollectGold(S);if(_nr)S=_nr;render();};},'padding:10px 18px;font-size:12px;font-family:Cinzel,serif'));
       if(S.deck.length){
-        const label=charId===14?'📖 Draw 7, Keep 1 (Scholar)':
-                    me.city.some(d=>d.id==='observatory')?'🔭 Draw 3, Keep 1 (Observatory)':
-                    me.city.some(d=>d.id==='library')?'📚 Draw 2, Keep BOTH (Library)':'🃏 Draw 2, Keep 1';
+        const label=charId===14?t('income.draw_scholar'):
+                    me.city.some(d=>d.id==='observatory')?t('income.draw_obs'):
+                    me.city.some(d=>d.id==='library')?t('income.draw_library'):t('income.draw_normal');
         row.appendChild(gbtn(label,'#5a9fd4',()=>{{const _nr=humanCollectCards(S);if(_nr)S=_nr;render();};},'padding:10px 18px;font-size:12px;font-family:Cinzel,serif'));
       }
       wrap.appendChild(row);
@@ -873,49 +873,49 @@ function renderAction(){
   }
 
   if(S.sub==='choose'||S.sub==='assassin_pick'||S.sub==='thief_pick'||S.sub==='warlord_pick'||S.sub==='wizard_pick'){
-    wrap.appendChild(el('div',{class:'sect-label'},'SPECIAL ABILITY'));
+    wrap.appendChild(el('div',{class:'sect-label'},t('special.label')));
     wrap.appendChild(renderSpecial(charId));
   }
 
   if(S.sub==='mag_swap'){
-    wrap.appendChild(el('div',{class:'action-mag-prompt-purple'},'Swap your hand with:'));
+    wrap.appendChild(el('div',{class:'action-mag-prompt-purple'},t('mag.swap_with')));
     const r=el('div',{class:'spec-row'});
-    S.players.filter(p=>p.id!==0).forEach(p=>r.appendChild(gbtn(`${p.name} (${p.hand.length} cards)`,'#9b6fff',()=>{{const _nr=humanMagSwap(S,p.id);if(_nr)S=_nr;render();};})));
-    r.appendChild(gbtn('Cancel','#555',()=>{S={...S,sub:'choose'};render();}));wrap.appendChild(r);
+    S.players.filter(p=>p.id!==0).forEach(p=>r.appendChild(gbtn(`${p.name} (${p.hand.length})`, '#9b6fff',()=>{{const _nr=humanMagSwap(S,p.id);if(_nr)S=_nr;render();};})));
+    r.appendChild(gbtn(t('mag.cancel'),'#555',()=>{S={...S,sub:'choose'};render();}));wrap.appendChild(r);
   }
   if(S.sub==='mag_discard'){
-    wrap.appendChild(el('div',{class:'action-mag-prompt-purple'},'Select cards to discard & redraw:'));
+    wrap.appendChild(el('div',{class:'action-mag-prompt-purple'},t('mag.discard_select')));
     const r=el('div',{class:'spec-row'});
     me.hand.forEach(d=>{const sel=S.selCards.includes(d.uid);r.appendChild(mkCard(d,{portrait:true,selected:sel,onClick:()=>{
       const sc=S.selCards.includes(d.uid)?S.selCards.filter(x=>x!==d.uid):[...S.selCards,d.uid];S={...S,selCards:sc};render();}}));});
     wrap.appendChild(r);
     const r2=el('div',{class:'spec-row-inline'});
-    if(S.selCards.length)r2.appendChild(gbtn(`Discard ${S.selCards.length} → Draw ${S.selCards.length}`,'#9b6fff',()=>{{const _nr=humanMagDiscard(S,S.selCards);if(_nr)S=_nr;render();};}));
-    r2.appendChild(gbtn('Cancel','#555',()=>{S={...S,sub:'choose',selCards:[]};render();}));wrap.appendChild(r2);
+    if(S.selCards.length)r2.appendChild(gbtn(t('mag.discard_confirm',{n:S.selCards.length}),'#9b6fff',()=>{{const _nr=humanMagDiscard(S,S.selCards);if(_nr)S=_nr;render();};}));
+    r2.appendChild(gbtn(t('mag.cancel'),'#555',()=>{S={...S,sub:'choose',selCards:[]};render();}));wrap.appendChild(r2);
   }
   if(S.sub==='wizard_pick'){
     const target=S.players.find(p=>p.id===S.wizardTargetId);
     if(target){
-      wrap.appendChild(el('div',{class:'action-mag-prompt-purple'},`${target.name}'s hand — choose a card to take:`));
+      wrap.appendChild(el('div',{class:'action-mag-prompt-purple'},t('wizard.hand_of',{name:target.name})));
       if(!target.hand.length){
-        wrap.appendChild(el('div',{class:'state-empty mb-sm'},'No cards in their hand.'));
+        wrap.appendChild(el('div',{class:'state-empty mb-sm'},t('wizard.no_cards')));
       }else{
         const r=el('div',{class:'spec-row-lg'});
         target.hand.forEach(d=>{
           const canBuild=buildCost(me,d)<=me.gold&&canBuildDistrict(me,d);
           const cardWrap=el('div',{class:'spec-col'});
           cardWrap.appendChild(mkCard(d,{portrait:true}));
-          const takeBtn=gbtn('Take','#9b6fff',()=>{{const _nr=humanWizardTake(S,d.uid,false);if(_nr)S=_nr;render();};},'font-size:10px;padding:3px 10px;width:100%');
+          const takeBtn=gbtn(t('wizard.take'),'#9b6fff',()=>{{const _nr=humanWizardTake(S,d.uid,false);if(_nr)S=_nr;render();};},'font-size:10px;padding:3px 10px;width:100%');
           cardWrap.appendChild(takeBtn);
           if(canBuild){
-            const buildBtn=gbtn(`Build (${buildCost(me,d)}✦)`,'#7a4fcc',()=>{{const _nr=humanWizardTake(S,d.uid,true);if(_nr)S=_nr;render();};},'font-size:10px;padding:3px 8px;width:100%');
+            const buildBtn=gbtn(t('wizard.build',{cost:buildCost(me,d)}),'#7a4fcc',()=>{{const _nr=humanWizardTake(S,d.uid,true);if(_nr)S=_nr;render();};},'font-size:10px;padding:3px 8px;width:100%');
             cardWrap.appendChild(buildBtn);
           }
           r.appendChild(cardWrap);
         });
         wrap.appendChild(r);
       }
-      wrap.appendChild(gbtn('Cancel','#555',()=>{S={...S,sub:'choose',wizardTargetId:null};render();}));
+      wrap.appendChild(gbtn(t('wizard.cancel'),'#555',()=>{S={...S,sub:'choose',wizardTargetId:null};render();}));
     }
     return wrap;
   }
@@ -924,23 +924,23 @@ function renderAction(){
     (me.city.some(d=>d.id==='smithy')&&!me.smithyUsed&&me.gold>=2&&S.deck.length)||
     (me.city.some(d=>d.id==='laboratory')&&!me.labUsed&&me.hand.length>0)
   )){
-    wrap.appendChild(el('div',{class:'sect-label'},'ACTIVE BUILDINGS'));
+    wrap.appendChild(el('div',{class:'sect-label'},t('active_bldg.label')));
     if(me.city.some(d=>d.id==='smithy')&&!me.smithyUsed&&me.gold>=2&&S.deck.length){
       const smithyRow=el('div',{class:'action-smithy-row'});
       smithyRow.appendChild(el('span',{class:'action-smithy-icon'},'⚒️'));
       const smithyInfo=el('div',{class:'action-smithy-info'});
-      smithyInfo.appendChild(el('div',{class:'action-smithy-title'},'Smithy'));
-      smithyInfo.appendChild(el('div',{class:'action-smithy-desc'},'Pay 2✦ to draw 3 district cards (once per turn)'));
+      smithyInfo.appendChild(el('div',{class:'action-smithy-title'},t('smithy.title')));
+      smithyInfo.appendChild(el('div',{class:'action-smithy-desc'},t('smithy.desc')));
       smithyRow.appendChild(smithyInfo);
-      smithyRow.appendChild(gbtn('Use (−2✦)','#c084fc',()=>{{const _nr=humanUseSmithy(S);if(_nr)S=_nr;render();};}));
+      smithyRow.appendChild(gbtn(t('smithy.use'),'#c084fc',()=>{{const _nr=humanUseSmithy(S);if(_nr)S=_nr;render();};}));
       wrap.appendChild(smithyRow);
     }
     if(me.city.some(d=>d.id==='laboratory')&&!me.labUsed&&me.hand.length>0){
       const labRow=el('div',{class:'action-smithy-row'});
       labRow.appendChild(el('span',{class:'action-smithy-icon'},'⚗️'));
       const labInfo=el('div',{class:'action-smithy-info'});
-      labInfo.appendChild(el('div',{class:'action-smithy-title'},'Laboratory'));
-      labInfo.appendChild(el('div',{class:'action-smithy-desc'},'Discard 1 card to gain 2✦ (once per turn) — click a hand card below'));
+      labInfo.appendChild(el('div',{class:'action-smithy-title'},t('lab.title')));
+      labInfo.appendChild(el('div',{class:'action-smithy-desc'},t('lab.desc')));
       labRow.appendChild(labInfo);
       wrap.appendChild(labRow);
       // Show hand cards as discard targets
@@ -958,8 +958,8 @@ function renderAction(){
   if(S.collected&&S.sub==='choose'&&!S.noBuild){
     const canBuild=S.builtCount<maxB;
     if(canBuild){
-      wrap.appendChild(el('div',{class:'sect-label'},`BUILD DISTRICT (${S.builtCount}/${maxB}) · 💰 ${me.gold}✦`));
-      if(!me.hand.length)wrap.appendChild(el('div',{class:'state-empty mb-sm'},'No cards in hand.'));
+      wrap.appendChild(el('div',{class:'sect-label'},t('build.label',{n:S.builtCount,m:maxB,gold:me.gold})));
+      if(!me.hand.length)wrap.appendChild(el('div',{class:'state-empty mb-sm'},t('build.no_cards')));
       else{
         const row=el('div',{class:'cards-wrap build-row'});
         me.hand.forEach(d=>{
@@ -979,10 +979,10 @@ function renderAction(){
         });
         wrap.appendChild(row);
         if(!me.hand.some(d=>{var c=buildCost(me,d);if(c<=me.gold&&canBuildDistrict(me,d))return true;if(d.id==='thieves_den'&&canBuildDistrict(me,d)&&c<=me.gold+(me.hand.length-1))return true;return false;}))
-          wrap.appendChild(el('div',{class:'state-empty mb-sm'},'Cannot afford to build.'));
+          wrap.appendChild(el('div',{class:'state-empty mb-sm'},t('build.cannot_afford')));
       }
     }else if(S.builtCount>0){
-      wrap.appendChild(el('div',{class:'build-done-msg'},'✅ District built this turn ('+S.builtCount+'/'+maxB+')'));
+      wrap.appendChild(el('div',{class:'build-done-msg'},t('build.done',{n:S.builtCount,m:maxB})));
     }
   }
   // Build confirm popup: shows card detail + build button
@@ -1002,31 +1002,31 @@ function renderAction(){
     box.appendChild(art);
     var info=el('div',{class:'card-detail-info'});
     info.appendChild(el('div',{class:'card-detail-cost'},cost+'✦'));
-    info.appendChild(el('div',{class:'card-detail-name'},d.name));
-    info.appendChild(el('div',{class:'card-detail-type'},CS[d.color].label));
-    if(d.special&&SDESC[d.special])info.appendChild(el('div',{class:'card-detail-desc'},SDESC[d.special]));
+    info.appendChild(el('div',{class:'card-detail-name'},dn(d)));
+    info.appendChild(el('div',{class:'card-detail-type'},clabel(d.color)));
+    if(d.special&&SDESC[d.special])info.appendChild(el('div',{class:'card-detail-desc'},sdesc(d.special)));
     // Thieves' Den: needs card payment UI if not enough gold
     if(canAfford&&isDen&&cost>me.gold){
       var deficit=cost-me.gold;
       var otherCards=me.hand.filter(function(c){return c.uid!==d.uid;});
       var selected={};
-      info.appendChild(el('div',{class:'den-pay-label'},'Pay '+cost+'✦ with '+me.gold+'✦ gold + discard cards (need '+deficit+' more):'));
+      info.appendChild(el('div',{class:'den-pay-label'},t('den.pay',{cost,gold:me.gold,deficit})));
       var cardList=el('div',{class:'den-card-list'});
       otherCards.forEach(function(c){
         var item=el('div',{class:'den-card-item'});
-        item.textContent=(DEMOJI[c.id]||'🏛')+' '+c.name+' ('+c.cost+'✦)';
+        item.textContent=(DEMOJI[c.id]||'🏛')+' '+dn(c)+' ('+c.cost+'✦)';
         item.onclick=function(){
           if(selected[c.uid]){delete selected[c.uid];item.classList.remove('den-card-selected');}
           else{selected[c.uid]=true;item.classList.add('den-card-selected');}
           var cnt=Object.keys(selected).length;
-          buildBtn.textContent='🏗 Build ('+me.gold+'✦ + '+cnt+' card'+(cnt!==1?'s':'')+')';
+          buildBtn.textContent=t('den.build_btn',{gold:me.gold,n:cnt});
           buildBtn.disabled=cnt<deficit;
           buildBtn.style.opacity=cnt<deficit?'0.5':'1';
         };
         cardList.appendChild(item);
       });
       info.appendChild(cardList);
-      var buildBtn=el('button',{class:'gbtn build-confirm-btn'},'🏗 Build ('+me.gold+'✦ + 0 cards)');
+      var buildBtn=el('button',{class:'gbtn build-confirm-btn'},t('den.build_btn_zero',{gold:me.gold}));
       buildBtn.disabled=true;
       buildBtn.style.cssText='margin-top:10px;width:100%;background:#4db87a;color:#fff;border:none;padding:10px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;opacity:0.5';
       buildBtn.onclick=function(){
@@ -1036,12 +1036,12 @@ function renderAction(){
       };
       info.appendChild(buildBtn);
     }else if(canAfford){
-      var buildBtn=el('button',{class:'gbtn build-confirm-btn'},'🏗 Build for '+cost+'✦');
+      var buildBtn=el('button',{class:'gbtn build-confirm-btn'},t('build.confirm_for',{cost}));
       buildBtn.style.cssText='margin-top:10px;width:100%;background:#4db87a;color:#fff;border:none;padding:10px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer';
       buildBtn.onclick=function(){overlay.remove();var _nr=humanBuild(S,d.uid);if(_nr){S=_nr;render();}};
       info.appendChild(buildBtn);
     }else{
-      var reason=!canBuildDistrict(me,d)?'Already built':'Not enough gold (need '+cost+'✦, have '+me.gold+'✦)';
+      var reason=!canBuildDistrict(me,d)?t('build.already_built'):t('build.not_enough_gold',{cost,gold:me.gold});
       info.appendChild(el('div',{class:'build-cant-reason'},reason));
     }
     var closeBtn=el('button',{class:'card-detail-close'},'✕');
@@ -1050,10 +1050,10 @@ function renderAction(){
     box.appendChild(info);overlay.appendChild(box);document.body.appendChild(overlay);
   }
   if(S.noBuild&&S.collected&&S.sub==='choose'){
-    wrap.appendChild(el('div',{class:'action-navigator-note'},'⚓ Navigator: income collected. No district may be built this turn.'));
+    wrap.appendChild(el('div',{class:'action-navigator-note'},t('navigator.note')));
   }
   if(S.collected&&S.sub==='choose'){
-    var endBtn=el('button',{class:'action-end-turn'},'End Turn →');
+    var endBtn=el('button',{class:'action-end-turn'},t('action.end_turn'));
     endBtn.onclick=function(){var _nr=humanEndTurn(S);if(_nr)S=_nr;render();};
     wrap.appendChild(endBtn);
   }
@@ -1072,10 +1072,10 @@ function renderSpecial(charId){
   // ── Assassin ──
   if(charId===1){
     if(S.sub==='assassin_pick'){
-      wrap.appendChild(el('div',{class:'action-assassin-prompt'},'Choose a character to assassinate:'));
+      wrap.appendChild(el('div',{class:'action-assassin-prompt'},t('assassin.choose')));
       const r=el('div',{class:'spec-row-sm'});
-      CHARS.filter(ch=>S.charPool.includes(ch.id)&&ch.rank!==1).forEach(ch=>r.appendChild(gbtn(`${ch.emoji} ${ch.name}`,'#cc7777',()=>{{const _nr=humanKill(S,ch.id);if(_nr)S=_nr;render();};})));
-      r.appendChild(gbtn('Cancel','#555',()=>{S={...S,sub:'choose'};render();}));
+      CHARS.filter(ch=>S.charPool.includes(ch.id)&&ch.rank!==1).forEach(ch=>r.appendChild(gbtn(`${ch.emoji} ${cn(ch.id)}`,'#cc7777',()=>{{const _nr=humanKill(S,ch.id);if(_nr)S=_nr;render();};})));
+      r.appendChild(gbtn(t('btn.cancel'),'#555',()=>{S={...S,sub:'choose'};render();}));
       wrap.appendChild(r);
     }else if(me.pendingKill){
       const pkChar=CHARS.find(ch=>S.charPool.includes(ch.id)&&ch.rank===me.pendingKill);
@@ -1083,13 +1083,13 @@ function renderSpecial(charId){
       const box=el('div',{class:'action-pending-box'});
       box.appendChild(el('span',{class:'action-pending-icon'},'☠️'));
       const info=el('div',{class:'action-pending-info'});
-      info.appendChild(el('div',{class:'action-pending-label-red'},'Will assassinate:'));
-      info.appendChild(el('div',{class:'action-pending-target'},`${c.emoji} ${c.name}`));
+      info.appendChild(el('div',{class:'action-pending-label-red'},t('assassin.will_kill')));
+      info.appendChild(el('div',{class:'action-pending-target'},`${c.emoji} ${cn(c.id)}`));
       box.appendChild(info);
-      box.appendChild(gbtn('Change','#886',()=>{S={...S,sub:'assassin_pick'};render();}));
+      box.appendChild(gbtn(t('btn.change'),'#886',()=>{S={...S,sub:'assassin_pick'};render();}));
       wrap.appendChild(box);
     }else{
-      wrap.appendChild(gbtn('🗡️ Assassinate','#cc7777',()=>{S={...S,sub:'assassin_pick'};render();}));
+      wrap.appendChild(gbtn(t('assassin.btn'),'#cc7777',()=>{S={...S,sub:'assassin_pick'};render();}));
     }
     return wrap;
   }
@@ -1097,10 +1097,10 @@ function renderSpecial(charId){
   // ── Thief ──
   if(charId===2){
     if(S.sub==='thief_pick'){
-      wrap.appendChild(el('div',{class:'action-thief-prompt'},'Steal from which character?'));
+      wrap.appendChild(el('div',{class:'action-thief-prompt'},t('thief.choose')));
       const r=el('div',{class:'spec-row-sm'});
-      CHARS.filter(ch=>S.charPool.includes(ch.id)&&ch.rank!==1&&ch.rank!==2).forEach(ch=>r.appendChild(gbtn(`${ch.emoji} ${ch.name}`,'#b0b0b0',()=>{{const _nr=humanSteal(S,ch.id);if(_nr)S=_nr;render();};})));
-      r.appendChild(gbtn('Cancel','#555',()=>{S={...S,sub:'choose'};render();}));
+      CHARS.filter(ch=>S.charPool.includes(ch.id)&&ch.rank!==1&&ch.rank!==2).forEach(ch=>r.appendChild(gbtn(`${ch.emoji} ${cn(ch.id)}`,'#b0b0b0',()=>{{const _nr=humanSteal(S,ch.id);if(_nr)S=_nr;render();};})));
+      r.appendChild(gbtn(t('btn.cancel'),'#555',()=>{S={...S,sub:'choose'};render();}));
       wrap.appendChild(r);
     }else if(me.stolenTarget){
       const stChar=CHARS.find(ch=>S.charPool.includes(ch.id)&&ch.rank===me.stolenTarget);
@@ -1108,15 +1108,15 @@ function renderSpecial(charId){
       const box=el('div',{class:'action-pending-box-thief'});
       box.appendChild(el('span',{class:'action-pending-icon'},'🕵️'));
       const info=el('div',{class:'action-pending-info'});
-      info.appendChild(el('div',{class:'action-pending-label-muted'},'Will steal from:'));
-      info.appendChild(el('div',{class:'action-pending-target'},`${c.emoji} ${c.name}`));
+      info.appendChild(el('div',{class:'action-pending-label-muted'},t('thief.will_steal')));
+      info.appendChild(el('div',{class:'action-pending-target'},`${c.emoji} ${cn(c.id)}`));
       box.appendChild(info);
-      box.appendChild(gbtn('Change','#886',()=>{
+      box.appendChild(gbtn(t('btn.change'),'#886',()=>{
         S={...S,sub:'thief_pick',players:S.players.map(p=>p.id===0?{...p,stolenTarget:null}:p)};render();
       }));
       wrap.appendChild(box);
     }else{
-      wrap.appendChild(gbtn('🦹 Declare Theft','#b0b0b0',()=>{S={...S,sub:'thief_pick'};render();}));
+      wrap.appendChild(gbtn(t('thief.btn'),'#b0b0b0',()=>{S={...S,sub:'thief_pick'};render();}));
     }
     return wrap;
   }
@@ -1124,11 +1124,11 @@ function renderSpecial(charId){
   // ── Magician ──
   if(charId===3){
     if(me.magicianUsed){
-      wrap.appendChild(el('div',{class:'state-info'},'🧙 Magician ability used this turn.'));
+      wrap.appendChild(el('div',{class:'state-info'},t('magician.used')));
     }else{
       const r=el('div',{class:'spec-row-actions'});
-      r.appendChild(gbtn('🔄 Swap Hand','#9b6fff',()=>{S={...S,sub:'mag_swap'};render();}));
-      r.appendChild(gbtn('🗑️ Discard & Redraw','#9b6fff',()=>{S={...S,sub:'mag_discard',selCards:[]};render();}));
+      r.appendChild(gbtn(t('magician.swap_btn'),'#9b6fff',()=>{S={...S,sub:'mag_swap'};render();}));
+      r.appendChild(gbtn(t('magician.discard_btn'),'#9b6fff',()=>{S={...S,sub:'mag_discard',selCards:[]};render();}));
       wrap.appendChild(r);
     }
     return wrap;
@@ -1137,60 +1137,60 @@ function renderSpecial(charId){
   // ── King ──
   if(charId===4){
     const yellows=me.city.filter(d=>d.color==='yellow').length;
-    const txt=yellows>0?`👑 Crown taken — you pick roles first next round. +${yellows}✦ from ${yellows} Noble district${yellows>1?'s':''} added.`:`👑 Crown taken — you pick roles first next round. Build Noble (yellow) districts to earn gold each round as King.`;
+    const txt=yellows>0?t('king.note_with_gold',{n:yellows}):t('king.note_no_gold');
     wrap.appendChild(el('div',{class:'action-king-note'},txt));return wrap;
   }
 
   // ── Patrician ──
   if(charId===12){
     const yellows=me.city.filter(d=>d.color==='yellow').length;
-    const txt=yellows>0?`🏅 Crown taken — you pick roles first next round. Drew ${yellows} card${yellows>1?'s':''} from Noble districts.`:`🏅 Crown taken — you pick roles first next round. Build Noble (yellow) districts to draw cards each round as Patrician.`;
+    const txt=yellows>0?t('patrician.note_with_cards',{n:yellows}):t('patrician.note_no_cards');
     wrap.appendChild(el('div',{class:'action-king-note'},txt));return wrap;
   }
 
   // ── Bishop ──
-  if(charId===5){wrap.appendChild(el('div',{class:'action-bishop-note'},`⛪ Protected from Warlord. +${me.city.filter(d=>d.color==='blue').length}✦ from Religious applied.`));return wrap;}
+  if(charId===5){wrap.appendChild(el('div',{class:'action-bishop-note'},t('bishop.note',{n:me.city.filter(d=>d.color==='blue').length})));return wrap;}
 
   // ── Abbot ──
-  if(charId===13){wrap.appendChild(el('div',{class:'action-bishop-note'},`🧎 +${me.city.filter(d=>d.color==='blue').length}✦ from Religious applied. Took 1✦ from richest opponent if any.`));return wrap;}
+  if(charId===13){wrap.appendChild(el('div',{class:'action-bishop-note'},t('abbot.note',{n:me.city.filter(d=>d.color==='blue').length})));return wrap;}
 
   // ── Merchant ──
-  if(charId===6){wrap.appendChild(el('div',{class:'action-bishop-note'},'💰 +1✦ Merchant bonus + Trade income applied.'));return wrap;}
+  if(charId===6){wrap.appendChild(el('div',{class:'action-bishop-note'},t('merchant.note')));return wrap;}
 
   // ── Architect ──
   if(charId===7){
-    wrap.appendChild(el('div',{class:'action-bishop-note'},'🏗️ +2 cards drawn. Build up to 3 districts this turn.'));
+    wrap.appendChild(el('div',{class:'action-bishop-note'},t('architect.note')));
     return wrap;
   }
 
   // ── Scholar ──
   if(charId===14){
-    wrap.appendChild(el('div',{class:'action-bishop-note'},'📖 Drew 7 cards, kept 1. Build up to 2 districts this turn.'));
+    wrap.appendChild(el('div',{class:'action-bishop-note'},t('scholar.note')));
     return wrap;
   }
 
   // ── Queen ──
   if(charId===9){
-    wrap.appendChild(el('div',{class:'action-bishop-note'},'🫅 Queen bonus applied at start of turn if seated beside the King.'));return wrap;
+    wrap.appendChild(el('div',{class:'action-bishop-note'},t('queen.note')));return wrap;
   }
 
   // ── Navigator ──
   if(charId===10){
-    wrap.appendChild(el('div',{class:'state-info',style:'color:var(--c-blue-txt)'},'⚓ Income collected above. No district may be built this turn.'));return wrap;
+    wrap.appendChild(el('div',{class:'state-info',style:'color:var(--c-blue-txt)'},t('navigator.note_short')));return wrap;
   }
 
   // ── Wizard ──
   if(charId===11&&S.sub==='choose'){
     if(me.wizardUsed){
-      wrap.appendChild(el('div',{class:'state-info'},'🔮 Wizard ability used this turn.'));
+      wrap.appendChild(el('div',{class:'state-info'},t('wizard.used')));
     }else if(!S.wizardTargetId){
       const others=S.players.filter(p=>p.id!==0&&p.hand.length>0);
       if(!others.length){
-        wrap.appendChild(el('div',{class:'state-info'},'No opponents have cards to take.'));
+        wrap.appendChild(el('div',{class:'state-info'},t('wizard.no_opponents')));
       }else{
-        wrap.appendChild(el('div',{class:'action-wiz-prompt'},'Look at a player\'s hand — choose who to target:'));
+        wrap.appendChild(el('div',{class:'action-wiz-prompt'},t('wizard.choose_target')));
         const r=el('div',{class:'spec-row-bare'});
-        others.forEach(p=>r.appendChild(gbtn(`${p.name} (${p.hand.length} cards)`,'#9b6fff',()=>{{const _nr=humanWizardTarget(S,p.id);if(_nr)S=_nr;render();}})));
+        others.forEach(p=>r.appendChild(gbtn(t('wizard.player_cards',{name:p.name,n:p.hand.length}),'#9b6fff',()=>{{const _nr=humanWizardTarget(S,p.id);if(_nr)S=_nr;render();}})));
         wrap.appendChild(r);
       }
     }
@@ -1200,16 +1200,16 @@ function renderSpecial(charId){
   // ── Seer ──
   if(charId===15){
     if(me.seerUsed){
-      wrap.appendChild(el('div',{class:'state-info'},'🔯 Seer ability used this turn.'));
+      wrap.appendChild(el('div',{class:'state-info'},t('seer.used')));
     }else{
       const opps=S.players.filter(p=>p.id!==0&&p.hand.length>0);
       if(!opps.length){
-        wrap.appendChild(el('div',{class:'state-info'},'No opponents have cards to take.'));
+        wrap.appendChild(el('div',{class:'state-info'},t('wizard.no_opponents')));
       }else{
-        wrap.appendChild(gbtn(`🔯 Take from All (${opps.length} opponent${opps.length>1?'s':''})`,
+        wrap.appendChild(gbtn(t('seer.btn',{n:opps.length}),
           '#9b6fff',()=>{{const _nr=humanSeer(S);if(_nr)S=_nr;render();};},'font-size:12px;padding:8px 14px;font-family:Cinzel,serif'));
         wrap.appendChild(el('div',{class:'action-seer-note'},
-          `Takes 1 random card from each of ${opps.length} opponent${opps.length>1?'s':''}.`));
+          t('seer.note',{n:opps.length})));
       }
     }
     return wrap;
@@ -1218,9 +1218,7 @@ function renderSpecial(charId){
   // ── Trader ──
   if(charId===16){
     const greens=me.city.filter(d=>d.color==='green').length;
-    const txt=greens>0
-      ?`🏦 Earned ${greens}✦ from ${greens} Trade district${greens>1?'s':''}. Build up to 2 districts this turn.`
-      :'🏦 Build Trade (green) districts to earn gold each round as Trader. Build up to 2 districts this turn.';
+    const txt=greens>0?t('trader.note_with_gold',{n:greens}):t('trader.note_no_gold');
     wrap.appendChild(el('div',{class:'action-green-note'},txt));
     return wrap;
   }
@@ -1228,26 +1226,26 @@ function renderSpecial(charId){
   // ── Warlord ──
   if(charId===8){
     if(S.sub==='warlord_pick'){
-      wrap.appendChild(el('div',{class:'action-warlord-prompt'},'Destroy which district?'));
+      wrap.appendChild(el('div',{class:'action-warlord-prompt'},t('warlord.choose')));
       const targets=[];
       S.players.forEach(p=>{if(p.id===me.id)return;if(p.char===5&&!p.dead)return;if(p.city.length>=8)return;
         const wall=p.city.some(w=>w.id==='great_wall');
         p.city.forEach(d=>{if(d.id==='keep')return;const c1=wall?d.cost:Math.max(0,d.cost-1);
           if(c1<=me.gold)targets.push({pid:p.id,pname:p.name,d,c1,wall});});});
       const r=el('div',{class:'spec-row-sm'});
-      if(!targets.length)r.appendChild(el('span',{class:'action-warlord-no-targets'},'No valid targets.'));
-      targets.forEach(t=>r.appendChild(gbtn(`${DEMOJI[t.d.id]||'🏛'} ${t.pname}: ${t.d.name} (${t.c1}✦${t.wall?' 🧱':''})`, '#d45a5a',()=>{{const _nr=humanWarlord(S,t.pid,t.d.uid);if(_nr)S=_nr;render();};})));
-      r.appendChild(gbtn('Cancel','#555',()=>{S={...S,sub:'choose'};render();}));
+      if(!targets.length)r.appendChild(el('span',{class:'action-warlord-no-targets'},t('warlord.no_targets')));
+      targets.forEach(tgt=>r.appendChild(gbtn(`${DEMOJI[tgt.d.id]||'🏛'} ${tgt.pname}: ${dn(tgt.d)} (${tgt.c1}✦${tgt.wall?' 🧱':''})`, '#d45a5a',()=>{{const _nr=humanWarlord(S,tgt.pid,tgt.d.uid);if(_nr)S=_nr;render();};})));
+      r.appendChild(gbtn(t('btn.cancel'),'#555',()=>{S={...S,sub:'choose'};render();}));
       wrap.appendChild(r);
     }else if(S.pendingDestroy){
       const pd=S.pendingDestroy;
       const box=el('div',{class:'action-pending-box'});
       box.appendChild(el('span',{class:'action-pending-icon'},'💥'));
       const info=el('div',{class:'action-pending-info'});
-      info.appendChild(el('div',{class:'action-pending-label-red'},'Destroyed:'));
-      info.appendChild(el('div',{class:'action-pending-target'},`${pd.tpName}'s ${pd.name} (−${pd.cost}✦)`));
+      info.appendChild(el('div',{class:'action-pending-label-red'},t('warlord.destroyed')));
+      info.appendChild(el('div',{class:'action-pending-target'},t('warlord.destroyed_detail',{pname:pd.tpName,dname:dn(pd.distObj||pd),cost:pd.cost})));
       box.appendChild(info);
-      box.appendChild(gbtn('Undo ↩','#886',()=>{
+      box.appendChild(gbtn(t('btn.undo'),'#886',()=>{
         const pd=S.pendingDestroy;
         S={...S,pendingDestroy:null,sub:'choose',players:S.players.map(p=>{
           if(p.id===0)return{...p,gold:p.gold+pd.cost};
@@ -1258,7 +1256,7 @@ function renderSpecial(charId){
       }));
       wrap.appendChild(box);
     }else{
-      wrap.appendChild(gbtn('⚔️ Destroy a District','#d45a5a',()=>{S={...S,sub:'warlord_pick'};render();}));
+      wrap.appendChild(gbtn(t('warlord.btn'),'#d45a5a',()=>{S={...S,sub:'warlord_pick'};render();}));
     }
     return wrap;
   }
@@ -1272,8 +1270,8 @@ function renderGameOver(){
   const maxScore=scores[0]?scores[0].score:1;
   const wrap=el('div',{class:'gameover-wrap'});
   const box=el('div',{class:'gameover-box'});
-  box.append(el('div',{class:'gameover-title'},'🏆 Game Over'),
-             el('div',{class:'gameover-subtitle'},`Round ${S.round} complete`));
+  box.append(el('div',{class:'gameover-title'},t('gameover.title')),
+             el('div',{class:'gameover-subtitle'},t('gameover.subtitle',{n:S.round})));
   // Winner portrait/avatar
   var winner=scores[0]?scores[0].p:null;
   if(winner){
@@ -1287,7 +1285,7 @@ function renderGameOver(){
     const info=el('div',{class:'gameover-row-info'});
     var avatar=typeof getAvatar==='function'?getAvatar(sc.p.id):'';
     info.append(el('div',{class:'gameover-name'},(avatar?avatar+' ':'')+sc.p.name),
-                el('div',{class:'gameover-districts'},`${sc.p.city.length} districts built`));
+                el('div',{class:'gameover-districts'},t('gameover.districts',{n:sc.p.city.length})));
     // Score bar
     var scorePct=maxScore>0?Math.round(sc.score/maxScore*100):0;
     var barWrap=el('div',{class:'gameover-score-bar'});
@@ -1299,12 +1297,12 @@ function renderGameOver(){
     if(sc.p.city.some(d=>d.color==='purple')){
       const purps=el('div',{class:'gameover-purps'});
       sc.p.city.filter(d=>d.color==='purple').forEach(d=>{
-        purps.appendChild(el('span',{class:'gameover-purp-badge'},`${DEMOJI[d.id]||'✨'} ${d.name}`));
+        purps.appendChild(el('span',{class:'gameover-purp-badge'},`${DEMOJI[d.id]||'✨'} ${dn(d)}`));
       });info.appendChild(purps);}
     row.append(el('span',{class:'gameover-medal'},medals[i]||`${i+1}`),info,
                el('span',{class:'gameover-score'},`${sc.score}✦`));
     box.appendChild(row);
   });
-  box.appendChild(gbtn('🎲 Play Again','#d4a843',()=>{S=runAIDraft(newGame());render();},'width:100%;margin-top:18px;padding:12px;font-family:Cinzel,serif;font-size:14px'));
+  box.appendChild(gbtn(t('gameover.play_again'),'#d4a843',()=>{S=runAIDraft(newGame());render();},'width:100%;margin-top:18px;padding:12px;font-family:Cinzel,serif;font-size:14px'));
   wrap.appendChild(box);return wrap;
 }
