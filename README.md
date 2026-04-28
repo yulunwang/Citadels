@@ -6,6 +6,8 @@
 
 Play solo against 2–6 AI opponents, or host a multiplayer room and share a 6-letter code with friends. No install, no account — pure browser.
 
+🌐 **Available in English and Simplified Chinese** — toggle the language at any time from the lobby or in-game.
+
 ---
 
 ## Characters
@@ -49,20 +51,20 @@ Each expansion character shares a rank with a base character and can replace it 
 | Expanded | Assassin, Thief, Wizard, Patrician, Abbot, Merchant, Scholar, Warlord, Queen |
 | Full Mix | Assassin, Thief, Seer, Patrician, Abbot, Trader, Navigator, Warlord, Queen |
 
-You can also customize the character pool per-rank in the lobby.
+You can also fully customize the character pool per-rank in the lobby.
 
 ---
 
 ## Districts
 
-72 district cards across 5 colors. Each color ties to a character's income ability:
+68 district cards across 5 colors. Each color ties to a character's income ability:
 
 | Color | Type | Examples |
 |---|---|---|
 | 🟡 Yellow | Noble | Manor, Castle, Palace |
-| 🔵 Blue | Religious | Temple, Church, Cathedral |
-| 🟢 Green | Trade | Tavern, Market, Harbor |
-| 🔴 Red | Military | Watchtower, Prison, Fortress |
+| 🔵 Blue | Religious | Temple, Church, Monastery, Cathedral |
+| 🟢 Green | Trade | Tavern, Market, Trading Post, Docks, Harbor, Town Hall |
+| 🔴 Red | Military | Watchtower, Prison, Battlefield, Fortress |
 | 🟣 Purple | Unique | Smithy, Library, Great Wall, School of Magic, … |
 
 Purple districts have special abilities:
@@ -72,6 +74,7 @@ Purple districts have special abilities:
 | 🔭 Observatory | 5 | Draw 3 cards for income, keep 1 (instead of 2/1) |
 | ⚒️ Smithy | 5 | Once per turn: pay 2✦ to draw 3 cards |
 | 📚 Library | 6 | Keep both cards when drawing for income |
+| ⚗️ Laboratory | 5 | Once per turn: discard 1 card to gain 2✦ |
 | ⚙️ Factory | 5 | Other purple districts cost 1✦ less to build |
 | 🪄 Wishing Well | 5 | +1 VP per other purple district at game end |
 | 🗺️ Map Room | 5 | +1 VP per card in hand at game end |
@@ -95,8 +98,8 @@ Purple districts have special abilities:
 
 Each round has two phases:
 
-1. **Draft** — starting with the Crown holder, each player secretly picks one character
-2. **Turns** — the Herald calls characters in rank order; each holder takes their turn:
+1. **Draft** — starting with the Crown holder, each player secretly picks one character from the available pool (some cards are set aside face-up or face-down per official rules)
+2. **Turns** — the Herald calls characters in rank order (1–9); each holder takes their turn:
    - Collect **2 gold** or **draw 2 cards, keep 1**
    - Use your character's special ability (optional)
    - Build one district from your hand (pay its gold cost)
@@ -116,15 +119,48 @@ Each round has two phases:
 | Basilica | +1 per odd-cost district |
 | Capitol | +3 if 3+ districts share a color |
 | Ivory Tower | +5 if it's your only purple district |
+| Secret Vault | +3 (hidden during the game) |
 
 ---
 
 ## Multiplayer
 
 - **Host** — creates a room, shares a 6-letter code, holds authoritative game state
-- **Join** — enter the room code and a display name to join as a peer
-- Peer-to-peer via PeerJS (WebRTC) — no server needed beyond the free signaling relay
-- If a peer disconnects, their slot reverts to AI
+- **Join** — enter the room code and pick a display name and emoji avatar to join as a peer
+- Peer-to-peer via **PeerJS (WebRTC)** — works over the internet, no LAN required
+- If a peer disconnects mid-game, their slot reverts to AI control
+
+---
+
+## Extension API
+
+Drop a new script after `lobby.js` in `index.html` and call `EXT.register({...})` to add:
+
+- **New characters** (ID ≥ 9) with custom AI, special UI, and start-of-turn hooks
+- **New districts** shuffled into the base deck
+- **Custom scoring** hooks called at game end
+
+See [`extensions/README.md`](extensions/README.md) for the full API.
+
+---
+
+## Tech
+
+Vanilla JS, no build step, no framework. Open `index.html` directly — or serve locally:
+
+```bash
+python -m http.server 8080
+```
+
+| File | Role |
+|---|---|
+| `js/data.js` | Characters, districts, deck factory |
+| `js/i18n.js` | EN / ZH translations, language toggle |
+| `js/engine.js` | All game logic and AI |
+| `js/ui.js` | DOM rendering |
+| `js/net.js` | PeerJS multiplayer |
+| `js/lobby.js` | Lobby screens |
+| `js/ext-api.js` | Extension registry |
 
 ---
 
