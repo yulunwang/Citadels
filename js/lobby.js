@@ -200,10 +200,7 @@ function renderLobby(opts){
   const app=document.getElementById('app');app.innerHTML='';
   // page is exactly 100vh and scrolls internally — inner wrapper provides flex-centering for short content
   const page=el('div',{class:'lobby-page'});
-  if(typeof IMG !== 'undefined') {
-    page.style.backgroundImage = 'url(' + IMG.bg.lobby + ')';
-    page.style.backgroundSize = 'cover';
-  }
+  page.style.background = 'radial-gradient(ellipse at 50% 45%, #fffdf7 0%, #f4f0e8 55%, #e8dfc8 100%)';
   const inner=el('div',{class:'lobby-inner'});
   const box=el('div',{class:'lobby-box'});
 
@@ -220,12 +217,41 @@ function renderLobby(opts){
   }
 
   if(LS.screen==='home'){
+    // ── Rejoin / Resume banner (shown when a valid session exists) ─────────────
+    var _savedSession=(typeof mpLoadSession==='function')?mpLoadSession():null;
+    if(_savedSession){
+      const rjCard=el('div',{class:'lobby-rejoin-card animate-in'});
+      const isHost=_savedSession.role==='host';
+      const rjIcon=el('div',{class:'lobby-rejoin-icon'},isHost?'🏠':'🚪');
+      const rjBody=el('div',{class:'lobby-rejoin-body'});
+      const rjTitle=el('div',{class:'lobby-rejoin-title'},
+        isHost?'Resume hosting room '+_savedSession.roomId:'Rejoin room '+_savedSession.roomId);
+      const rjDesc=el('div',{class:'lobby-rejoin-desc'},
+        isHost?'Your game is still in progress — reclaim the host seat and continue.'
+              :'You were disconnected — click to jump back into the game as '+(_savedSession.myName||'Guest')+'.');
+      const rjBtns=el('div',{class:'lobby-rejoin-btns'});
+      const rjBtn=gbtn(isHost?'↩ Resume Game':'↩ Rejoin Game','#5a9fd4',()=>{
+        const sess=_savedSession;
+        if(isHost){resumeHostGame(sess);}
+        else{rejoinRoom(sess.roomId,sess.myName,sess.mySlot);}
+      },'flex:1;padding:9px;font-family:Cinzel,serif;font-size:13px;text-align:center');
+      const dismissBtn=gbtn('✕','#555',()=>{
+        if(typeof mpClearSession==='function')mpClearSession();
+        _savedSession=null;renderLobby({screen:'home'});
+      },'padding:9px 13px;font-size:12px');
+      rjBtns.append(dismissBtn,rjBtn);
+      rjBody.append(rjTitle,rjDesc);
+      rjCard.append(rjIcon,rjBody);
+      rjCard.appendChild(rjBtns);
+      box.appendChild(rjCard);
+    }
+
     box.appendChild(el('div',{class:'lobby-section-title-sm'},t('lobby.how_to_play')));
     const grid=el('div',{class:'lobby-mode-grid'});
     [
       {icon:'🤖',title:t('lobby.mode.solo.title'),desc:t('lobby.mode.solo.desc'),fn:()=>{LS.screen='solo_config';renderLobby({});}},
-      {icon:'🏠',title:t('lobby.mode.host.title'),desc:t('lobby.mode.host.desc'),fn:()=>{LS.screen='host_config';renderLobby({});}},
-      {icon:'🚪',title:t('lobby.mode.join.title'),desc:t('lobby.mode.join.desc'),fn:()=>{LS.screen='join';renderLobby({});}},
+      {icon:'🏠',title:t('lobby.mode.host.title'),desc:t('lobby.mode.host.desc'),fn:()=>{if(typeof mpClearSession==='function')mpClearSession();LS.screen='host_config';renderLobby({});}},
+      {icon:'🚪',title:t('lobby.mode.join.title'),desc:t('lobby.mode.join.desc'),fn:()=>{if(typeof mpClearSession==='function')mpClearSession();LS.screen='join';renderLobby({});}},
     ].forEach(m=>{
       const c=el('div',{class:'lobby-mode-card animate-in'});
       c.appendChild(el('div',{class:'lobby-mode-icon'},m.icon));
@@ -251,6 +277,7 @@ function renderLobby(opts){
     const br=el('div',{class:'lobby-btn-row'});
     br.appendChild(gbtn(t('lobby.solo.back'),'#555',()=>{LS.screen='home';renderLobby({});}));
     br.appendChild(gbtn(t('lobby.solo.start'),'#4db87a',()=>{
+      if(typeof mpClearSession==='function')mpClearSession();
       PLAYER_AVATARS={};PLAYER_AVATARS[0]=LS.myAvatar||'🦊';
       NET.mode='solo';S=runAIDraft(newGame({numAI:LS.soloNumAI,charPool:LS.soloCharSet}));assignAvatars(S.players);render();
     },'flex:1;padding:10px;font-family:Cinzel,serif;font-size:13px;text-align:center'));
@@ -404,11 +431,12 @@ function renderLobby(opts){
     box.appendChild(sl2);
 
     const br=el('div',{class:'lobby-btn-row-sm'});
-    br.appendChild(gbtn(t('lobby.hosting.cancel'),'#555',()=>{try{NET.peer?.destroy();}catch(e){}NET.peer=null;NET.mode='solo';LS.screen='home';LS.hostSlots=null;renderLobby({});}));
+    br.appendChild(gbtn(t('lobby.hosting.cancel'),'#555',()=>{try{NET.peer?.destroy();}catch(e){}NET.peer=null;NET.mode='solo';if(typeof mpClearSession==='function')mpClearSession();LS.screen='home';LS.hostSlots=null;renderLobby({});}));
     br.appendChild(gbtn(t('lobby.hosting.start'),'#4db87a',()=>{
       NET.slots.forEach(sl=>{if(!sl.ai&&sl.slot!==0&&!sl.peerId){sl.ai=true;}});
-      S=buildGameFromConfig(NET.slots,LS.hostCharSet);S=runAIDraft(S);broadcastState();render();
-      if(NET.mode==='host')broadcastState();
+      S=buildGameFromConfig(NET.slots,LS.hostCharSet);S=runAIDraft(S);
+      // render() in host mode already calls broadcastState() internally — no need to call it twice.
+      render();
     },'flex:1;padding:11px;font-family:Cinzel,serif;font-size:14px;text-align:center'));
     box.appendChild(br);
     box.appendChild(el('div',{class:'lobby-hint-sm'},t('lobby.hosting.unfilled')));
@@ -461,7 +489,7 @@ function renderLobby(opts){
       });
       box.appendChild(slList);
     }
-    const lb=gbtn(t('lobby.connect.leave'),'#555',()=>{try{NET.peer?.destroy();}catch(e){}NET.peer=null;NET.mode='solo';LS.screen='home';renderLobby({});});
+    const lb=gbtn(t('lobby.connect.leave'),'#555',()=>{try{NET.peer?.destroy();}catch(e){}NET.peer=null;NET.mode='solo';if(typeof mpClearSession==='function')mpClearSession();LS.screen='home';renderLobby({});});
     lb.style.display='block';lb.style.margin='0 auto';box.appendChild(lb);
   }
 

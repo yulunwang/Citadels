@@ -7,6 +7,15 @@
 //   Peer  — receives state from host, renders it, sends action messages back.
 //           Never mutates state locally.
 //   Solo  — original single-player mode, no network at all.
+//
+// Session persistence:
+//   After a page refresh the game can be rejoined:
+//   • Peer — stores {role,roomId,myName,mySlot} in sessionStorage; on reload
+//            shows a "Rejoin" button and sends a 'rejoin' message so the host
+//            can restore the slot from AI back to the returning player.
+//   • Host — stores {role,roomId,slots,state} in sessionStorage after each
+//            broadcastState(); on reload recreates the Peer with the same room
+//            ID and serves the saved state to any peers that reconnect.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const NET={
@@ -17,6 +26,25 @@ const NET={
 // Wire the round-end hook in engine.js so the host broadcasts after round transitions
 _onRoundEnd=()=>{if(NET.mode==='host')broadcastState();};
 
+// ── SESSION PERSISTENCE ───────────────────────────────────────────────────────
+var _SESSION_KEY='citadels_mp_session';
+var _SESSION_TTL=30*60*1000; // 30 minutes
+
+function mpSaveSession(data){
+  try{sessionStorage.setItem(_SESSION_KEY,JSON.stringify({...data,ts:Date.now()}));}catch(e){}
+}
+function mpLoadSession(){
+  try{
+    var d=JSON.parse(sessionStorage.getItem(_SESSION_KEY)||'null');
+    if(!d||Date.now()-d.ts>_SESSION_TTL){mpClearSession();return null;}
+    return d;
+  }catch(e){return null;}
+}
+function mpClearSession(){
+  try{sessionStorage.removeItem(_SESSION_KEY);}catch(e){}
+}
+
+// ── PEERJS LOADER ─────────────────────────────────────────────────────────────
 function loadPeerJS(cb){
   if(NET.loaded){cb();return;}
   const s=document.createElement('script');
@@ -27,7 +55,30 @@ function loadPeerJS(cb){
 }
 function mkRoomId(){const c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';let id='';for(let i=0;i<6;i++)id+=c[0|Math.random()*c.length];return id;}
 
-// ── HOST ──────────────────────────────────────────────────────────────────────
+// ── HOST — shared connection handler ─────────────────────────────────────────
+// Called once per incoming connection (both fresh and resumed sessions).
+function _setupPeerConn(conn){
+  conn.on('open',()=>{
+    NET.conns[conn.peer]=conn;
+    conn.on('data',msg=>onPeerMsg(conn.peer,msg));
+    conn.on('error',e=>{
+      // Individual connection error (e.g. ICE failure). 'close' will fire next
+      // and handle slot cleanup; log here for debugging.
+      console.warn('[net] peer conn error:',e);
+    });
+    conn.on('close',()=>{
+      delete NET.conns[conn.peer];
+      const sl=NET.slots.find(s=>s.peerId===conn.peer);
+      if(sl){sl.peerId=null;sl.ai=true;sl.name=['Lady Mira','Duke Arven','Baron Selt'][sl.slot-1]||'AI '+(sl.slot);}
+      broadcastAll({type:'slots',slots:NET.slots});
+      if(!S)renderLobby({screen:'hosting'});
+    });
+    // Send current state (null if still in lobby) so the connecting peer can render immediately.
+    conn.send({type:'hello',slots:NET.slots,state:S||null});
+  });
+}
+
+// ── HOST — create fresh room ──────────────────────────────────────────────────
 function hostRoom(slots){
   loadPeerJS(()=>{
     NET.roomId=mkRoomId();NET.mode='host';NET.mySlot=0;NET.slots=slots;
@@ -36,28 +87,67 @@ function hostRoom(slots){
       S=null;
       renderLobby({screen:'hosting'});
     });
-    NET.peer.on('connection',conn=>{
-      conn.on('open',()=>{
-        NET.conns[conn.peer]=conn;
-        conn.on('data',msg=>onPeerMsg(conn.peer,msg));
-        conn.on('close',()=>{
-          delete NET.conns[conn.peer];
-          const sl=NET.slots.find(s=>s.peerId===conn.peer);
-          if(sl){sl.peerId=null;sl.ai=true;sl.name=['Lady Mira','Duke Arven','Baron Selt'][sl.slot-1]||'AI '+(sl.slot);}
-          broadcastAll({type:'slots',slots:NET.slots});
-          if(!S)renderLobby({screen:'hosting'});
-        });
-        conn.send({type:'hello',slots:NET.slots,state:null});
-      });
-    });
+    NET.peer.on('connection',conn=>_setupPeerConn(conn));
     NET.peer.on('error',e=>lobbyError(e.message));
   });
 }
+
+// ── HOST — resume after page refresh ─────────────────────────────────────────
+// Tries to reclaim the same Peer ID. The PeerJS server typically frees it within
+// a few seconds of the browser disconnecting, so we retry up to 3 times.
+function resumeHostGame(session){
+  mpClearSession();
+  loadPeerJS(()=>{
+    NET.mode='host';NET.roomId=session.roomId;NET.mySlot=0;
+    NET.slots=session.slots||[];
+    S=session.state||null;
+    _tryClaimHostId(0);
+  });
+}
+function _tryClaimHostId(attempt){
+  if(attempt>3){
+    S=null;
+    lobbyError('Could not resume room '+NET.roomId+'. The session may have expired — please start a new game.');
+    return;
+  }
+  const p=new Peer('citadels-host-'+NET.roomId,{debug:0});
+  p.on('open',()=>{
+    NET.peer=p;
+    if(S){render();}else{renderLobby({screen:'hosting'});}
+  });
+  p.on('connection',conn=>_setupPeerConn(conn));
+  p.on('error',e=>{
+    p.destroy();
+    if(e.type==='unavailable-id'){
+      // Old session still registered on signaling server; back off and retry.
+      const delay=3000*(attempt+1);
+      renderLobby({screen:'home',error:'Reconnecting to room '+NET.roomId+'… (attempt '+(attempt+1)+'/3)'});
+      setTimeout(()=>_tryClaimHostId(attempt+1),delay);
+    }else{
+      S=null;lobbyError(e.message);
+    }
+  });
+}
+
+// ── HOST — inbound messages from peers ───────────────────────────────────────
 function onPeerMsg(peerId,msg){
-  if(msg.type==='join'){
-    const open=NET.slots.find(sl=>sl.ai&&sl.slot!==0&&!sl.peerId);
-    if(open){open.name=msg.name||'Guest';open.ai=false;open.peerId=peerId;}
-    broadcastAll({type:'slots',slots:NET.slots});broadcastState();renderLobby({screen:'hosting'});return;
+  if(msg.type==='join'||msg.type==='rejoin'){
+    const isRejoin=msg.type==='rejoin';
+    let sl;
+    if(isRejoin){
+      // Rejoin: match by the original slot number the peer claims to own.
+      // Only allow if that slot is currently held by AI (i.e. we lost the connection).
+      sl=NET.slots.find(s=>s.slot===msg.slot&&s.ai&&!s.peerId&&s.slot!==0);
+    }else{
+      sl=NET.slots.find(s=>s.ai&&s.slot!==0&&!s.peerId);
+    }
+    if(sl){sl.name=msg.name||'Guest';sl.ai=false;sl.peerId=peerId;}
+    broadcastAll({type:'slots',slots:NET.slots});
+    broadcastState();
+    // Only re-render the hosting lobby if the game hasn't started yet.
+    // If S is set the host is in-game; calling renderLobby would overwrite the live UI.
+    if(!S)renderLobby({screen:'hosting'});
+    return;
   }
   if(msg.type==='action'){
     const sl=NET.slots.find(s=>s.peerId===peerId);if(!sl)return;
@@ -66,31 +156,53 @@ function onPeerMsg(peerId,msg){
     applyAction(sl.slot,msg.action,msg.data);return;
   }
 }
-function broadcastState(){if(NET.mode!=='host')return;const m={type:'state',slots:NET.slots,state:S};Object.values(NET.conns).forEach(c=>{try{c.send(m);}catch(e){}});}
+
+// ── HOST — broadcast helpers ──────────────────────────────────────────────────
+function broadcastState(){
+  if(NET.mode!=='host')return;
+  const m={type:'state',slots:NET.slots,state:S};
+  Object.values(NET.conns).forEach(c=>{try{c.send(m);}catch(e){}});
+  // Persist host session so the host can resume after an accidental refresh.
+  if(S)mpSaveSession({role:'host',roomId:NET.roomId,slots:NET.slots,state:S});
+}
 function broadcastAll(m){Object.values(NET.conns).forEach(c=>{try{c.send(m);}catch(e){}});}
 
 // ── PEER ──────────────────────────────────────────────────────────────────────
+// joinRoom — fresh join.  rejoinRoom — recover from a page refresh.
 function joinRoom(roomId,myName){
+  _doJoin(roomId.toUpperCase().trim(),myName,null);
+}
+function rejoinRoom(roomId,myName,mySlot){
+  mpClearSession();
+  _doJoin(roomId.toUpperCase().trim(),myName,mySlot);
+}
+function _doJoin(roomId,myName,rejoinSlot){
   loadPeerJS(()=>{
-    NET.mode='peer';NET.roomId=roomId.toUpperCase().trim();
+    NET.mode='peer';NET.roomId=roomId;
     const pid='citadels-p-'+Date.now().toString(36);
     NET.peer=new Peer(pid,{debug:0});
     NET.peer.on('open',()=>{
       const conn=NET.peer.connect('citadels-host-'+NET.roomId,{reliable:true});
       NET.hostConn=conn;
-      conn.on('open',()=>conn.send({type:'join',name:myName}));
-      conn.on('data',msg=>onHostMsg(msg));
+      conn.on('open',()=>{
+        const msg=rejoinSlot!=null
+          ?{type:'rejoin',name:myName,slot:rejoinSlot}
+          :{type:'join',name:myName};
+        conn.send(msg);
+      });
+      conn.on('data',msg=>onHostMsg(msg,myName));
       conn.on('error',e=>lobbyError('Connection error: '+e.message));
       conn.on('close',()=>lobbyError('Disconnected from host.'));
     });
     NET.peer.on('error',e=>{
-      if(e.type==='peer-unavailable')lobbyError('Room "'+NET.roomId+'" not found. Check the code.');
+      if(e.type==='peer-unavailable')lobbyError('Room "'+NET.roomId+'" not found. Check the code and ensure the host is still online.');
       else lobbyError(e.message);
     });
     renderLobby({screen:'connecting'});
   });
 }
-function onHostMsg(msg){
+
+function onHostMsg(msg,myName){
   if(msg.type==='hello'||msg.type==='state'){
     if(msg.slots)NET.slots=msg.slots;
     const me=NET.slots.find(sl=>NET.peer&&sl.peerId===NET.peer.id);
@@ -98,6 +210,9 @@ function onHostMsg(msg){
     if(msg.state){
       if(!S)_patchActionsForPeer();
       S=msg.state;render();
+      // Persist peer session so we can rejoin after an accidental refresh.
+      const nameInSlot=(NET.slots.find(sl=>sl.slot===NET.mySlot)||{}).name||myName||'Guest';
+      mpSaveSession({role:'peer',roomId:NET.roomId,myName:nameInSlot,mySlot:NET.mySlot});
     }
     else renderLobby({screen:'waiting'});
     return;
@@ -136,6 +251,7 @@ function applyAction(pid,action,data){
   else if(action==='keepCard')out=humanKeepCard(ns,data.uid);
   else if(action==='build')out=humanBuild(ns,data.uid);
   else if(action==='useSmithy')out=humanUseSmithy(ns);
+  else if(action==='useLab')out=humanUseLab(ns,data.uid);
   else if(action==='endTurn')out=humanEndTurn(ns);
   else if(action==='kill')out=humanKill(ns,data.tc);
   else if(action==='steal')out=humanSteal(ns,data.tc);
@@ -168,7 +284,7 @@ function buildGameFromConfig(slots,charPool){
   charPool=charPool||[1,2,3,4,5,6,7,8];
   const deck=shuffle(mkDeck());const n=slots.length;
   const crown=slots[0].slot;
-  const players=slots.map(sl=>({id:sl.slot,name:sl.name,ai:sl.ai,gold:2,hand:[],city:[],char:null,dead:false,stolenTarget:null,smithyUsed:false,seerUsed:false,magicianUsed:false,wizardUsed:false,pendingKill:null}));
+  const players=slots.map(sl=>({id:sl.slot,name:sl.name,ai:sl.ai,gold:2,hand:[],city:[],char:null,dead:false,stolenTarget:null,smithyUsed:false,labUsed:false,seerUsed:false,magicianUsed:false,wizardUsed:false,pendingKill:null}));
   players.sort((a,b)=>a.id-b.id);
   const d=[...deck];players.forEach(p=>{p.hand=d.splice(0,4);});
   const draftOrder=slots.map(sl=>sl.slot);
@@ -205,6 +321,7 @@ function _patchActionsForPeer(){
   humanKeepCard=(_s,uid)=>{peerSend('keepCard',{uid});};
   humanBuild=(_s,uid)=>{peerSend('build',{uid});};
   humanUseSmithy=()=>{peerSend('useSmithy',{});};
+  humanUseLab=(_s,uid)=>{peerSend('useLab',{uid});};
   humanEndTurn=()=>{peerSend('endTurn',{});};
   humanKill=(_s,tc)=>{peerSend('kill',{tc});};
   humanSteal=(_s,tc)=>{peerSend('steal',{tc});};
