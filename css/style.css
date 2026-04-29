@@ -322,7 +322,6 @@ body{
 
 /* ── GAME WRAPPER ── */
 .game-wrap{display:flex;flex-direction:column;height:100vh;height:100dvh;overflow:hidden;position:relative}
-.game-wrap::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at center,transparent 55%,rgba(44,36,24,0.07) 100%);pointer-events:none;z-index:0}
 /* During draft, hide bottom hand/city — player only needs to pick a character */
 .game-wrap.phase-draft #bottom{display:none}
 .game-wrap.phase-draft #main{max-height:none;flex:1 1 auto}
