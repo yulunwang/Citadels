@@ -200,10 +200,7 @@ function renderLobby(opts){
   const app=document.getElementById('app');app.innerHTML='';
   // page is exactly 100vh and scrolls internally — inner wrapper provides flex-centering for short content
   const page=el('div',{class:'lobby-page'});
-  if(typeof IMG !== 'undefined') {
-    page.style.backgroundImage = 'url(' + IMG.bg.lobby + ')';
-    page.style.backgroundSize = 'cover';
-  }
+  page.style.background = 'radial-gradient(ellipse at 50% 45%, #fffdf7 0%, #f4f0e8 55%, #e8dfc8 100%)';
   const inner=el('div',{class:'lobby-inner'});
   const box=el('div',{class:'lobby-box'});
 
