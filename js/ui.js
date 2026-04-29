@@ -133,8 +133,7 @@ function render(){
   const isMobile=window.innerWidth<=768;
   const wrap=el('div',{class:`game-wrap phase-${S.phase}${isMobile?' mobile':''}`});
   if(typeof IMG !== 'undefined') {
-    wrap.style.backgroundImage = 'url(' + IMG.bg.game + ')';
-    wrap.style.backgroundSize = 'cover';
+    wrap.style.background = 'linear-gradient(150deg, #faf7f0 0%, #ece5d8 100%)';
   }
 
   // ── TOP BAR ──────────────────────────────────────────────────────────────────
@@ -668,7 +667,7 @@ function renderPlayerBar(){
       if(!tip){tip=document.createElement('div');tip.id='draft-pip-tip';tip.className='draft-pip-tip';document.body.appendChild(tip);}
       var label=pid===0?'You':p.name;
       var charInfo='';
-      if(S.phase!=='draft'&&p.char&&!isActive){var co=charById(p.char);if(co)charInfo='<div class="dpt-char" style="color:'+co.clr+'">'+co.emoji+' '+cn(co.id)+'</div>';}
+      if(S.phase!=='draft'&&p.char&&!isActive){var co=charById(p.char);if(co&&charRank(p.char)<S.callIdx)charInfo='<div class="dpt-char" style="color:'+co.clr+'">'+co.emoji+' '+cn(co.id)+'</div>';}
       var extra='';
       if(p.dead)extra='<div class="dpt-status dpt-dead">💀 '+t('state.killed')+'</div>';
       else if(statusText)extra='<div class="dpt-status dpt-'+state+'">'+statusText+'</div>';
