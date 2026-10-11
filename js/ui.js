@@ -3,12 +3,12 @@
 
 import { CHAR, HUE, DIST, COLORS, SEAT_HUES } from './data.js';
 import {
-  rankOf, has, buildCost, canPlace, destroyCost, shielded, targetRanks, countsTowardLimit, score,
+  rankOf, has, buildCost, canPlace, destroyCost, shielded, targetRanks, countsTowardLimit, score, colorCount, buildLimit,
 } from './engine.js';
 import { t, cname, cabil, dname, ddesc, RULES, getLang } from './i18n.js';
 import { svg, ROMAN } from './icons.js';
 import { sfx } from './sfx.js';
-import { prefs, alertTurn } from './settings.js';
+import { prefs, alertTurn, vibrate } from './settings.js';
 
 const $ = (sel, el = document) => el.querySelector(sel);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -90,15 +90,49 @@ export function createUI(ctx) {
       ${card.color === 'purple' ? '<span class="card-gem">✦</span>' : ''}<span class="card-sym">${svg(COLOR_SYM[card.color])}</span>
       <span class="card-name${/^[^\u3040-\u9fff\uac00-\ud7af]{9,}$/.test(dname(card)) ? ' long' : ''}">${esc(dname(card))}</span></button>`;
   }
-  function charHTML(id, { cls = '', attrs = '', sub = '' } = {}) {
+  function charHTML(id, { cls = '', attrs = '', sub = '', you = null } = {}) {
     const c = CHAR[id];
     return `<button class="ccard ${cls}" style="--cc:${c.color}" data-char="${id}" ${attrs}>
       <span class="cc-rank">${ROMAN[c.rank]}</span>
       <span class="cc-emb">${svg(c.key, 'emb')}</span>
-      <span class="cc-name">${esc(cname(id))}</span>
-      <span class="cc-ab">${esc(sub || cabil(id))}</span></button>`;
+      <span class="cc-txt"><span class="cc-name">${esc(cname(id))}</span>
+      <span class="cc-ab">${esc(sub || cabil(id))}</span>
+      ${you?.length ? `<span class="cc-you">${you.map(esc).join(' · ')}</span>` : ''}</span></button>`;
   }
   const chip = (id, extra = '') => `<span class="chip" style="--cc:${CHAR[id].color}" data-char="${id}" ${extra}>${svg(CHAR[id].key)}<b>${ROMAN[CHAR[id].rank]}</b></span>`;
+  const namedChip = id => `<span class="chip named" style="--cc:${CHAR[id].color}" data-char="${id}">${svg(CHAR[id].key)}<b>${ROMAN[CHAR[id].rank]}</b>${esc(cname(id))}</span>`;
+
+  // What a character would mean for me right now — turns the rules text into numbers.
+  function forYou(id, v = L.view) {
+    const me = v.players[v.me], c = CHAR[id], rivals = v.players.filter(p => p.id !== v.me);
+    const top = f => rivals.reduce((b, p) => (f(p) > f(b) ? p : b));
+    const out = [];
+    if (c.income) out.push(t('fy.gold', { n: colorCount(me, c.income) + (c.key === 'merchant' ? 1 : 0) }));
+    if (c.crown) out.push(t('fy.crown'));
+    switch (c.key) {
+      case 'patrician': out.push(t('fy.cards', { n: colorCount(me, 'yellow') })); break;
+      case 'architect': out.push(t('fy.cards', { n: 2 })); break;
+      case 'navigator': out.push(`${t('fy.gold', { n: 4 })} / ${t('fy.cards', { n: 4 })}`); break;
+      case 'queen': out.push(t('fy.queen')); break;
+      case 'bishop': if (me.city.length) out.push(t('fy.shield', { n: me.city.length })); break;
+      case 'assassin': { const l = top(p => shownScore(v, p)); out.push(t('fy.leader', { name: P(l.id).name, n: shownScore(v, l) })); break; }
+      case 'thief': { const r = top(p => p.gold); out.push(t('fy.richest', { name: P(r.id).name, n: r.gold })); break; }
+      case 'magician': out.push(t('fy.hands', { a: me.hand.length, b: top(p => p.handCount).handCount })); break;
+      case 'wizard': { const h = top(p => p.handCount); out.push(t('fy.peek', { name: P(h.id).name, n: h.handCount })); break; }
+      case 'warlord': {
+        const costs = rivals.filter(p => p.city.length < v.cfg.goal).flatMap(p => p.city.filter(d => d.id !== 'keep').map(d => destroyCost(p, d)));
+        if (costs.length) out.push(t('fy.target', { n: Math.min(...costs) }));
+        break;
+      }
+    }
+    const lim = buildLimit(id);
+    out.push(lim ? t('fy.build', { n: lim }) : t('fy.noBuild'));
+    return out;
+  }
+  // My resources at a glance (draft sheet): gold, hand, city and how many districts of each colour.
+  const meStrip = (v, me) => `<div class="me-strip"><span class="st gold">${svg('gold')}<b>${me.gold}</b></span>
+    <span class="st">${svg('card')}<b>${me.hand.length}</b></span><span class="st">${svg('build')}<b>${me.city.length}/${v.cfg.goal}</b></span>
+    <span class="cdots">${COLORS.map(c => `<span class="cdot" style="--k:${HUE[c]}" title="${t('col.' + c)}"><i></i>${me.city.filter(d => d.color === c).length}</span>`).join('')}</span></div>`;
   const rankChar = r => L.view.cfg.chars.find(c => rankOf(c) === r);
 
   // ── event text (log + toasts) ──
@@ -193,7 +227,8 @@ export function createUI(ctx) {
       html = `<div class="bn ${e.pid === null ? 'none' : ''} ${e.killed ? 'slain' : ''}" style="--cc:${c.color}">
         <div class="bn-emb">${svg(c.key, 'emb')}</div>
         <div class="bn-txt"><div class="bn-rank">${ROMAN[c.rank]}</div><div class="bn-name">${esc(cname(e.charId))}</div>
-        <div class="bn-sub">${e.pid !== null && !e.killed ? avatar(P(e.pid)) : ''}${sub}</div></div></div>`;
+        <div class="bn-sub">${e.pid !== null && !e.killed ? avatar(P(e.pid)) : ''}${sub}</div>
+        <div class="bn-ab">${esc(cabil(e.charId))}</div></div></div>`;
     }
     els.banner.innerHTML = html;
     els.banner.classList.remove('show');
@@ -225,8 +260,13 @@ export function createUI(ctx) {
       case 'destroy': sfx('destroy'); floater(e.pid, 'coins', `−${e.cost}`, 'loss'); floater(e.target, 'plot', `−${e.card.cost}★`, 'loss'); toast(txt, 'danger'); return 1000;
       case 'robbed': sfx('coin', 4); floater(e.from, 'coins', `−${e.n}`, 'loss'); floater(e.to, 'coins', `+${e.n}`, 'gold'); toast(txt, 'danger'); return 900;
       case 'tithe': floater(e.from, 'coins', '−1', 'loss'); floater(e.to, 'coins', '+1', 'gold'); sfx('coin', 1); toast(txt); return 600;
-      case 'kill': sfx('kill'); toast(txt, 'danger'); return 700;
-      case 'rob': toast(txt); return 600;
+      case 'kill': case 'rob': {
+        const mineHit = e.pid !== view.me && view.players[view.me]?.chars.some(c => rankOf(c) === e.rank);
+        if (e.k === 'kill') sfx('kill');
+        if (mineHit) { toast(`<b>${t(e.k === 'kill' ? 'me.killed' : 'me.robbed', { char: cname(rankChar(e.rank)) })}</b>`, 'danger', 6000); vibrate(200); }
+        else toast(txt, e.k === 'kill' ? 'danger' : '');
+        return mineHit ? 1400 : e.k === 'kill' ? 700 : 600;
+      }
       case 'crown': sfx('crown'); toast(txt, 'gold'); return 700;
       case 'complete': sfx('win'); banner(e); toast(`<b>${txt}</b>`, 'gold'); return 2000;
       case 'swap': case 'wizTake': case 'graveyard': case 'seer': case 'peek': case 'seerGive': case 'redraw': sfx('card', 2); toast(txt); return 700;
@@ -245,9 +285,9 @@ export function createUI(ctx) {
     const draftMine = view.phase === 'draft' && view.draft.order[view.draft.idx] === view.me;
     // a new turn (incl. my second character straight after my first) closes the last turn's tools
     const turnKey = myTurn ? view.round + ':' + T.charId : null, wasWar = L.sheet === 'war';
-    if (turnKey !== L.turnKey) { L.turnKey = turnKey; L.sel = null; L.endArmed = false; if (TURN_SHEETS.includes(L.sheet)) L.sheet = null; if (turnKey) alertTurn(); }
+    if (turnKey !== L.turnKey) { L.turnKey = turnKey; L.sel = null; L.endArmed = false; L.targetSel = null; L.warSel = null; if (TURN_SHEETS.includes(L.sheet)) L.sheet = null; if (turnKey) alertTurn(); }
     const draftKey = draftMine ? view.round + ':' + view.draft.idx : null;
-    if (draftKey !== L.draftKey) { L.draftKey = draftKey; if (draftKey) alertTurn(); }
+    if (draftKey !== L.draftKey) { L.draftKey = draftKey; L.draftSel = null; if (draftKey) alertTurn(); }
     if (myTurn && ABILITY_ICON[L.sheet] && L.sheet !== abilityKey(view)) L.sheet = null; // ability already spent
     if (wasWar && L.sheet !== 'war') ctx.scene.highlight([]);
     if (prevMe !== view.me) { L.labelEls.forEach(el => el.remove()); L.labelEls.clear(); }
@@ -424,10 +464,16 @@ export function createUI(ctx) {
     if (view.phase === 'over') s = t('ui.winner', { name: pname(view.winner) });
     else if (view.interrupt && view.interrupt.pid !== view.me) s = t('ui.waitingGrave', { name: pname(view.interrupt.pid) });
     else if (myTurn) {
-      const T = view.turn;
-      const left = Math.max(0, T.max - T.built);
-      s = `<b style="color:${CHAR[T.charId].color}">${t('ui.yourTurn', { char: cname(T.charId) })}</b> · ` +
-        (!T.income ? t('ui.chooseIncome') : T.max === 0 ? t('ui.noBuild') : `${t('ui.mainHint')} <span class="muted">${t('ui.buildsLeft', { n: left })}</span>`);
+      const T = view.turn, active = !!ACTIVE[CHAR[T.charId].key];
+      const steps = [
+        [t('tg.income'), T.income ? 'done' : 'now'],
+        [T.max === 0 ? t('ui.noBuild') : t('tg.build', { a: T.built, b: T.max }), !T.income || T.max === 0 ? '' : T.built >= T.max ? 'done' : 'now'],
+        active && [t('ui.ability'), T.used.ability ? 'done' : 'opt'],
+        [t('ui.endTurn'), T.income ? 'opt' : ''],
+      ].filter(Boolean);
+      s = `<div class="tg-head"><b style="color:${CHAR[T.charId].color}" data-char="${T.charId}">${t('ui.yourTurn', { char: cname(T.charId) })}</b>
+        <span class="tg-steps">${steps.map(([l, st]) => `<span class="tg ${st}">${st === 'done' ? '✓ ' : ''}${l}</span>`).join('')}</span></div>
+        <div class="tg-ab">${esc(cabil(T.charId))}</div>`;
     } else if (draftMine) s = `<b>${t(view.draft.mustDiscard ? 'ui.discardTitle' : 'ui.pickChar')}</b>`;
     else if (view.phase === 'draft') s = t(view.draft.mustDiscard ? 'ui.waitingDiscard' : 'ui.waitingDraft', { name: pname(view.draft.order[view.draft.idx]) });
     else if (view.turn) s = t('ui.waitingFor', { name: pname(view.turn.pid) });
@@ -462,6 +508,9 @@ export function createUI(ctx) {
     L.hint = { a, seq: L.view.evSeq };
     toast(t('ui.hintSays', { what: `<b>${esc(describe(a, L.view))}</b>` }), 'gold');
     if (a.t === 'build') L.sel = a.uid;
+    if (a.t === 'pick' || a.t === 'discard') L.draftSel = a.charId; // preselect: one tap on the button confirms
+    if (a.t === 'kill' || a.t === 'rob') L.targetSel = a.rank;
+    if (a.t === 'destroy') L.warSel = a.uid;
     render(L.view);
   }
   function markHint() {
@@ -527,15 +576,23 @@ export function createUI(ctx) {
     if (s === 'draft' || s === 'discard') {
       const discarding = s === 'discard';
       const opts = [...(v.draft.options || [])].sort((a, b) => rankOf(a) - rankOf(b));
-      const second = me.chars.length > 0;
+      if (!opts.includes(L.draftSel)) L.draftSel = null;
+      const second = me.chars.length > 0, after = v.draft.order.length - v.draft.idx - 1, sel = L.draftSel;
+      const go = discarding ? 'discard' : 'pick';
       html = sheetFrame(t(discarding ? 'ui.discardTitle' : second ? 'ui.pickSecond' : 'ui.pickChar'),
-        `${orderStrip(v)}
-        <div class="ccards ${discarding ? 'discarding' : ''}">${opts.map(id => charHTML(id, { attrs: `data-a="${discarding ? 'discard' : 'pick'}"`, cls: !discarding && !v.draft.avail.includes(id) ? 'hiddenpick' : '' })).join('')}</div>
-        <div class="aside">${v.draft.faceUp.length ? `<span class="muted">${t('ui.faceUp')}</span>${v.draft.faceUp.map(id => chip(id)).join('')}` : ''}
+        `<div class="draft-top">${orderStrip(v)}<span class="muted">${after ? t('dr.after', { n: after }) : t('dr.last')}</span></div>
+        ${meStrip(v, me)}
+        <div class="ccards draft ${discarding ? 'discarding' : ''} ${opts.length > 5 ? 'many' : ''}">${opts.map(id => charHTML(id, {
+          attrs: `data-a="${go}" aria-pressed="${sel === id}"`,
+          cls: [sel === id ? 'sel' : '', !discarding && !v.draft.avail.includes(id) ? 'hiddenpick' : ''].join(' '),
+          you: discarding ? null : forYou(id),
+        })).join('')}</div>
+        <div class="aside">${v.draft.faceUp.length ? `<span class="muted">${t('ui.faceUp')}</span>${v.draft.faceUp.map(namedChip).join('')}` : ''}
         ${v.draft.faceDown.length ? `<span class="chip hid">?</span><span class="muted">${t('ui.faceDown', { n: v.draft.faceDown.length })}</span>` : ''}
-        ${second ? `<span class="muted">· ${me.chars.map(c => chip(c)).join('')}</span>` : ''}</div>
+        ${second ? `<span class="muted">· ${t('ui.you')}</span>${me.chars.map(namedChip).join('')}` : ''}</div>
         ${discarding ? `<p class="note">${t('ui.discardHint')}</p>` : opts.length > v.draft.avail.length ? `<p class="note">${t('ui.lastPickNote')}</p>` : ''}`,
-        { closable: false, foot: hintFoot });
+        { closable: false, foot: `<div class="sh-foot"><button class="btn small ghost hint-btn" data-a="hint">${svg('help')}<span>${t('ui.hint')}</span></button>
+          <button class="btn primary" data-a="${go}Go" ${sel ? '' : 'disabled'}>${sel ? t(discarding ? 'dr.discardGo' : 'dr.choose', { char: cname(sel) }) : t('dr.tapCard')}</button></div>` });
       wide = true;
     } else if (s === 'grave' && v.interrupt) {
       const c = v.interrupt.card;
@@ -550,8 +607,13 @@ export function createUI(ctx) {
       wide = true;
     } else if (s === 'kill' || s === 'rob') {
       const ranks = targetRanks(v, s === 'kill' ? [1] : [1, 2, v.killed]).filter(r => !myRanks.includes(r));
+      if (!ranks.includes(L.targetSel)) L.targetSel = null;
+      const sel = L.targetSel, ctxLine = forYou(s === 'kill' ? 1 : 2)[0];
       html = sheetFrame(t(s === 'kill' ? 'ui.killTitle' : 'ui.robTitle'),
-        `<div class="ccards compact">${ranks.map(r => charHTML(rankChar(r), { attrs: `data-a="${s}" data-v="${r}"` })).join('')}</div>`, { foot: hintFoot });
+        `<p class="ctx-line">${esc(ctxLine)}</p>
+        <div class="ccards compact">${ranks.map(r => charHTML(rankChar(r), { attrs: `data-a="${s}" data-v="${r}" aria-pressed="${sel === r}"`, cls: sel === r ? 'sel' : '' })).join('')}</div>`,
+        { foot: `<div class="sh-foot"><button class="btn small ghost hint-btn" data-a="hint">${svg('help')}<span>${t('ui.hint')}</span></button>
+          <button class="btn primary" data-a="${s}Go" ${sel ? '' : 'disabled'}>${sel ? t(s + '.go', { char: cname(rankChar(sel)) }) : t('dr.tapCard')}</button></div>` });
       wide = true;
     } else if (s === 'mag') {
       const opps = v.players.filter(p => p.id !== v.me);
@@ -562,13 +624,23 @@ export function createUI(ctx) {
         <div class="cards-pick">${sortHand(me.hand).map(c => cardHTML(c, { cls: L.multi.has(c.uid) ? 'picked' : '', attrs: 'data-a="multi"' })).join('')}</div>`,
         { foot: `<div class="sh-foot"><button class="btn small ghost hint-btn" data-a="hint">${svg('help')}<span>${t('ui.hint')}</span></button><button class="btn primary" data-a="redraw" ${L.multi.size && v.deckCount ? '' : 'disabled'}>${t('ui.confirm')} · ${L.multi.size}</button></div>` });
     } else if (s === 'war') {
-      const rows = warTargets(v);
-      const by = v.players.map(o => ({ o, list: rows.filter(r => r.o.id === o.id) })).filter(g => g.list.length);
-      html = sheetFrame(t('ui.warTitle'), `<p class="note">${t('ui.warHint')}</p>` + by.map(({ o, list }) => `
-        <div class="wgroup"><div class="wg-head" style="--seat:${seatHue(o.id)}">${avatar(o)}<b>${o.id === v.me ? t('ui.you') : esc(o.name)}</b>
+      // rivals by score (who to hit), my own city last; every blocked card says why
+      const rows = warTargets(v), goal = v.cfg.goal;
+      if (!rows.some(x => x.ok && x.card.uid === L.warSel)) L.warSel = null;
+      const order = [...v.players].sort((a, b) => (a.id === v.me) - (b.id === v.me) || shownScore(v, b) - shownScore(v, a));
+      const by = order.map(o => ({ o, list: rows.filter(x => x.o.id === o.id) })).filter(g => g.list.length);
+      const pick = rows.find(x => x.card.uid === L.warSel);
+      const why = x => x.ok ? '' : x.sh ? t('ui.shielded.' + x.sh) : x.card.id === 'keep' ? t('war.keep') : t('ui.tooPoor');
+      html = sheetFrame(t('ui.warTitle'), `<p class="ctx-line">${svg('gold')}${t('war.have', { n: me.gold })} · ${t('ui.warHint')}</p>` + by.map(({ o, list }) => `
+        <div class="wgroup ${o.id === v.me ? 'own' : ''}"><div class="wg-head" style="--seat:${seatHue(o.id)}">${avatar(o)}<b>${o.id === v.me ? t('ui.you') : esc(o.name)}</b>
+          <span class="muted">★${shownScore(v, o)}${o.city.length < goal ? ' · ' + t('war.toGo', { n: goal - o.city.length }) : ''}</span>
           ${list[0].sh ? `<span class="tag">${t('ui.shielded.' + list[0].sh)}</span>` : ''}</div>
-        <div class="cards-pick">${list.map(r => cardHTML(r.card, { cls: r.ok ? 'target' : 'blocked', attrs: r.ok ? `data-a="destroy" data-t="${o.id}"` : '', costShown: r.card.cost })
-          .replace('</button>', `<span class="dcost">${svg('gold')}${r.cost}</span></button>`)).join('')}</div></div>`).join(''), { foot: hintFoot });
+        ${list[0].sh ? '' : `<div class="cards-pick">${list.map(x => `<div class="wopt ${x.ok ? '' : 'no'}">${cardHTML(x.card, {
+          cls: [x.ok ? 'target' : 'blocked', L.warSel === x.card.uid ? 'picked' : ''].join(' '),
+          attrs: x.ok ? `data-a="destroy" data-t="${o.id}" aria-pressed="${L.warSel === x.card.uid}"` : `data-why="${esc(why(x))}"`, costShown: x.card.cost })}
+          <span class="wcost">${x.ok ? t('ui.destroyCost', { n: x.cost }) : esc(why(x))}</span></div>`).join('')}</div>`}</div>`).join(''),
+        { foot: `<div class="sh-foot"><button class="btn small ghost hint-btn" data-a="hint">${svg('help')}<span>${t('ui.hint')}</span></button>
+          <button class="btn danger" data-a="destroyGo" ${pick ? '' : 'disabled'}>${pick ? t('war.go', { dist: dname(pick.card), n: pick.cost }) : t('war.pick')}</button></div>` });
       wide = true;
     } else if (s === 'wiz') {
       const opps = v.players.filter(p => p.id !== v.me && p.handCount);
@@ -679,8 +751,18 @@ export function createUI(ctx) {
       case 'emotes': els.top.classList.toggle('emoting'); return;
       case 'emote': els.top.classList.remove('emoting'); return ctx.emote(v);
       case 'inspect': L.inspect = +v; ctx.scene.focus(+v); return openSheet('inspect');
-      case 'pick': sfx('click'); return go({ t: 'pick', charId: +el.dataset.char });
-      case 'discard': sfx('click'); return go({ t: 'discard', charId: +el.dataset.char });
+      // characters: the first tap selects (and shows what it means for you), a second tap or the button confirms
+      case 'pick': case 'discard': {
+        const id = +el.dataset.char;
+        sfx('click');
+        if (L.draftSel !== id) { L.draftSel = id; return renderSheet(); }
+        L.draftSel = null;
+        return go({ t: a, charId: id });
+      }
+      case 'pickGo': case 'discardGo':
+        if (!L.draftSel) return;
+        sfx('click');
+        { const id = L.draftSel; L.draftSel = null; return go({ t: a === 'pickGo' ? 'pick' : 'discard', charId: id }); }
       case 'graveYes': return go({ t: 'graveyard', take: true });
       case 'graveNo': return go({ t: 'graveyard', take: false });
       case 'gold': return go({ t: 'gold' });
@@ -715,8 +797,16 @@ export function createUI(ctx) {
       }
       case 'denBuild': { const uid = L.sel; L.sel = null; const pay = [...L.multi]; closeSheet(); return go({ t: 'build', uid, pay }); }
       case 'keep': return go({ t: 'keep', uids: [el.dataset.uid] });
-      case 'kill': closeSheet(); return go({ t: 'kill', rank: +v });
-      case 'rob': closeSheet(); return go({ t: 'rob', rank: +v });
+      case 'kill': case 'rob':
+        sfx('click');
+        if (L.targetSel !== +v) { L.targetSel = +v; return renderSheet(); }
+        // falls through: a second tap on the selected character confirms
+      case 'killGo': case 'robGo': {
+        const rank = L.targetSel;
+        if (!rank) return;
+        L.targetSel = null; closeSheet();
+        return go({ t: a.startsWith('kill') ? 'kill' : 'rob', rank });
+      }
       case 'swap': closeSheet(); return go({ t: 'swap', target: +v });
       case 'multi': {
         const uid = el.dataset.uid;
@@ -729,7 +819,16 @@ export function createUI(ctx) {
         return renderSheet();
       }
       case 'redraw': { const uids = [...L.multi]; closeSheet(); return go({ t: 'redraw', uids }); }
-      case 'destroy': closeSheet(); return go({ t: 'destroy', target: +el.dataset.t, uid: el.dataset.uid });
+      case 'destroy':
+        sfx('click');
+        if (L.warSel !== el.dataset.uid) { L.warSel = el.dataset.uid; renderSheet(); return ctx.scene.highlight([L.warSel]); }
+        // falls through: tapping the selected building again confirms
+      case 'destroyGo': {
+        const x = warTargets(view).find(w => w.ok && w.card.uid === L.warSel);
+        if (!x) return;
+        L.warSel = null; closeSheet();
+        return go({ t: 'destroy', target: x.o.id, uid: x.card.uid });
+      }
       case 'peek': closeSheet(); return go({ t: 'peek', target: +v });
       case 'wizTake': return go({ t: 'wizTake', uid: v, build: false });
       case 'wizBuild': return go({ t: 'wizTake', uid: v, build: true });
@@ -786,6 +885,14 @@ export function createUI(ctx) {
     if (c) showTip(cardTip({ id: c.dataset.id, color: DIST[c.dataset.id][1], cost: DIST[c.dataset.id][0] }) + (c.dataset.why ? `<p class="warn">${esc(c.dataset.why)}</p>` : ''), r.left + r.width / 2, r.top);
     else showTip(charTip(+ch.dataset.char), r.left + r.width / 2, r.top);
   });
+  root.addEventListener('pointerup', e => {
+    if (e.pointerType === 'mouse') return;
+    const ch = e.target.closest('[data-char]:not(.ccard)');
+    if (!ch) return;
+    const r = ch.getBoundingClientRect();
+    showTip(charTip(+ch.dataset.char), r.left + r.width / 2, r.top);
+    clearTimeout(L.tipTimer); L.tipTimer = setTimeout(hideTip, 3500);
+  });
   root.addEventListener('pointerout', e => { if (!e.relatedTarget || !root.contains(e.relatedTarget)) hideTip(); });
   // subtle 3D tilt on hand cards (desktop)
   els.hand.addEventListener('pointermove', e => {
@@ -801,7 +908,7 @@ export function createUI(ctx) {
     if (!L.view || !h) return;
     if (L.sheet === 'war' && h.card) {
       const tgt = warTargets(L.view).find(x => x.card.uid === h.card.uid && x.ok);
-      if (tgt) { closeSheet(); return go({ t: 'destroy', target: tgt.o.id, uid: tgt.card.uid }); }
+      if (tgt) { L.warSel = tgt.card.uid; sfx('click'); renderSheet(); return ctx.scene.highlight([tgt.card.uid]); }
     }
     if (h.pid !== null && h.pid !== undefined) {
       L.inspect = h.pid;

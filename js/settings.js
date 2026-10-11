@@ -20,12 +20,15 @@ export function applyPrefs() {
   ctx?.scene.setCalm(prefs.reduceMotion);
 }
 
+// Browsers refuse (and log an error) to vibrate before the page has had a real tap.
+export const vibrate = p => { if (navigator.userActivation?.hasBeenActive ?? true) navigator.vibrate?.(p); };
+
 // "Your turn" nudges for when you're looking elsewhere: a flashing tab title, and a buzz on phones.
 let flashTimer = null;
 export function alertTurn() {
   if (!prefs.turnAlert) return;
   const away = document.hidden;
-  if (away || ctx?.mode() !== 'solo') navigator.vibrate?.([90, 60, 90]);
+  if (away || ctx?.mode() !== 'solo') vibrate([90, 60, 90]);
   if (!away || flashTimer) return;
   const base = document.title;
   let on = false;

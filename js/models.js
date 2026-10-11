@@ -355,7 +355,7 @@ export async function renderThumbs(ids, size = 320) {
     r.render(scene, cam);
     out[id] = canvas.toDataURL('image/png');
     scene.remove(m);
-    await new Promise(requestAnimationFrame);
+    await new Promise(r => (document.hidden ? setTimeout(r, 0) : requestAnimationFrame(r))); // rAF never fires in background tabs
   }
   pm.dispose();
   r.dispose();

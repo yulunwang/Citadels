@@ -37,10 +37,12 @@ export function createLobby(ctx) {
         return `<div class="rank-row"><span class="rk">${ROMAN[r]}</span><div class="seg">${ids.map(id => id ? `<button class="${cur === id ? 'on' : ''}" style="--cc:${CHAR[id].color}" data-a="rankpick" data-r="${r}" data-v="${id}" title="${esc(cabil(id))}">${svg(CHAR[id].key)}${esc(cname(id))}</button>`
           : `<button class="${cur === 0 ? 'on' : ''}" data-a="rankpick" data-r="${r}" data-v="0">—</button>`).join('')}</div></div>`;
       }).join('')}</div>
-      <div class="strip">${[...L.chars].sort((a, b) => CHAR[a].rank - CHAR[b].rank).map(id => `<span class="chip" style="--cc:${CHAR[id].color}" title="${esc(cname(id))} — ${esc(cabil(id))}">${svg(CHAR[id].key)}<b>${ROMAN[CHAR[id].rank]}</b></span>`).join('')}
+      <p class="note left">${t('lb.presetDesc.' + preset)}</p>
+      <div class="strip">${[...L.chars].sort((a, b) => CHAR[a].rank - CHAR[b].rank).map(id => `<span class="chip named" style="--cc:${CHAR[id].color}" title="${esc(cabil(id))}">${svg(CHAR[id].key)}<b>${ROMAN[CHAR[id].rank]}</b>${esc(cname(id))}</span>`).join('')}
         <button class="link" data-a="custom">${t('lb.preset.custom')} ▾</button></div></div>
     <div class="field row"><span>${t('lb.goal')}</span><div class="seg">${[7, 8].map(g => `<button class="${L.goal === g ? 'on' : ''}" data-a="goal" data-v="${g}">${g}</button>`).join('')}</div></div>
-    <div class="field row"><span>${t('lb.level')}</span><div class="seg">${['easy', 'normal', 'hard'].map(k => `<button class="${L.level === k ? 'on' : ''}" data-a="level" data-v="${k}">${t('lb.lvl.' + k)}</button>`).join('')}</div></div>`;
+    <div class="field row"><span>${t('lb.level')}</span><div class="seg">${['easy', 'normal', 'hard'].map(k => `<button class="${L.level === k ? 'on' : ''}" data-a="level" data-v="${k}">${t('lb.lvl.' + k)}</button>`).join('')}</div></div>
+    <p class="note left lvl-note">${t('lb.lvlDesc.' + L.level)}</p>`;
   };
   const timerSetup = () => `<div class="field row"><span>${t('lb.timer')}</span><div class="seg">${[0, 60, 120].map(s => `<button class="${L.timer === s ? 'on' : ''}" data-a="timer" data-v="${s}">${s ? s + 's' : t('lb.off')}</button>`).join('')}</div></div>`;
 
