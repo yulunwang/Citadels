@@ -1,60 +1,60 @@
 # Citadels 3D · 富饶之城
 
-A ground-up rebuild of the Citadels card game as a 3D tabletop: miniature procedural cities on a candle-lit table, cinematic character calls, and a bilingual (EN / 中文) glass HUD. Solo vs AI or online with friends (WebRTC, no server).
+**English** · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [Português](README.pt-BR.md) · [Русский](README.ru.md) · [Italiano](README.it.md)
 
-## Run
+Build your city on a candle-lit 3D table: pick a secret character each round, outwit your rivals, and score the most points. Finishing first doesn't guarantee the win.
 
-ES modules need a local server (they won't load from `file://`):
+## ▶ [Play now](https://yulunwang.github.io/Citadels/)
 
-```bash
-node serve.mjs          # → http://localhost:5173 (no dependencies)
-```
+**https://yulunwang.github.io/Citadels/**
 
-Three.js and PeerJS load from CDNs, so the first load needs internet.
+Nothing to download or install: it runs in any desktop or phone browser. On a phone, use "Add to Home Screen" and it feels like an app.
 
-Engine self-check (plays 240 full AI games and verifies the invariants):
+## How to play
 
-```bash
-node test/engine.test.mjs
-```
+**Against the computer:** tap **Play vs AI**, choose how many opponents (1–6) and the difficulty, then begin.
 
-Pressure test: thousands of games in every mode. It proves the AI's input never changes when only hidden information changes (re-dealt "twin worlds"), mixes in a random-move player to shake out rule bugs, and prints AI behaviour stats (targeting, repetition, stalling):
+**Online with friends**
+1. Tap **Host online** to get a 6-character room code.
+2. Your friends open the same link, tap **Join room** and enter the code.
+3. Fill empty seats with **Add AI** if you like, then start.
 
-```bash
-node test/pressure.mjs 600
-```
-
-## Layout
-
-| File | Role |
-|---|---|
-| `js/data.js` | Characters, districts, deck |
-| `js/engine.js` | Pure rules: `createGame`, `act(state, pid, action)`, `viewFor(state, pid)`, scoring |
-| `js/ai.js` | AI decisions (sees only `viewFor`, so it can't cheat) |
-| `js/search.js` | Lookahead for the Cunning AI (determinized Monte-Carlo) |
-| `js/materials.js` | Procedural PBR surfaces (stone, tiles, timber, felt…) and the warm lighting environment |
-| `js/models.js` | Procedural 3D building for every district; also renders card art |
-| `js/scene.js` | Three.js table, seats, coins, cards, crown, tokens, effects, camera |
-| `js/ui.js` | HUD, hand, actions, sheets, call banner, end screen |
-| `js/lobby.js` | Home / solo / host / join screens |
-| `js/net.js` | PeerJS wrapper |
-| `js/main.js` | Controller: state flow, AI pacing, event playback, saves, host/peer |
-| `js/i18n.js`, `js/icons.js`, `js/sfx.js` | Strings, SVG emblems, synthesized sound |
+New to Citadels? The home screen has **How to play**, and during a game the **Hint** button suggests your next move.
 
 ## Features
 
-- **2–7 players**, solo vs AI or online. Includes the official 2-player draft (pick, then discard one face down), two characters each with 2–3 players, and the 7-player face-down pick.
-- **Three AI levels.** Normal and Cunning keep an opponent model: from the draft order, what was missing when the draft reached them, and what each rival would want, they estimate who holds each hidden character. *Cunning* adds determinized Monte-Carlo lookahead: for character picks and Assassin/Thief targets it samples the hidden information and plays out the round under each option. Measured with `test/ai-duel.mjs`, Cunning beats Normal head-to-head about 72% of the time. Among near-equal options it picks with a little randomness, so its play is less predictable.
-- **Advisor hint (H)** suggests a move and highlights it. One-time beginner tips cover the first draft, turn and call.
-- **Online:** turn timer (the advisor moves for anyone idle), emotes, heartbeat disconnect detection, seat reclaim on reconnect, version check.
-- **Table:** drag to orbit and scroll/pinch to zoom. Seats get heraldic flags, numbers float up over coins and cities, a banner marks the final round, and there's an optional generative score.
-- **Resilience:** autosave with versioning, crash safety net, hidden-tab fast-forward, automatic low-graphics mode on slow devices, WebGL context-loss recovery.
-- **Keys:** G gold · D draw · B build · A ability · E end · H hint · L log · 1–9 cards.
+- **2–7 players**, solo or online.
+- **Three AI levels:** Easy, Normal and Cunning. The AI only knows what it is allowed to know; it never sees your hand or hidden characters.
+- **11 languages:** English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português, Русский and Italiano. Pick one from the 🌐 menu at any time.
+- **Never lose a game:** solo games autosave, and online players who refresh go straight back to their seat.
+- **Keys:** G gold · D draw · B build · A character ability · E end turn · H hint · 1–9 select a card.
 
-## Key changes from v1
+## For developers
 
-- **One rules path.** Humans, AI and network peers all call `act()`. No more player-0 swapping or a separate AI rule set.
-- **Hidden information is real.** Peers receive only their own redacted view, and the AI sees the same view.
-- **Rules completed:** 3-player games with two characters each, the 7-player face-down pick, the King's heir, Bishop protection, no Warlord in completed cities, Seer give-backs, Wizard bonus builds, the Trader's free green builds, and the official tie-break.
-- **No forced clicking.** Events play as animations and AI turns pace themselves to match.
-- **Resume anywhere:** solo games autosave. Hosts and peers reconnect after a refresh.
+No build step: plain JavaScript (ES modules) and Three.js. Run locally:
+
+```bash
+node serve.mjs    # then open http://localhost:5173
+```
+
+Tests:
+
+```bash
+node test/engine.test.mjs     # rules self-check + every language covers every string
+node test/pressure.mjs 600    # pressure test: fairness (AI can't see hidden info), random-move fuzzing, AI behaviour stats
+node test/ai-duel.mjs 400     # Cunning vs Normal AI win rate
+```
+
+| File | Role |
+|---|---|
+| `js/engine.js` | Rules engine: `act(state, pid, action)` and `viewFor(state, pid)` (what each player may see) |
+| `js/ai.js`, `js/search.js` | Computer players (they receive only `viewFor`) and the Cunning level's lookahead |
+| `js/scene.js`, `js/models.js`, `js/materials.js` | 3D table, district models, materials |
+| `js/ui.js`, `js/lobby.js` | In-game interface and lobby |
+| `js/main.js`, `js/net.js` | Game flow, saves, online play (PeerJS) |
+| `js/i18n.js`, `js/lang/*.js` | Text: English and Chinese in `i18n.js`, one file per other language |
+| `js/data.js`, `js/sfx.js` | Card data, sound |
+
+**Adding a language:** copy `js/lang/fr.js`, translate the values (keep the `{placeholders}`), and register it in `LANGS` and `EXTRA` in `js/i18n.js`. `node test/engine.test.mjs` fails if a key or placeholder is missing.
+
+Merging to `main` publishes the link above automatically, and every pull request gets its own preview link.

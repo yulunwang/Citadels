@@ -20,6 +20,12 @@
   --cw: clamp(62px, 6.6vw, 92px);
   --shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
 }
+/* Japanese/Korean: their own CJK fonts first, so kanji don't render with Chinese glyph shapes */
+:root:lang(ja) { --f-disp: 'Cinzel', 'Noto Serif JP', Georgia, serif; --f-body: 'Inter', 'Noto Sans JP', system-ui, sans-serif; }
+:root:lang(ko) { --f-disp: 'Cinzel', 'Noto Serif KR', Georgia, serif; --f-body: 'Inter', 'Noto Sans KR', system-ui, sans-serif; }
+:root:lang(zh-TW) { --f-disp: 'Cinzel', 'Noto Serif TC', Georgia, serif; --f-body: 'Inter', 'Noto Sans TC', system-ui, sans-serif; }
+/* Cinzel has no Cyrillic: Russian headings use Noto Serif */
+:root:lang(ru) { --f-disp: 'Noto Serif', Georgia, serif; }
 
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font-family: var(--f-body); overflow: hidden; -webkit-tap-highlight-color: transparent; -webkit-font-smoothing: antialiased; }
@@ -623,3 +629,9 @@ input:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(230, 189, 10
 .card .card-name { border-bottom-width: 2px; letter-spacing: 0.01em; }
 .card.back { background: linear-gradient(160deg, #1d2a44, #0c1322) padding-box, linear-gradient(150deg, #f6dc9c, #8d6a2f, #e6bd6a) border-box; }
 .card-name.long { font-size: max(7px, calc(var(--cw) * 0.098)); letter-spacing: -0.01em; }
+
+/* language picker: a native <select> dressed as the surrounding button */
+.lang-pick { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.lang-sel { appearance: none; -webkit-appearance: none; background: transparent; border: 0; color: inherit; font: inherit; padding: 0 2px; cursor: pointer; outline: none; }
+.lang-sel option { background: var(--bg); color: var(--ink); }
+.lang-pick:focus-within { outline: 2px solid var(--gold); outline-offset: 2px; }
