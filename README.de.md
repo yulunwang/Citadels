@@ -27,6 +27,7 @@ Neu bei Ohne Furcht und Adel? Auf dem Startbildschirm findest du die **Spielrege
 - **Drei KI-Stufen:** Leicht, Normal und Gerissen. Die KI weiß nur, was sie wissen darf – sie sieht nie deine Hand oder verdeckte Figuren.
 - **11 Sprachen:** English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português, Русский und Italiano – jederzeit in ⚙️ Einstellungen umschaltbar.
 - **Einstellungen (⚙️):** vier generierte Musikstücke (Kerzenschein, Mondgarten, Neon-Zitadelle, Tavernennacht) mit Lautstärke, KI-Tempo, Rückfrage vor dem Zugende, wenn noch gebaut werden kann, Zug-Hinweise (blinkender Tab-Titel, Vibration), reduzierte Bewegung und Farbsymbole auf Karten für Farbenblinde.
+- **Spielend lernen:** eine geführte erste Partie, ein Rundenverlauf mit allem, was jeder getan hat (Rundenanzeige antippen), jede Wahl in Zahlen erklärt („+2 Gold, nimmt die Krone“) und eine Schlussbilanz mit Höhepunkten.
 - **Kein Spiel geht verloren:** Solospiele speichern automatisch, und wer online die Seite neu lädt, landet direkt wieder auf seinem Platz.
 - **Tasten:** G Gold · D ziehen · B bauen · A Fähigkeit der Figur · E Zug beenden · H Tipp · 1–9 Karte wählen.
 

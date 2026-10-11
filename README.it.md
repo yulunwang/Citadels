@@ -27,6 +27,7 @@ Prima volta? Nella schermata iniziale c'è **Come si gioca**, e durante la parti
 - **Tre livelli di IA:** Facile, Normale e Astuta. L'IA sa solo ciò che le è concesso: non vede mai la tua mano né i personaggi nascosti.
 - **11 lingue:** English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português, Русский e Italiano, da cambiare quando vuoi in ⚙️ Impostazioni.
 - **Impostazioni (⚙️):** quattro brani musicali generati (Lume di candela, Giardino lunare, Cittadella neon, Notte in taverna) con volume, velocità dell'IA, conferma prima di finire un turno in cui puoi ancora costruire, avvisi di turno (titolo lampeggiante, vibrazione), movimento ridotto e simboli dei colori sulle carte per i daltonici.
+- **Impara giocando:** una prima partita guidata, il riepilogo del round con le mosse di tutti (tocca il contatore dei round), ogni scelta spiegata in numeri («+2 oro, prende la Corona») e un resoconto finale con i momenti salienti.
 - **Nessuna partita persa:** le partite in solitario si salvano da sole, e online chi ricarica la pagina torna subito al suo posto.
 - **Tasti:** G oro · D pesca · B costruisci · A abilità del personaggio · E fine turno · H suggerimento · 1–9 scegli una carta.
 

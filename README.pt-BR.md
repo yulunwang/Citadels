@@ -27,6 +27,7 @@ Primeira vez? A tela inicial tem **Como jogar**, e durante a partida o botão **
 - **Três níveis de IA:** Fácil, Normal e Astuta. A IA só sabe o que pode saber: nunca vê sua mão nem os personagens ocultos.
 - **11 idiomas:** English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português, Русский e Italiano. Troque quando quiser em ⚙️ Configurações.
 - **Configurações (⚙️):** quatro músicas geradas (Luz de velas, Jardim ao luar, Cidadela neon, Noite na taverna) com volume, velocidade da IA, confirmação antes de encerrar um turno em que ainda dá para construir, avisos de vez (título piscando, vibração), movimento reduzido e símbolos de cor nas cartas para daltônicos.
+- **Aprenda jogando:** uma primeira partida guiada, um resumo rodada a rodada do que cada um fez (toque no contador de rodadas), cada escolha explicada em números ("+2 ouro, pega a Coroa") e um resumo final com destaques.
 - **Nenhuma partida se perde:** jogos solo são salvos automaticamente, e quem recarrega a página online volta direto para o seu lugar.
 - **Atalhos:** G ouro · D comprar · B construir · A habilidade do personagem · E encerrar turno · H dica · 1–9 escolher carta.
 

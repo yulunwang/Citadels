@@ -27,6 +27,7 @@ Première partie ? L'écran d'accueil propose **Règles du jeu**, et en cours de
 - **Trois niveaux d'IA :** Facile, Normale et Rusée. L'IA ne sait que ce qu'elle a le droit de savoir : elle ne voit jamais votre main ni les personnages cachés.
 - **11 langues :** English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português, Русский et Italiano, à changer à tout moment dans ⚙️ Réglages.
 - **Réglages (⚙️) :** quatre musiques générées (Chandelles, Jardin lunaire, Citadelle néon, Soir de taverne) avec volume, vitesse de l'IA, confirmation avant de finir un tour où l'on peut encore bâtir, alertes de tour (titre clignotant, vibration), animations réduites et symboles de couleur sur les cartes pour les daltoniens.
+- **Apprendre en jouant :** une première partie guidée, le fil de la manche avec ce que chacun a fait (touchez le compteur de manches), chaque choix expliqué en chiffres (« +2 or, prend la Couronne ») et un bilan de fin de partie avec les temps forts.
 - **Aucune partie perdue :** les parties en solo s'enregistrent automatiquement, et en ligne, recharger la page vous ramène directement à votre place.
 - **Raccourcis :** G or · D piocher · B bâtir · A pouvoir du personnage · E fin du tour · H conseil · 1–9 choisir une carte.
 
