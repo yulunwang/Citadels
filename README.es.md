@@ -1,6 +1,6 @@
 # Ciudadelas · Citadels 3D
 
-[English](README.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · **Español** · [Français](README.fr.md)
+[English](README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · **Español** · [Français](README.fr.md) · [Deutsch](README.de.md) · [Português](README.pt-BR.md) · [Русский](README.ru.md) · [Italiano](README.it.md)
 
 Construye tu ciudad sobre una mesa 3D iluminada por velas: elige un personaje secreto cada ronda, engaña a tus rivales y consigue la mayor puntuación. Terminar primero no garantiza la victoria.
 
@@ -25,7 +25,7 @@ No hay nada que descargar ni instalar: funciona en cualquier navegador de ordena
 
 - **De 2 a 7 jugadores**, solo o en línea.
 - **Tres niveles de IA:** Fácil, Normal y Astuta. La IA solo sabe lo que le corresponde: nunca ve tu mano ni los personajes ocultos.
-- **Seis idiomas:** English, 简体中文, 日本語, 한국어, Español y Français. Cámbialo cuando quieras desde el menú 🌐.
+- **11 idiomas:** English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português, Русский e Italiano. Cámbialo cuando quieras desde el menú 🌐.
 - **Nunca pierdes una partida:** las partidas en solitario se guardan solas, y si recargas la página en línea vuelves directamente a tu asiento.
 - **Atajos:** G oro · D robar cartas · B construir · A habilidad del personaje · E terminar turno · H pista · 1–9 elegir carta.
 

@@ -1,6 +1,6 @@
 # シタデル · Citadels 3D
 
-[English](README.md) · [简体中文](README.zh-CN.md) · **日本語** · [한국어](README.ko.md) · [Español](README.es.md) · [Français](README.fr.md)
+[English](README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · **日本語** · [한국어](README.ko.md) · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [Português](README.pt-BR.md) · [Русский](README.ru.md) · [Italiano](README.it.md)
 
 ろうそくの灯る 3D テーブルで自分の街を築くゲームです。毎ラウンド秘密の役職を選び、ライバルの裏をかいて、最も多くの得点を目指します。最初に街を完成させた人が勝つとは限りません。
 
@@ -25,7 +25,7 @@
 
 - **2〜7 人**で遊べます。一人でもオンラインでも。
 - **3 段階の AI**：やさしい・ふつう・狡猾。AI は知ってよい情報しか見られず、あなたの手札や隠れた役職を覗くことはありません。
-- **6 言語対応**：English、简体中文、日本語、한국어、Español、Français。🌐 メニューからいつでも切り替えられます。
+- **11 言語対応**：English、简体中文、繁體中文、日本語、한국어、Español、Français、Deutsch、Português、Русский、Italiano。🌐 メニューからいつでも切り替えられます。
 - **中断しても安心**：一人プレイは自動保存。オンラインでページを再読み込みしても自動的に席に戻ります。
 - **ショートカット**：G 金貨 · D カードを引く · B 建設 · A 役職の能力 · E 手番終了 · H ヒント · 1〜9 カード選択。
 

@@ -27,7 +27,7 @@ Three.js and PeerJS load from CDNs (importmap in `index.html`), so the first loa
 - `js/main.js` is the controller (state flow, AI pacing, event playback, saves); `js/ui.js` renders the HUD
   from a view; `js/scene.js` renders the 3D table from a view and plays event effects.
 - **UI text goes through `t(key)`.** A new key needs English + Chinese in `js/i18n.js` and a translation in every
-  `js/lang/*.js` (ja, ko, es, fr); `test/engine.test.mjs` fails on a missing key or mismatched `{placeholder}`.
+  `js/lang/*.js` (zh-TW, ja, ko, es, fr, de, pt, ru, it); `test/engine.test.mjs` fails on a missing key or mismatched `{placeholder}`.
 - Bump `VERSION` in `engine.js` when saved states become incompatible.
 
 ## UI checks
