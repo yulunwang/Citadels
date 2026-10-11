@@ -1,6 +1,6 @@
 # Citadelles · Citadels 3D
 
-[English](README.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Español](README.es.md) · **Français**
+[English](README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Español](README.es.md) · **Français** · [Deutsch](README.de.md) · [Português](README.pt-BR.md) · [Русский](README.ru.md) · [Italiano](README.it.md)
 
 Bâtissez votre cité sur une table 3D éclairée à la bougie : choisissez un personnage secret à chaque manche, déjouez vos rivaux et marquez le plus de points. Finir le premier ne garantit pas la victoire.
 
@@ -25,7 +25,7 @@ Première partie ? L'écran d'accueil propose **Règles du jeu**, et en cours de
 
 - **De 2 à 7 joueurs**, en solo ou en ligne.
 - **Trois niveaux d'IA :** Facile, Normale et Rusée. L'IA ne sait que ce qu'elle a le droit de savoir : elle ne voit jamais votre main ni les personnages cachés.
-- **Six langues :** English, 简体中文, 日本語, 한국어, Español et Français, à changer à tout moment depuis le menu 🌐.
+- **11 langues :** English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português, Русский et Italiano, à changer à tout moment depuis le menu 🌐.
 - **Aucune partie perdue :** les parties en solo s'enregistrent automatiquement, et en ligne, recharger la page vous ramène directement à votre place.
 - **Raccourcis :** G or · D piocher · B bâtir · A pouvoir du personnage · E fin du tour · H conseil · 1–9 choisir une carte.
 

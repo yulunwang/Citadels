@@ -5,12 +5,7 @@ import assert from 'node:assert/strict';
 import { createGame, act, viewFor, currentActor, score, charsPerPlayer, shielded } from '../js/engine.js';
 import { aiAction, safeAction } from '../js/ai.js';
 import { PRESETS, makeDeck } from '../js/data.js';
-import { KEYS, t, RULES } from '../js/i18n.js';
-import ja from '../js/lang/ja.js';
-import ko from '../js/lang/ko.js';
-import es from '../js/lang/es.js';
-import fr from '../js/lang/fr.js';
-const EXTRA_LANGS = { ja, ko, es, fr };
+import { KEYS, t, RULES, EXTRA, pickLang } from '../js/i18n.js';
 
 const TOTAL = makeDeck().length;
 const cardsInPlay = s => s.deck.length + s.players.reduce((t, p) => t + p.hand.length + p.city.length, 0) +
@@ -141,13 +136,15 @@ for (const [name, chars] of Object.entries(PRESETS))
 {
   // every language file covers every key, with the same {placeholders} as English
   const ph = s => (s.match(/\{\w+\}/g) || []).sort().join(',');
-  for (const [name, L] of Object.entries(EXTRA_LANGS)) {
+  for (const [name, L] of Object.entries(EXTRA)) {
     for (const k of KEYS()) {
       assert.ok(k in L, `${name}: missing ${k}`);
       assert.equal(ph(L[k]), ph(t(k)), `${name}: placeholders differ in ${k}`);
     }
     assert.ok(RULES[name], `${name}: no rules text`);
   }
+  const nav = { 'zh-TW': 'zh-TW', 'zh-HK': 'zh-TW', 'zh-Hant-MO': 'zh-TW', 'zh-CN': 'zh', zh: 'zh', 'pt-BR': 'pt', 'de-AT': 'de', 'ru': 'ru', 'nl-NL': 'en' };
+  for (const [k, v] of Object.entries(nav)) assert.equal(pickLang(k), v, 'browser language ' + k);
 }
 
 console.log(`ok — ${games} games, avg ${(rounds / games).toFixed(1)} rounds, ${fallbacks} AI fallbacks, ${interrupts} graveyard decisions`);

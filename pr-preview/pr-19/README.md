@@ -1,6 +1,6 @@
 # Citadels 3D · 富饶之城
 
-**English** · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Español](README.es.md) · [Français](README.fr.md)
+**English** · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [Português](README.pt-BR.md) · [Русский](README.ru.md) · [Italiano](README.it.md)
 
 Build your city on a candle-lit 3D table: pick a secret character each round, outwit your rivals, and score the most points. Finishing first doesn't guarantee the win.
 
@@ -25,7 +25,7 @@ New to Citadels? The home screen has **How to play**, and during a game the **Hi
 
 - **2–7 players**, solo or online.
 - **Three AI levels:** Easy, Normal and Cunning. The AI only knows what it is allowed to know; it never sees your hand or hidden characters.
-- **Six languages:** English, 简体中文, 日本語, 한국어, Español and Français. Pick one from the 🌐 menu at any time.
+- **11 languages:** English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português, Русский and Italiano. Pick one from the 🌐 menu at any time.
 - **Never lose a game:** solo games autosave, and online players who refresh go straight back to their seat.
 - **Keys:** G gold · D draw · B build · A character ability · E end turn · H hint · 1–9 select a card.
 

@@ -1,6 +1,6 @@
 # 시타델 · Citadels 3D
 
-[English](README.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · **한국어** · [Español](README.es.md) · [Français](README.fr.md)
+[English](README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · **한국어** · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [Português](README.pt-BR.md) · [Русский](README.ru.md) · [Italiano](README.it.md)
 
 촛불이 켜진 3D 테이블 위에 나만의 도시를 세우는 게임입니다. 매 라운드 비밀 역할을 고르고, 상대의 허를 찔러 가장 높은 점수를 노리세요. 도시를 가장 먼저 완성한다고 꼭 이기는 것은 아닙니다.
 
@@ -25,7 +25,7 @@
 
 - **2–7명**, 혼자서도 온라인으로도 즐길 수 있습니다.
 - **세 단계 AI**: 쉬움, 보통, 교활함. AI는 알아도 되는 정보만 보며, 당신의 손패나 숨겨진 역할을 엿보지 않습니다.
-- **6개 언어**: English, 简体中文, 日本語, 한국어, Español, Français. 🌐 메뉴에서 언제든 바꿀 수 있습니다.
+- **11개 언어**: English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português, Русский, Italiano. 🌐 메뉴에서 언제든 바꿀 수 있습니다.
 - **끊겨도 걱정 없음**: 혼자 하는 게임은 자동 저장되고, 온라인에서 새로고침해도 자동으로 자리로 돌아갑니다.
 - **단축키**: G 금화 · D 카드 뽑기 · B 건설 · A 역할 능력 · E 차례 끝내기 · H 힌트 · 1–9 카드 선택.
 

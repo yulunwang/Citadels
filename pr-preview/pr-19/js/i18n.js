@@ -5,17 +5,29 @@ import ja from './lang/ja.js';
 import ko from './lang/ko.js';
 import es from './lang/es.js';
 import fr from './lang/fr.js';
+import zhTW from './lang/zh-TW.js';
+import de from './lang/de.js';
+import pt from './lang/pt.js';
+import ru from './lang/ru.js';
+import it from './lang/it.js';
 
-const EXTRA = { ja, ko, es, fr };
-export const LANGS = { en: 'English', zh: '简体中文', ja: '日本語', ko: '한국어', es: 'Español', fr: 'Français' };
-const HTML_LANG = { zh: 'zh-CN' };
+export const EXTRA = { 'zh-TW': zhTW, ja, ko, es, fr, de, pt, ru, it };
+export const LANGS = {
+  en: 'English', zh: '简体中文', 'zh-TW': '繁體中文', ja: '日本語', ko: '한국어',
+  es: 'Español', fr: 'Français', de: 'Deutsch', pt: 'Português', ru: 'Русский', it: 'Italiano',
+};
+const HTML_LANG = { zh: 'zh-CN', pt: 'pt-BR' };
 
+// Browser language → ours: zh-TW / zh-HK / zh-Hant → Traditional, other zh → Simplified, else the 2-letter code.
+export function pickLang(nav = 'en') {
+  if (/^zh-(tw|hk|mo)|^zh-hant/i.test(nav)) return 'zh-TW';
+  const two = nav.slice(0, 2).toLowerCase();
+  return LANGS[two] ? two : 'en';
+}
 let lang = (() => {
   try {
     const saved = localStorage.getItem('c3d.lang');
-    if (LANGS[saved]) return saved;
-    const nav = (navigator.language || 'en').slice(0, 2);
-    return LANGS[nav] ? nav : 'en';
+    return LANGS[saved] ? saved : pickLang(navigator.language);
   } catch { return 'en'; }
 })();
 export const getLang = () => lang;
@@ -310,7 +322,7 @@ export const dname = card => t('d.' + (card.id || card));
 export const ddesc = id => (D['dd.' + id] ? t('dd.' + id) : '');
 
 export const RULES = {
-  ja: ja._rules, ko: ko._rules, es: es._rules, fr: fr._rules,
+  ...Object.fromEntries(Object.entries(EXTRA).map(([k, L]) => [k, L._rules])),
   en: `<h3>Goal</h3><p>Build the most valuable city. When someone finishes a city of <b>{goal}</b> districts, the round is played out and the highest score wins.</p>
 <h3>Each round</h3><ol><li><b>Choose characters.</b> Starting with the Crown, each player secretly takes a character. Some are set aside face up, one face down.</li>
 <li><b>Royal court.</b> Characters are called in rank order (I → IX). On your turn: take <b>2 gold</b> or <b>draw 2 cards and keep 1</b>; then build a district by paying its cost; use your character's power at any time.</li></ol>

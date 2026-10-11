@@ -23,6 +23,9 @@
 /* Japanese/Korean: their own CJK fonts first, so kanji don't render with Chinese glyph shapes */
 :root:lang(ja) { --f-disp: 'Cinzel', 'Noto Serif JP', Georgia, serif; --f-body: 'Inter', 'Noto Sans JP', system-ui, sans-serif; }
 :root:lang(ko) { --f-disp: 'Cinzel', 'Noto Serif KR', Georgia, serif; --f-body: 'Inter', 'Noto Sans KR', system-ui, sans-serif; }
+:root:lang(zh-TW) { --f-disp: 'Cinzel', 'Noto Serif TC', Georgia, serif; --f-body: 'Inter', 'Noto Sans TC', system-ui, sans-serif; }
+/* Cinzel has no Cyrillic: Russian headings use Noto Serif */
+:root:lang(ru) { --f-disp: 'Noto Serif', Georgia, serif; }
 
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font-family: var(--f-body); overflow: hidden; -webkit-tap-highlight-color: transparent; -webkit-font-smoothing: antialiased; }

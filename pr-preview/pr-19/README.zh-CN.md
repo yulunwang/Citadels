@@ -1,6 +1,6 @@
 # 富饶之城 · Citadels 3D
 
-[English](README.md) · **简体中文** · [日本語](README.ja.md) · [한국어](README.ko.md) · [Español](README.es.md) · [Français](README.fr.md)
+[English](README.md) · **简体中文** · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [Português](README.pt-BR.md) · [Русский](README.ru.md) · [Italiano](README.it.md)
 
 在烛光下的 3D 牌桌上建造你的城市：每轮秘密挑选角色、互相算计，得分最高的人获胜——第一个建成城市的人不一定赢。
 
@@ -25,7 +25,7 @@
 
 - **2–7 人**，单人或联机都行。
 - **三档电脑难度**：简单、普通、狡诈。电脑只知道它该知道的信息，不会偷看你的手牌和角色。
-- **六种语言**：English、简体中文、日本語、한국어、Español、Français，随时从 🌐 菜单切换。
+- **11 种语言**：English、简体中文、繁體中文、日本語、한국어、Español、Français、Deutsch、Português、Русский、Italiano，随时从 🌐 菜单切换。
 - **断线不怕**：单人游戏自动存档；联机时刷新页面会自动回到座位。
 - **快捷键**：G 拿金币 · D 摸牌 · B 建造 · A 角色技能 · E 结束回合 · H 提示 · 1–9 选手牌。
 
