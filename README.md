@@ -1,60 +1,55 @@
-# Citadels 3D · 富饶之城
+# 富饶之城 · Citadels 3D
 
-A ground-up rebuild of the Citadels card game as a 3D tabletop: miniature procedural cities on a candle-lit table, cinematic character calls, and a bilingual (EN / 中文) glass HUD. Solo vs AI or online with friends (WebRTC, no server).
+在烛光下的 3D 牌桌上建造你的城市：选角色、互相算计，第一个建成城市的人不一定赢，得分最高的才赢。
 
-## Run
+## ▶ [点这里开始玩](https://yulunwang.github.io/Citadels/)
 
-ES modules need a local server (they won't load from `file://`):
+**https://yulunwang.github.io/Citadels/**
+
+不用下载、不用安装，电脑和手机浏览器都能直接打开。手机上可以「添加到主屏幕」，用起来像一个 App。
+
+## 怎么玩
+
+**和电脑对战**：点「单人对战」，选择对手人数（1–6 个）和难度，开始。
+
+**和朋友联机**
+1. 你点「创建房间」，得到一个 6 位房间码。
+2. 朋友打开同一个链接，点「加入房间」，输入房间码。
+3. 空位可以点「添加 AI」补上电脑玩家，人齐了点开始。
+
+不会玩？首页有「玩法说明」，对局中随时可以按「提示」，它会告诉你现在该怎么走。
+
+## 游戏特色
+
+- **2–7 人**，单人或联机都行。
+- **三档电脑难度**：简单、普通、狡诈。电脑只知道它该知道的信息，不会偷看你的手牌和角色。
+- **中英文**随时切换。
+- **断线不怕**：单人游戏自动存档；联机时刷新页面会自动回到座位。
+- **快捷键**：G 拿金币 · D 摸牌 · B 建造 · A 角色技能 · E 结束回合 · H 提示 · 1–9 选手牌。
+
+## 开发者
+
+没有构建步骤，纯 JavaScript（ES 模块）+ Three.js。本地运行：
 
 ```bash
-node serve.mjs          # → http://localhost:5173 (no dependencies)
+node serve.mjs    # 打开 http://localhost:5173
 ```
 
-Three.js and PeerJS load from CDNs, so the first load needs internet.
-
-Engine self-check (plays 240 full AI games and verifies the invariants):
+测试：
 
 ```bash
-node test/engine.test.mjs
+node test/engine.test.mjs     # 规则自检
+node test/pressure.mjs 600    # 压力测试：公平性（电脑看不到隐藏信息）、随机乱点、AI 行为统计
+node test/ai-duel.mjs 400     # 狡诈 vs 普通 AI 胜率
 ```
 
-Pressure test: thousands of games in every mode. It proves the AI's input never changes when only hidden information changes (re-dealt "twin worlds"), mixes in a random-move player to shake out rule bugs, and prints AI behaviour stats (targeting, repetition, stalling):
-
-```bash
-node test/pressure.mjs 600
-```
-
-## Layout
-
-| File | Role |
+| 文件 | 作用 |
 |---|---|
-| `js/data.js` | Characters, districts, deck |
-| `js/engine.js` | Pure rules: `createGame`, `act(state, pid, action)`, `viewFor(state, pid)`, scoring |
-| `js/ai.js` | AI decisions (sees only `viewFor`, so it can't cheat) |
-| `js/search.js` | Lookahead for the Cunning AI (determinized Monte-Carlo) |
-| `js/materials.js` | Procedural PBR surfaces (stone, tiles, timber, felt…) and the warm lighting environment |
-| `js/models.js` | Procedural 3D building for every district; also renders card art |
-| `js/scene.js` | Three.js table, seats, coins, cards, crown, tokens, effects, camera |
-| `js/ui.js` | HUD, hand, actions, sheets, call banner, end screen |
-| `js/lobby.js` | Home / solo / host / join screens |
-| `js/net.js` | PeerJS wrapper |
-| `js/main.js` | Controller: state flow, AI pacing, event playback, saves, host/peer |
-| `js/i18n.js`, `js/icons.js`, `js/sfx.js` | Strings, SVG emblems, synthesized sound |
+| `js/engine.js` | 规则引擎：`act(state, pid, action)`、`viewFor(state, pid)`（每个人能看到的信息） |
+| `js/ai.js`、`js/search.js` | 电脑玩家（只接收 `viewFor`）和狡诈难度的前瞻搜索 |
+| `js/scene.js`、`js/models.js`、`js/materials.js` | 3D 牌桌、建筑模型、材质 |
+| `js/ui.js`、`js/lobby.js` | 游戏界面、大厅 |
+| `js/main.js`、`js/net.js` | 流程控制、存档、联机（PeerJS） |
+| `js/data.js`、`js/i18n.js`、`js/sfx.js` | 卡牌数据、中英文文本、音效 |
 
-## Features
-
-- **2–7 players**, solo vs AI or online. Includes the official 2-player draft (pick, then discard one face down), two characters each with 2–3 players, and the 7-player face-down pick.
-- **Three AI levels.** Normal and Cunning keep an opponent model: from the draft order, what was missing when the draft reached them, and what each rival would want, they estimate who holds each hidden character. *Cunning* adds determinized Monte-Carlo lookahead: for character picks and Assassin/Thief targets it samples the hidden information and plays out the round under each option. Measured with `test/ai-duel.mjs`, Cunning beats Normal head-to-head about 72% of the time. Among near-equal options it picks with a little randomness, so its play is less predictable.
-- **Advisor hint (H)** suggests a move and highlights it. One-time beginner tips cover the first draft, turn and call.
-- **Online:** turn timer (the advisor moves for anyone idle), emotes, heartbeat disconnect detection, seat reclaim on reconnect, version check.
-- **Table:** drag to orbit and scroll/pinch to zoom. Seats get heraldic flags, numbers float up over coins and cities, a banner marks the final round, and there's an optional generative score.
-- **Resilience:** autosave with versioning, crash safety net, hidden-tab fast-forward, automatic low-graphics mode on slow devices, WebGL context-loss recovery.
-- **Keys:** G gold · D draw · B build · A ability · E end · H hint · L log · 1–9 cards.
-
-## Key changes from v1
-
-- **One rules path.** Humans, AI and network peers all call `act()`. No more player-0 swapping or a separate AI rule set.
-- **Hidden information is real.** Peers receive only their own redacted view, and the AI sees the same view.
-- **Rules completed:** 3-player games with two characters each, the 7-player face-down pick, the King's heir, Bishop protection, no Warlord in completed cities, Seer give-backs, Wizard bonus builds, the Trader's free green builds, and the official tie-break.
-- **No forced clicking.** Events play as animations and AI turns pace themselves to match.
-- **Resume anywhere:** solo games autosave. Hosts and peers reconnect after a refresh.
+合并到 `main` 后会自动发布到上面的网址；每个 PR 也会自动生成预览地址。
