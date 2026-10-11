@@ -1,497 +1,162 @@
-// ═══════════════════════════════════════════════════════════════════════════════
-// LOBBY — Home screen, room creation, join flow
-// ═══════════════════════════════════════════════════════════════════════════════
+// Lobby screens: home, solo setup, host room, join room, waiting room.
+import { CHAR, PRESETS, AVATARS } from './data.js';
+import { t, cname, cabil, getLang, setLang, RULES } from './i18n.js';
+import { svg, ROMAN } from './icons.js';
+import { sfx, soundOn, setSound, musicEnabled, setMusic } from './sfx.js';
 
-var LS={screen:'home',hostSlots:null,hostName:'',joinName:'',joinCode:'',error:null,
-  soloNumAI:3,soloCharPreset:'standard',soloCharSet:[1,2,3,4,5,6,7,8],
-  hostCharPreset:'standard',hostCharSet:[1,2,3,4,5,6,7,8],
-  charExpanded:false,myAvatar:'🦊',hostStep:1};
+const $ = (s, el = document) => el.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const RANK_OPTS = { 1: [1], 2: [2], 3: [3, 11, 15], 4: [4, 12], 5: [5, 13], 6: [6, 16], 7: [7, 10, 14], 8: [8], 9: [9, 0] };
 
-function lobbyError(msg){
-  NET.mode='solo';try{NET.peer?.destroy();}catch(e){}NET.peer=null;NET.hostConn=null;NET.conns={};
-  LS.error=msg;renderLobby(LS);
+function load() {
+  try { return JSON.parse(localStorage.getItem('c3d.prefs')) || {}; } catch { return {}; }
 }
+export function createLobby(ctx) {
+  const root = $('#lobby');
+  const saved = load();
+  const L = {
+    screen: 'home', error: null, info: null,
+    name: saved.name || '', avatar: saved.avatar || AVATARS[0],
+    opp: saved.opp || 3, chars: saved.chars || PRESETS.classic, goal: saved.goal || 8, level: saved.level || 'normal', timer: saved.timer || 0,
+    code: '', seats: [], roomCode: '', copied: false,
+  };
+  const persist = () => { try { localStorage.setItem('c3d.prefs', JSON.stringify({ name: L.name, avatar: L.avatar, opp: L.opp, chars: L.chars, goal: L.goal, level: L.level, timer: L.timer })); } catch {} };
+  const presetOf = chars => Object.keys(PRESETS).find(k => [...PRESETS[k]].sort().join() === [...chars].sort().join()) || 'custom';
+  const myName = () => L.name.trim() || t('lb.defaultName');
 
-function autoPreset(n){
-  if(n<=4)return 'standard';
-  return 'extended';
-}
+  const identity = () => `
+    <label class="field"><span>${t('lb.name')}</span><input id="lb-name" maxlength="16" value="${esc(L.name)}" placeholder="${t('ui.you')}" autocomplete="nickname"></label>
+    <div class="field"><span>${t('lb.avatar')}</span><div class="avatars">${AVATARS.map(a => `<button class="${a === L.avatar ? 'on' : ''}" data-a="avatar" data-v="${a}">${a}</button>`).join('')}</div></div>`;
 
-// ── CHARACTER TOOLTIP ──────────────────────────────────────────────────────────
-function _ensureCharTooltip(){
-  var tip=document.getElementById('char-tooltip');
-  if(!tip){
-    tip=document.createElement('div');
-    tip.id='char-tooltip';
-    tip.className='char-tooltip';
-    document.body.appendChild(tip);
+  const charSetup = () => {
+    const preset = presetOf(L.chars);
+    return `<div class="field"><span>${t('lb.chars')}</span>
+      <div class="seg wrap">${[...Object.keys(PRESETS), 'custom'].map(k => `<button class="${preset === k ? 'on' : ''}" data-a="preset" data-v="${k}">${t('lb.preset.' + k)}</button>`).join('')}</div>
+      <div class="ranks ${preset === 'custom' || L.custom ? 'open' : ''}">${Object.entries(RANK_OPTS).map(([r, ids]) => {
+        const cur = L.chars.find(c => CHAR[c].rank === +r) || 0;
+        return `<div class="rank-row"><span class="rk">${ROMAN[r]}</span><div class="seg">${ids.map(id => id ? `<button class="${cur === id ? 'on' : ''}" style="--cc:${CHAR[id].color}" data-a="rankpick" data-r="${r}" data-v="${id}" title="${esc(cabil(id))}">${svg(CHAR[id].key)}${esc(cname(id))}</button>`
+          : `<button class="${cur === 0 ? 'on' : ''}" data-a="rankpick" data-r="${r}" data-v="0">—</button>`).join('')}</div></div>`;
+      }).join('')}</div>
+      <div class="strip">${[...L.chars].sort((a, b) => CHAR[a].rank - CHAR[b].rank).map(id => `<span class="chip" style="--cc:${CHAR[id].color}" title="${esc(cname(id))} — ${esc(cabil(id))}">${svg(CHAR[id].key)}<b>${ROMAN[CHAR[id].rank]}</b></span>`).join('')}
+        <button class="link" data-a="custom">${t('lb.preset.custom')} ▾</button></div></div>
+    <div class="field row"><span>${t('lb.goal')}</span><div class="seg">${[7, 8].map(g => `<button class="${L.goal === g ? 'on' : ''}" data-a="goal" data-v="${g}">${g}</button>`).join('')}</div></div>
+    <div class="field row"><span>${t('lb.level')}</span><div class="seg">${['easy', 'normal', 'hard'].map(k => `<button class="${L.level === k ? 'on' : ''}" data-a="level" data-v="${k}">${t('lb.lvl.' + k)}</button>`).join('')}</div></div>
+    <div class="field row"><span>${t('lb.speed')}</span><div class="seg">${['slow', 'normal', 'fast'].map(k => `<button class="${ctx.getSpeed() === k ? 'on' : ''}" data-a="speed" data-v="${k}">${t('lb.' + k)}</button>`).join('')}</div></div>`;
+  };
+  const timerSetup = () => `<div class="field row"><span>${t('lb.timer')}</span><div class="seg">${[0, 60, 120].map(s => `<button class="${L.timer === s ? 'on' : ''}" data-a="timer" data-v="${s}">${s ? s + 's' : t('lb.off')}</button>`).join('')}</div></div>`;
+
+  const seatsList = (host) => `<ol class="seats">${L.seats.map((s, i) => `<li>${`<span class="av">${esc(s.avatar)}</span>`}<span class="nm">${esc(s.name)}</span>
+      <span class="tag">${i === 0 ? t('lb.host.you') : s.ai ? t('lb.ai') : t('lb.human')}</span>
+      ${host && i > 0 ? `<button class="icon-btn sm" data-a="removeSeat" data-v="${i}" title="${t('lb.removeAI')}">${svg('close')}</button>` : ''}</li>`).join('')}</ol>`;
+
+  function render() {
+    let body = '';
+    const err = L.error ? `<p class="err">${esc(L.error)}</p>` : '';
+    const back = `<button class="link back" data-a="go" data-v="home">${svg('back')}${t('lb.back')}</button>`;
+    switch (L.screen) {
+      case 'home': {
+        const cont = ctx.canContinue();
+        body = `<div class="hero"><div class="crest">${svg('crown')}</div><h1>${t('lb.title')}</h1><p class="tag">${t('lb.tag')}</p>${ctx.stats?.()?.g ? `<p class="record">${svg('trophy')}${t('lb.stats', ctx.stats())}</p>` : ''}</div>
+          ${err}
+          <nav class="menu">
+            ${cont ? `<button class="btn primary big" data-a="continue">${svg('play')}<span>${t('lb.continue')}</span><small>${esc(cont)}</small></button>` : ''}
+            <button class="btn ${cont ? '' : 'primary'} big" data-a="go" data-v="solo">${svg('users')}<span>${t('lb.solo')}</span></button>
+            <button class="btn big" data-a="go" data-v="host">${svg('link')}<span>${t('lb.host')}</span></button>
+            <button class="btn big" data-a="go" data-v="join">${svg('end')}<span>${t('lb.join')}</span></button>
+            <button class="btn ghost" data-a="go" data-v="rules">${svg('help')}<span>${t('lb.rules')}</span></button>
+          </nav>`;
+        break;
+      }
+      case 'solo':
+        body = `${back}<h2>${t('lb.solo')}</h2>${err}${identity()}
+          <div class="field row"><span>${t('lb.opponents')}</span><div class="stepper"><button data-a="opp" data-v="-1">${svg('minus')}</button><b>${L.opp}</b><button data-a="opp" data-v="1">${svg('plus')}</button></div></div>
+          ${charSetup()}
+          <button class="btn primary big wide" data-a="startSolo">${svg('play')}<span>${t('lb.start')}</span></button>`;
+        break;
+      case 'host':
+        body = `${back}<h2>${t('lb.host')}</h2>${err}${identity()}${charSetup()}${timerSetup()}
+          <button class="btn primary big wide" data-a="createRoom">${svg('link')}<span>${t('lb.host')}</span></button>`;
+        break;
+      case 'room':
+        body = `${back}<h2>${t('lb.host')}</h2>${err}
+          <div class="code-box"><span>${t('lb.roomCode')}</span><b>${esc(L.roomCode)}</b><button class="btn small" data-a="copy">${svg('copy')}${t(L.copied ? 'lb.copied' : 'lb.copy')}</button></div>
+          <p class="note">${t('lb.share')}</p>
+          <div class="field"><span>${t('lb.seats')} · ${L.seats.length}/7 <span class="muted">(${t('lb.minPlayers')})</span></span>${seatsList(true)}
+          <button class="btn small" data-a="addAI" ${L.seats.length >= 7 ? 'disabled' : ''}>${svg('plus')}${t('lb.addAI')}</button></div>
+          <button class="btn primary big wide" data-a="startHost" ${L.seats.length >= 2 ? '' : 'disabled'}>${svg('play')}<span>${t('lb.start')}</span></button>`;
+        break;
+      case 'join':
+        body = `${back}<h2>${t('lb.join')}</h2>${err}${identity()}
+          <label class="field"><span>${t('lb.code')}</span><input id="lb-code" class="code-in" maxlength="6" value="${esc(L.code)}" placeholder="ABC123" autocapitalize="characters" autocomplete="off"></label>
+          <button class="btn primary big wide" data-a="joinRoom">${svg('end')}<span>${t('lb.joinGo')}</span></button>`;
+        break;
+      case 'wait':
+        body = `${back}<h2>${esc(L.roomCode)}</h2>${err}<p class="note pulse">${t('lb.waitingHost')}</p>${seatsList(false)}`;
+        break;
+      case 'connecting':
+        body = `<div class="spinner"></div><p class="note pulse">${esc(L.info || t('lb.connecting'))}</p>${back}`;
+        break;
+      case 'rules':
+        body = `${back}<h2>${t('lb.rules')}</h2><div class="rules">${RULES[getLang()].replace('{goal}', L.goal)}</div>
+          <div class="charlist">${Object.values(CHAR).sort((a, b) => a.rank - b.rank || a.id - b.id).map(c => `<div class="cl" style="--cc:${c.color}">${svg(c.key)}<div><b>${ROMAN[c.rank]} · ${esc(cname(c.id))}</b><p>${esc(cabil(c.id))}</p></div></div>`).join('')}</div>`;
+        break;
+    }
+    root.innerHTML = `<div class="lb-panel ${L.screen}">${body}</div>
+      <div class="lb-corner"><button class="icon-btn" data-a="lang" title="${t('lb.lang')}">${svg('lang')}<span>${t('lb.lang')}</span></button>
+      <button class="icon-btn" data-a="music" title="${t('lb.music')}" aria-pressed="${musicEnabled()}">${musicEnabled() ? '♪' : '<s>♪</s>'}</button>
+      <button class="icon-btn" data-a="sound" aria-pressed="${soundOn()}">${svg(soundOn() ? 'sound' : 'mute')}</button></div>`;
   }
-  return tip;
-}
-function showCharTooltip(ch,triggerEl){
-  var tip=_ensureCharTooltip();
-  tip.innerHTML='';
 
-  // Header row: emoji + name + rank
-  var hdr=document.createElement('div');
-  hdr.className='char-tooltip-hdr';
-  hdr.style.borderBottomColor=ch.clr+'44';
-  var emo=document.createElement('span');
-  emo.className='char-tooltip-emoji';emo.textContent=ch.emoji;
-  var nameBlock=document.createElement('div');
-  nameBlock.className='char-tooltip-nameblock';
-  var nm=document.createElement('div');
-  nm.className='char-tooltip-name';nm.style.color=ch.clr;nm.textContent=cn(ch.id);
-  var rankEl=document.createElement('div');
-  rankEl.className='char-tooltip-rank';
-  rankEl.textContent=t('lobby.char.rank',{n:ch.rank});
-  nameBlock.append(nm,rankEl);hdr.append(emo,nameBlock);tip.appendChild(hdr);
-
-  // Ability text
-  var ab=document.createElement('div');
-  ab.className='char-tooltip-ability';ab.textContent=ca(ch.id);tip.appendChild(ab);
-
-  // Alternatives note (other chars at same rank)
-  var alts=CHARS.filter(q=>q.rank===ch.rank&&q.id!==ch.id);
-  if(alts.length){
-    var altRow=document.createElement('div');
-    altRow.className='char-tooltip-alts';
-    altRow.textContent=t('lobby.char.replaces',{names:alts.map(q=>q.emoji+' '+cn(q.id)).join(', ')});
-    tip.appendChild(altRow);
-  }
-
-  // Position: below button, clamped to viewport
-  tip.style.display='block';
-  var rect=triggerEl.getBoundingClientRect();
-  var tw=tip.offsetWidth||270;var th=tip.offsetHeight||130;
-  var vw=window.innerWidth;var vh=window.innerHeight;
-  var left=rect.left;var top=rect.bottom+8;
-  if(top+th>vh-10)top=rect.top-th-8;
-  if(left+tw>vw-10)left=vw-tw-10;
-  if(left<10)left=10;
-  tip.style.left=left+'px';tip.style.top=top+'px';
-  tip.style.borderColor=ch.clr+'66';
-}
-function hideCharTooltip(){
-  const tip=document.getElementById('char-tooltip');
-  if(tip)tip.style.display='none';
-}
-function renderAvatarPicker(){
-  const wrap=el('div',{class:'avatar-picker'});
-  wrap.appendChild(el('div',{class:'lobby-label'},t('lobby.avatar.label')));
-  const row=el('div',{class:'avatar-grid'});
-  AVATAR_POOL.forEach(a=>{
-    const btn=el('button',{class:`avatar-btn${LS.myAvatar===a?' active':''}`},a);
-    btn.onclick=()=>{LS.myAvatar=a;renderLobby({});};
-    row.appendChild(btn);
-  });
-  wrap.appendChild(row);
-  return wrap;
-}
-
-function renderCharSelect(mode){
-  const wrap=el('div',null);
-  const charSet=mode==='solo'?LS.soloCharSet:LS.hostCharSet;
-  const setCharSet=(newSet)=>{
-    if(mode==='solo'){LS.soloCharSet=newSet;LS.soloCharPreset='custom';}
-    else{LS.hostCharSet=newSet;LS.hostCharPreset='custom';}
-    LS.charExpanded=true;
-    renderLobby({});
+  const readFields = () => {
+    const n = $('#lb-name', root), c = $('#lb-code', root);
+    if (n) L.name = n.value;
+    if (c) L.code = c.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
   };
 
-  wrap.appendChild(el('div',{class:'charsel-label'},t('lobby.chars.label')));
-
-  // Quick preset buttons
-  const presetRow=el('div',{class:'charsel-preset-row'});
-  const presets=[
-    {label:'Standard',chars:[1,2,3,4,5,6,7,8]},
-    {label:'+ Queen',  chars:[1,2,3,4,5,6,7,8,9]},
-    {label:'Expanded', chars:[1,2,11,12,13,6,14,8,9]},
-    {label:'Full Mix', chars:[1,2,15,12,13,16,10,8,9]},
-  ];
-  presets.forEach(opt=>{
-    const active=JSON.stringify(charSet.slice().sort((a,b)=>a-b))===JSON.stringify(opt.chars.slice().sort((a,b)=>a-b));
-    presetRow.appendChild(gbtn(opt.label,active?'#d4a843':'#555',()=>{
-      if(mode==='solo'){LS.soloCharSet=[...opt.chars];LS.soloCharPreset=opt.label;}
-      else{LS.hostCharSet=[...opt.chars];LS.hostCharPreset=opt.label;}
-      LS.charExpanded=false;
-      renderLobby({});
-    },'font-size:11px;padding:5px 10px'));
+  root.addEventListener('input', e => { if (e.target.id === 'lb-code') e.target.value = e.target.value.toUpperCase(); });
+  root.addEventListener('click', e => {
+    const el = e.target.closest('[data-a]');
+    if (!el) return;
+    readFields();
+    const a = el.dataset.a, v = el.dataset.v;
+    sfx('click');
+    switch (a) {
+      case 'go': L.error = null; if (L.screen === 'room' || L.screen === 'wait' || L.screen === 'connecting') ctx.cancelNet(); L.screen = v; break;
+      case 'avatar': L.avatar = v; break;
+      case 'opp': L.opp = Math.max(1, Math.min(6, L.opp + +v)); break;
+      case 'preset': if (v === 'custom') L.custom = true; else { L.chars = [...PRESETS[v]]; L.custom = false; } break;
+      case 'custom': L.custom = !L.custom; break;
+      case 'rankpick': { const r = +el.dataset.r; L.chars = L.chars.filter(c => CHAR[c].rank !== r); if (+v) L.chars.push(+v); L.custom = true; break; }
+      case 'goal': L.goal = +v; break;
+      case 'speed': ctx.setSpeed(v); break;
+      case 'lang': setLang(getLang() === 'zh' ? 'en' : 'zh'); ctx.relang(); break;
+      case 'sound': setSound(!soundOn()); break;
+      case 'music': setMusic(!musicEnabled()); break;
+      case 'level': L.level = v; break;
+      case 'timer': L.timer = +v; break;
+      case 'continue': return ctx.cont();
+      case 'startSolo': persist(); return ctx.startSolo({ name: myName(), avatar: L.avatar, opp: L.opp, chars: L.chars, goal: L.goal, level: L.level });
+      case 'createRoom': persist(); return ctx.createRoom({ name: myName(), avatar: L.avatar, chars: L.chars, goal: L.goal, level: L.level, timer: L.timer });
+      case 'copy': navigator.clipboard?.writeText(L.roomCode); L.copied = true; setTimeout(() => { L.copied = false; render(); }, 1500); break;
+      case 'addAI': ctx.addAI(); return;
+      case 'removeSeat': ctx.removeSeat(+v); return;
+      case 'startHost': return ctx.startHost();
+      case 'joinRoom':
+        persist();
+        if (L.code.length < 4) return;
+        return ctx.joinRoom({ code: L.code, name: myName(), avatar: L.avatar });
+    }
+    render();
   });
-  wrap.appendChild(presetRow);
-
-  // Summary: show selected characters as emoji strip
-  const summaryRow=el('div',{class:'charsel-summary'});
-  charSet.slice().sort((a,b)=>{
-    const ra=CHARS.find(c=>c.id===a)?.rank||99;
-    const rb=CHARS.find(c=>c.id===b)?.rank||99;
-    return ra-rb;
-  }).forEach(id=>{
-    const ch=CHARS.find(c=>c.id===id);
-    if(ch){
-      const chip=el('span',{class:'charsel-chip',style:`--char-clr:${ch.clr}`},ch.emoji);
-      chip.onmouseenter=()=>showCharTooltip(ch,chip);
-      chip.onmouseleave=()=>hideCharTooltip();
-      chip.onfocus=()=>showCharTooltip(ch,chip);
-      chip.onblur=()=>hideCharTooltip();
-      summaryRow.appendChild(chip);
-    }
+  root.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && e.target.id === 'lb-code') { readFields(); $('[data-a="joinRoom"]', root)?.click(); }
   });
-  // Customize toggle
-  const toggleBtn=el('button',{class:'charsel-toggle'},LS.charExpanded?t('lobby.charsel.less'):t('lobby.charsel.customize'));
-  toggleBtn.onclick=()=>{LS.charExpanded=!LS.charExpanded;renderLobby({});};
-  summaryRow.appendChild(toggleBtn);
-  wrap.appendChild(summaryRow);
 
-  // Per-rank detail — collapsible
-  if(LS.charExpanded){
-    const detail=el('div',{class:'charsel-detail'});
-    const ranks=[1,2,3,4,5,6,7,8];
-    ranks.forEach(r=>{
-      const charsAtRank=CHARS.filter(c=>c.rank===r);
-      const selected=charSet.find(id=>CHARS.find(c=>c.id===id)?.rank===r);
-      const row=el('div',{class:'charsel-rank-row'});
-      row.appendChild(el('span',{class:'charsel-rank-lbl'},t('lobby.char.rank_lbl',{n:r})));
-      charsAtRank.forEach(ch=>{
-        const active=selected===ch.id;
-        const btn=el('button',{class:`charsel-btn${active?' active':''}`,style:`--char-clr:${ch.clr}`},`${ch.emoji} ${cn(ch.id)}${ch.id>=9?' ✦':''}`);
-        btn.onclick=()=>{
-          const newSet=charSet.filter(id=>CHARS.find(c=>c.id===id)?.rank!==r);
-          setCharSet([...newSet,ch.id]);
-        };
-        btn.onmouseenter=()=>showCharTooltip(ch,btn);
-        btn.onmouseleave=()=>hideCharTooltip();
-        btn.onfocus=()=>showCharTooltip(ch,btn);
-        btn.onblur=()=>hideCharTooltip();
-        row.appendChild(btn);
-      });
-      detail.appendChild(row);
-    });
-
-    // Rank 9 toggle (optional)
-    const has9=charSet.some(id=>CHARS.find(c=>c.id===id)?.rank===9);
-    const rank9chars=CHARS.filter(c=>c.rank===9);
-    const r9row=el('div',{class:'charsel-rank-row'});
-    r9row.appendChild(el('span',{class:'charsel-rank-lbl'},t('lobby.char.rank_lbl',{n:9})));
-    const noBtn=el('button',{class:`charsel-btn${!has9?' active':''}`,style:'--char-clr:var(--text-muted)'},t('btn.none'));
-    noBtn.onclick=()=>setCharSet(charSet.filter(id=>CHARS.find(c=>c.id===id)?.rank!==9));
-    r9row.appendChild(noBtn);
-    rank9chars.forEach(ch=>{
-      const active=has9&&charSet.includes(ch.id);
-      const btn=el('button',{class:`charsel-btn${active?' active':''}`,style:`--char-clr:${ch.clr}`},`${ch.emoji} ${cn(ch.id)} ✦`);
-      btn.onclick=()=>{
-        const newSet=charSet.filter(id=>CHARS.find(c=>c.id===id)?.rank!==9);
-        setCharSet([...newSet,ch.id]);
-      };
-      btn.onmouseenter=()=>showCharTooltip(ch,btn);
-      btn.onmouseleave=()=>hideCharTooltip();
-      r9row.appendChild(btn);
-    });
-    detail.appendChild(r9row);
-    wrap.appendChild(detail);
-  }
-
-  return wrap;
-}
-
-function renderLobby(opts){
-  LS={...LS,...opts};
-  hideCharTooltip();
-  const app=document.getElementById('app');app.innerHTML='';
-  // page is exactly 100vh and scrolls internally — inner wrapper provides flex-centering for short content
-  const page=el('div',{class:'lobby-page'});
-  page.style.background = 'radial-gradient(ellipse at 50% 45%, #fffdf7 0%, #f4f0e8 55%, #e8dfc8 100%)';
-  const inner=el('div',{class:'lobby-inner'});
-  const box=el('div',{class:'lobby-box'});
-
-  // Language toggle — fixed top-right
-  page.appendChild(mkLangToggle('lobby-lang-toggle'));
-
-  box.appendChild(el('div',{class:'lobby-title'},t('lobby.title')));
-  box.appendChild(el('div',{class:'lobby-subtitle'},t('lobby.subtitle')));
-
-  if(LS.error){
-    box.appendChild(el('div',{class:'lobby-error'},'⚠ '+LS.error));
-    const clrBtn=gbtn(t('btn.dismiss'),'#886',()=>{LS.error=null;renderLobby({});});
-    clrBtn.style.display='block';clrBtn.style.margin='0 auto 8px';box.appendChild(clrBtn);
-  }
-
-  if(LS.screen==='home'){
-    // ── Rejoin / Resume banner (shown when a valid session exists) ─────────────
-    var _savedSession=(typeof mpLoadSession==='function')?mpLoadSession():null;
-    if(_savedSession){
-      const rjCard=el('div',{class:'lobby-rejoin-card animate-in'});
-      const isHost=_savedSession.role==='host';
-      const rjIcon=el('div',{class:'lobby-rejoin-icon'},isHost?'🏠':'🚪');
-      const rjBody=el('div',{class:'lobby-rejoin-body'});
-      const rjTitle=el('div',{class:'lobby-rejoin-title'},
-        isHost?'Resume hosting room '+_savedSession.roomId:'Rejoin room '+_savedSession.roomId);
-      const rjDesc=el('div',{class:'lobby-rejoin-desc'},
-        isHost?'Your game is still in progress — reclaim the host seat and continue.'
-              :'You were disconnected — click to jump back into the game as '+(_savedSession.myName||'Guest')+'.');
-      const rjBtns=el('div',{class:'lobby-rejoin-btns'});
-      const rjBtn=gbtn(isHost?'↩ Resume Game':'↩ Rejoin Game','#5a9fd4',()=>{
-        const sess=_savedSession;
-        if(isHost){resumeHostGame(sess);}
-        else{rejoinRoom(sess.roomId,sess.myName,sess.mySlot);}
-      },'flex:1;padding:9px;font-family:Cinzel,serif;font-size:13px;text-align:center');
-      const dismissBtn=gbtn('✕','#555',()=>{
-        if(typeof mpClearSession==='function')mpClearSession();
-        _savedSession=null;renderLobby({screen:'home'});
-      },'padding:9px 13px;font-size:12px');
-      rjBtns.append(dismissBtn,rjBtn);
-      rjBody.append(rjTitle,rjDesc);
-      rjCard.append(rjIcon,rjBody);
-      rjCard.appendChild(rjBtns);
-      box.appendChild(rjCard);
-    }
-
-    box.appendChild(el('div',{class:'lobby-section-title-sm'},t('lobby.how_to_play')));
-    const grid=el('div',{class:'lobby-mode-grid'});
-    [
-      {icon:'🤖',title:t('lobby.mode.solo.title'),desc:t('lobby.mode.solo.desc'),fn:()=>{LS.screen='solo_config';renderLobby({});}},
-      {icon:'🏠',title:t('lobby.mode.host.title'),desc:t('lobby.mode.host.desc'),fn:()=>{if(typeof mpClearSession==='function')mpClearSession();LS.screen='host_config';renderLobby({});}},
-      {icon:'🚪',title:t('lobby.mode.join.title'),desc:t('lobby.mode.join.desc'),fn:()=>{if(typeof mpClearSession==='function')mpClearSession();LS.screen='join';renderLobby({});}},
-    ].forEach(m=>{
-      const c=el('div',{class:'lobby-mode-card animate-in'});
-      c.appendChild(el('div',{class:'lobby-mode-icon'},m.icon));
-      const txt=el('div',{class:'lobby-mode-text'});
-      txt.appendChild(el('div',{class:'lobby-mode-title'},m.title));
-      txt.appendChild(el('div',{class:'lobby-mode-desc'},m.desc));
-      c.appendChild(txt);
-      c.onclick=m.fn;grid.appendChild(c);
-    });
-    box.appendChild(grid);
-  }
-
-  else if(LS.screen==='solo_config'){
-    box.appendChild(el('div',{class:'lobby-section-title'},t('lobby.solo.title')));
-    box.appendChild(renderAvatarPicker());
-    box.appendChild(el('div',{class:'lobby-label'},t('lobby.solo.ai_count')));
-    const cntRow=el('div',{class:'lobby-cnt-row'});
-    const decBtn=gbtn('−','#555',()=>{if(LS.soloNumAI>1){LS.soloNumAI--;const p=autoPreset(1+LS.soloNumAI);LS.soloCharPreset=p;LS.soloCharSet=[...(CHAR_PRESETS[1+LS.soloNumAI]||[1,2,3,4,5,6,7,8])];renderLobby({});}},'width:30px;height:30px;text-align:center;padding:0;font-size:16px;border-radius:50%;min-height:auto');
-    const cntLabel=el('div',{class:'lobby-cnt-label'},t('lobby.solo.ai_label',{n:LS.soloNumAI}));
-    const incBtn=gbtn('+','#555',()=>{if(LS.soloNumAI<6){LS.soloNumAI++;const p=autoPreset(1+LS.soloNumAI);LS.soloCharPreset=p;LS.soloCharSet=[...(CHAR_PRESETS[1+LS.soloNumAI]||[1,2,3,4,5,6,7,8])];renderLobby({});}},'width:30px;height:30px;text-align:center;padding:0;font-size:16px;border-radius:50%;min-height:auto');
-    cntRow.append(decBtn,cntLabel,incBtn);box.appendChild(cntRow);
-    box.appendChild(renderCharSelect('solo'));
-    const br=el('div',{class:'lobby-btn-row'});
-    br.appendChild(gbtn(t('lobby.solo.back'),'#555',()=>{LS.screen='home';renderLobby({});}));
-    br.appendChild(gbtn(t('lobby.solo.start'),'#4db87a',()=>{
-      if(typeof mpClearSession==='function')mpClearSession();
-      PLAYER_AVATARS={};PLAYER_AVATARS[0]=LS.myAvatar||'🦊';
-      NET.mode='solo';S=runAIDraft(newGame({numAI:LS.soloNumAI,charPool:LS.soloCharSet}));assignAvatars(S.players);render();
-    },'flex:1;padding:10px;font-family:Cinzel,serif;font-size:13px;text-align:center'));
-    box.appendChild(br);
-  }
-
-  else if(LS.screen==='host_config'){
-    if(!LS.hostSlots)LS.hostSlots=[
-      {slot:0,name:'Host',ai:false,locked:true},
-      {slot:1,name:'Lady Mira',ai:true},
-      {slot:2,name:'Duke Arven',ai:true},
-      {slot:3,name:'Baron Selt',ai:true},
-    ];
-
-    if(LS.hostStep===1){
-      // Step 1: Players
-      box.appendChild(el('div',{class:'lobby-section-title'},t('lobby.host.players.title')));
-      box.appendChild(renderAvatarPicker());
-
-      const hnRow=el('div',{class:'mb-lg'});
-      hnRow.appendChild(el('div',{class:'lobby-label-sm'},t('lobby.host.name_label')));
-      const hnIn=document.createElement('input');
-      hnIn.value=LS.hostName||'';hnIn.placeholder='Your display name (e.g. Alex)';
-      hnIn.className='lobby-input';
-      hnRow.appendChild(hnIn);box.appendChild(hnRow);
-
-      box.appendChild(el('div',{class:'lobby-label'},t('lobby.host.slots.label')));
-      box.appendChild(el('div',{class:'lobby-hint'},t('lobby.host.slots.hint')));
-      const AI_NAMES=['Lady Mira','Duke Arven','Baron Selt','Countess Vael','Lord Draven','Dame Isolde'];
-      const slotHdr=el('div',{class:'lobby-slot-hdr'});
-      slotHdr.appendChild(el('span',{class:'lobby-slot-count'},t('lobby.host.slots.count',{n:LS.hostSlots.length})));
-      slotHdr.appendChild(gbtn(t('lobby.host.slots.remove'),'#555',()=>{if(LS.hostSlots.length>2){LS.hostSlots=LS.hostSlots.slice(0,-1);renderLobby({});}},'font-size:11px;padding:4px 10px'));
-      slotHdr.appendChild(gbtn(t('lobby.host.slots.add'),'#5a9fd4',()=>{if(LS.hostSlots.length<7){const i=LS.hostSlots.length;LS.hostSlots.push({slot:i,name:AI_NAMES[i-1]||'AI '+(i+1),ai:true});renderLobby({});}},'font-size:11px;padding:4px 10px'));
-      box.appendChild(slotHdr);
-      const slotList=el('div',{class:'lobby-slot-list'});
-      let hostNameEl=null;
-      LS.hostSlots.forEach((sl,i)=>{
-        const row=el('div',{class:'lobby-slot-row'});
-        row.appendChild(el('span',{class:'lobby-slot-icon'},sl.locked?LS.myAvatar:sl.ai?'🤖':'👥'));
-        if(sl.locked){
-          const nameEl=el('span',{class:'lobby-slot-name'});
-          nameEl.textContent=LS.hostSlots[0].name||'Host';
-          hostNameEl=nameEl;
-          row.appendChild(nameEl);
-          row.appendChild(el('span',{class:'lobby-slot-tag'},t('lobby.host.slot.you')));
-        }else if(sl.ai){
-          const ni=document.createElement('input');
-          ni.value=sl.name;ni.placeholder='AI name';
-          ni.className='lobby-ai-input';
-          ni.oninput=()=>{LS.hostSlots[i].name=ni.value;};
-          row.appendChild(ni);
-          const tb=gbtn('🤖 AI','#6a5a8a',()=>{LS.hostSlots[i].ai=false;renderLobby({});},'min-width:70px;text-align:center;font-size:11px');  // AI label kept short intentionally
-          row.appendChild(tb);
-        }else{
-          const nameEl=el('span',{class:'lobby-slot-name-wait'},t('lobby.players.slot_waiting'));
-          row.appendChild(nameEl);
-          const tb=gbtn('👥 Human','#4db87a',()=>{LS.hostSlots[i].ai=true;LS.hostSlots[i].name=['Lady Mira','Duke Arven','Baron Selt','Countess Vael','Lord Draven','Dame Isolde'][i-1]||'AI '+(i+1);renderLobby({});},'min-width:70px;text-align:center;font-size:11px');
-          row.appendChild(tb);
-        }
-        slotList.appendChild(row);
-      });
-      hnIn.oninput=()=>{
-        LS.hostName=hnIn.value;
-        LS.hostSlots[0].name=hnIn.value.trim()||'Host';
-        if(hostNameEl)hostNameEl.textContent=LS.hostSlots[0].name;
-      };
-      box.appendChild(slotList);
-      const br=el('div',{class:'lobby-btn-row-sm'});
-      br.appendChild(gbtn(t('lobby.host.back'),'#555',()=>{LS.screen='home';LS.hostSlots=null;LS.hostStep=1;renderLobby({});}));
-      br.appendChild(gbtn(t('lobby.host.chars_nav'),'#d4a843',()=>{LS.hostStep=2;renderLobby({});},'flex:1;padding:10px;font-family:Cinzel,serif;font-size:13px;text-align:center'));
-      box.appendChild(br);
-    }else{
-      // Step 2: Characters
-      box.appendChild(el('div',{class:'lobby-section-title'},t('lobby.host.chars.title')));
-      box.appendChild(renderCharSelect('host'));
-      const br=el('div',{class:'lobby-btn-row-sm'});
-      br.appendChild(gbtn(t('lobby.host.chars.back'),'#555',()=>{LS.hostStep=1;renderLobby({});}));
-      br.appendChild(gbtn(t('lobby.host.chars.create'),'#d4a843',()=>{
-        const slots=LS.hostSlots.map(sl=>({...sl,name:sl.slot===0?(LS.hostName.trim()||'Host'):sl.name}));
-        const allAI=slots.every(sl=>sl.ai||sl.slot===0);
-        if(allAI){
-          PLAYER_AVATARS={};PLAYER_AVATARS[0]=LS.myAvatar||'🦊';
-          NET.mode='solo';
-          S=runAIDraft(buildGameFromConfig(slots,LS.hostCharSet));assignAvatars(S.players);
-          render();
-        }else{
-          hostRoom(slots);
-        }
-      },'flex:1;padding:10px;font-family:Cinzel,serif;font-size:13px;text-align:center'));
-      box.appendChild(br);
-    }
-  }
-
-  else if(LS.screen==='hosting'){
-    box.appendChild(el('div',{class:'lobby-section-title'},t('lobby.hosting.title')));
-
-    const cCard=el('div',{class:'lobby-code-card'});
-    cCard.appendChild(el('div',{class:'lobby-code-lbl'},t('lobby.hosting.code_label')));
-    cCard.appendChild(el('div',{class:'lobby-code-val'},NET.roomId));
-
-    const shareBox=el('div',{class:'lobby-share-box'});
-    shareBox.innerHTML=`<span class="lobby-share-key">${t('lobby.hosting.how_friends')}</span><br>`
-      +'1. Open the game at the same URL in their browser<br>'
-      +'2. Click <strong>Join Room</strong><br>'
-      +`3. Type the code <strong class="lobby-share-code">${NET.roomId}</strong> and their name`;
-    cCard.appendChild(shareBox);
-
-    const copyBtn=gbtn(t('lobby.hosting.copy'),'#5a9fd4',()=>{
-      const url=window.location.href.split('?')[0];
-      const txt=`Join my Citadels game!\n1. Open ${url} in your browser\n2. Click "Join Room"\n3. Enter code: ${NET.roomId}\n4. Enter your name and join!`;
-      navigator.clipboard.writeText(txt).then(()=>{copyBtn.textContent=t('lobby.hosting.copied');setTimeout(()=>copyBtn.textContent=t('lobby.hosting.copy'),2000);}).catch(()=>{copyBtn.textContent=t('lobby.hosting.copy_fail');});
-    },'width:100%;margin-top:10px;padding:8px;font-size:11px;text-align:center');
-    cCard.appendChild(copyBtn);
-    box.appendChild(cCard);
-
-    box.appendChild(el('div',{class:'lobby-order-label'},t('lobby.hosting.order_label')));
-    box.appendChild(el('div',{class:'lobby-order-hint'},t('lobby.hosting.order_hint')));
-    const sl2=el('div',{class:'lobby-order-list'});
-    NET.slots.forEach((sl,i)=>{
-      const isHost=sl.slot===0;
-      const isConnectedPeer=!!sl.peerId;
-      const icon=isHost?'👤':isConnectedPeer?'🟢':sl.ai?'🤖':'⏳';
-      const isActive=isHost||isConnectedPeer;
-      const statusText=isHost?t('lobby.hosting.status.host'):isConnectedPeer?t('lobby.hosting.status.connected'):sl.ai?t('lobby.hosting.status.ai'):t('lobby.hosting.status.waiting');
-      const displayName=isHost?sl.name:isConnectedPeer?sl.name:sl.ai?sl.name:'(open slot)';
-      const statusColor=isActive?'var(--c-green-txt)':sl.ai?'var(--text-muted)':'var(--text-muted)';
-      const borderCls=isActive?'border-color:var(--c-green-bdr)':'';
-
-      const row=el('div',{class:`lobby-order-row${isActive?' active':''}` });
-      row.appendChild(el('span',{class:'lobby-order-num'},`${i+1}.`));
-      row.appendChild(el('span',{class:'lobby-order-icon'},icon));
-      const nameSpan=el('span',{class:'lobby-slot-name flex-1'});
-      nameSpan.textContent=displayName;
-      row.appendChild(nameSpan);
-      row.appendChild(el('span',{style:`font-size:10px;color:${statusColor}`},statusText));
-      const upBtn=el('button',{class:'lobby-order-updown'},'↑');
-      const dnBtn=el('button',{class:'lobby-order-updown'},'↓');
-      upBtn.disabled=i===0;dnBtn.disabled=i===NET.slots.length-1;
-      upBtn.style.opacity=i===0?'0.3':'1';dnBtn.style.opacity=i===NET.slots.length-1?'0.3':'1';
-      upBtn.onclick=()=>{
-        const tmp=NET.slots[i];NET.slots[i]=NET.slots[i-1];NET.slots[i-1]=tmp;
-        broadcastAll({type:'slots',slots:NET.slots});renderLobby({screen:'hosting'});
-      };
-      dnBtn.onclick=()=>{
-        const tmp=NET.slots[i];NET.slots[i]=NET.slots[i+1];NET.slots[i+1]=tmp;
-        broadcastAll({type:'slots',slots:NET.slots});renderLobby({screen:'hosting'});
-      };
-      row.append(upBtn,dnBtn);
-      sl2.appendChild(row);
-    });
-    box.appendChild(sl2);
-
-    const br=el('div',{class:'lobby-btn-row-sm'});
-    br.appendChild(gbtn(t('lobby.hosting.cancel'),'#555',()=>{try{NET.peer?.destroy();}catch(e){}NET.peer=null;NET.mode='solo';if(typeof mpClearSession==='function')mpClearSession();LS.screen='home';LS.hostSlots=null;renderLobby({});}));
-    br.appendChild(gbtn(t('lobby.hosting.start'),'#4db87a',()=>{
-      NET.slots.forEach(sl=>{if(!sl.ai&&sl.slot!==0&&!sl.peerId){sl.ai=true;}});
-      S=buildGameFromConfig(NET.slots,LS.hostCharSet);S=runAIDraft(S);
-      // render() in host mode already calls broadcastState() internally — no need to call it twice.
-      render();
-    },'flex:1;padding:11px;font-family:Cinzel,serif;font-size:14px;text-align:center'));
-    box.appendChild(br);
-    box.appendChild(el('div',{class:'lobby-hint-sm'},t('lobby.hosting.unfilled')));
-  }
-
-  else if(LS.screen==='join'){
-    box.appendChild(el('div',{class:'lobby-section-title'},t('lobby.join.title')));
-    box.appendChild(renderAvatarPicker());
-    const nRow=el('div',{class:'mb-md'});
-    nRow.appendChild(el('div',{class:'lobby-label-sm'},t('lobby.join.name_label')));
-    const nIn=document.createElement('input');nIn.value=LS.joinName;nIn.placeholder='Your display name';
-    nIn.className='lobby-input';
-    nIn.oninput=()=>LS.joinName=nIn.value;nRow.appendChild(nIn);box.appendChild(nRow);
-    const cRow=el('div',{class:'mb-xl'});
-    cRow.appendChild(el('div',{class:'lobby-label-sm'},t('lobby.join.code_label')));
-    const cIn=document.createElement('input');cIn.value=LS.joinCode;cIn.placeholder='XXXXXX';cIn.maxLength=6;
-    cIn.className='lobby-input-code';
-    cIn.oninput=()=>LS.joinCode=cIn.value.toUpperCase();cRow.appendChild(cIn);box.appendChild(cRow);
-    const br=el('div',{class:'lobby-btn-row-sm'});
-    br.appendChild(gbtn(t('lobby.join.back'),'#555',()=>{LS.screen='home';renderLobby({});}));
-    br.appendChild(gbtn(t('lobby.join.join'),'#4db87a',()=>{
-      const name=(LS.joinName||'').trim()||'Guest';
-      const code=(LS.joinCode||'').trim();
-      if(code.length<4){LS.error=t('lobby.join.invalid_code');renderLobby({});return;}
-      joinRoom(code,name);
-    },'flex:1;padding:10px;font-family:Cinzel,serif;font-size:13px;text-align:center'));
-    box.appendChild(br);
-  }
-
-  else if(LS.screen==='connecting'||LS.screen==='waiting'){
-    box.appendChild(el('div',{class:'lobby-connect-icon'},'⏳'));
-    box.appendChild(el('div',{class:'lobby-connect-title'},
-      LS.screen==='connecting'?t('lobby.connect.connecting'):t('lobby.connect.waiting')));
-    box.appendChild(el('div',{class:'lobby-connect-desc'},
-      LS.screen==='connecting'?t('lobby.connect.joining_room',{code:NET.roomId}):t('lobby.connect.in_room')));
-    if(NET.slots&&NET.slots.length){
-      box.appendChild(el('div',{class:'lobby-players-label'},t('lobby.connect.players_label')));
-      const slList=el('div',{class:'lobby-players-list'});
-      NET.slots.forEach(sl=>{
-        const isMe=NET.peer&&sl.peerId===NET.peer.id;
-        const row=el('div',{class:'lobby-peer-row'+(isMe?' me':'')});
-        const icon=sl.slot===0?'👤':sl.peerId?'🟢':sl.ai?'🤖':'⏳';
-        row.appendChild(el('span',{class:'lobby-peer-icon'},icon));
-        const nameEl=el('span',{class:'lobby-peer-name'+(isMe?' me-name':'')});
-        nameEl.textContent=(sl.peerId||sl.slot===0)?sl.name:sl.ai?sl.name:t('lobby.connect.waiting');
-        row.appendChild(nameEl);
-        if(isMe)row.appendChild(el('span',{class:'lobby-peer-tag me-tag'},t('lobby.host.slot.you')));
-        else if(sl.slot===0)row.appendChild(el('span',{class:'lobby-peer-tag'},t('lobby.players.peer_tag')));
-        slList.appendChild(row);
-      });
-      box.appendChild(slList);
-    }
-    const lb=gbtn(t('lobby.connect.leave'),'#555',()=>{try{NET.peer?.destroy();}catch(e){}NET.peer=null;NET.mode='solo';if(typeof mpClearSession==='function')mpClearSession();LS.screen='home';renderLobby({});});
-    lb.style.display='block';lb.style.margin='0 auto';box.appendChild(lb);
-  }
-
-  inner.appendChild(box);page.appendChild(inner);app.appendChild(page);
+  return {
+    show(screen, patch = {}) { Object.assign(L, patch); if (screen) L.screen = screen; root.classList.add('on'); render(); },
+    hide() { root.classList.remove('on'); },
+    update(patch) { Object.assign(L, patch); if (root.classList.contains('on')) render(); },
+    render,
+    get screen() { return L.screen; },
+  };
 }

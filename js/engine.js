@@ -1,771 +1,538 @@
-// ═══════════════════════════════════════════════════════════════════════════════
-// ENGINE — Core game logic: state factory, AI, draft, action phase, human actions
-//
-// All humanXxx functions are `function` declarations so net.js can reassign
-// them on `window` via _patchActionsForPeer() for peer-mode players.
-// ═══════════════════════════════════════════════════════════════════════════════
+// Rules engine. Pure and serializable: every function takes a plain-object state.
+// act(state, pid, action) returns a NEW state, or {error} when the move is illegal.
+// Humans, AI and network peers all go through act(), so they play by identical rules.
 
-// Callback set by net.js after load; called after a round ends so the host can
-// broadcast the new state. Keeps engine.js free of networking concerns.
-var _onRoundEnd = null;
+import { CHAR, COLORS, makeDeck } from './data.js';
 
-function calcScore(player,isFirst){
-  let s=player.city.reduce((t,d)=>t+d.cost,0);
-  if(isFirst)s+=4;else if(player.city.length>=8)s+=2;
-  const base=new Set(player.city.filter(d=>d.special!=='flex_color').map(d=>d.color));
-  const flexCount=player.city.filter(d=>d.special==='flex_color').length;
-  if(flexCount>0&&base.size+flexCount>=5)
-    ['yellow','blue','green','red','purple'].forEach(c=>{if(!base.has(c))base.add(c);});
-  if(['yellow','blue','green','red','purple'].every(c=>base.has(c)))s+=3;
-  player.city.forEach(d=>{
-    if(d.special==='bonus2')s+=2;
-    if(d.special==='wishing_well')s+=player.city.filter(x=>x.special&&x.uid!==d.uid&&x.color==='purple').length;
-    if(d.special==='map_room')s+=player.hand.length;
-    if(d.special==='basilica')s+=player.city.filter(x=>x.cost%2!==0).length;
-    if(d.special==='capitol'){const cc={};player.city.forEach(x=>{cc[x.color]=(cc[x.color]||0)+1;});if(Object.values(cc).some(v=>v>=3))s+=3;}
-    if(d.special==='ivory_tower'&&player.city.filter(x=>x.color==='purple').length===1)s+=5;
-    if(d.special==='secret_vault')s+=3;
-  });
-  // Extension score hooks
-  EXT._scoreHooks.forEach(fn=>{s+=fn(player,isFirst,s);});
+const MAX_EV = 120;
+export const VERSION = 2; // bump when saved states become incompatible
+const MAX_ROUNDS = 40; // ponytail: hard stop for degenerate games (empty deck + empty hands)
+
+// ── helpers ────────────────────────────────────────────────────────────────
+function rand(s) { // mulberry32, seed lives in state so games are replayable
+  let t = (s.seed = (s.seed + 0x6D2B79F5) | 0);
+  t = Math.imul(t ^ (t >>> 15), t | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+}
+function shuffle(s, a) {
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rand(s) * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+function emit(s, k, o) {
+  s.ev.push({ id: ++s.evSeq, k, ...o });
+  if (s.ev.length > MAX_EV) s.ev.splice(0, s.ev.length - MAX_EV);
+}
+const draw = (s, n) => s.deck.splice(0, n);
+
+export const rankOf = id => CHAR[id].rank;
+export const charsPerPlayer = n => (n <= 3 ? 2 : 1);
+export const has = (p, id) => p.city.some(d => d.id === id);
+export const maxRank = s => Math.max(...s.cfg.chars.map(rankOf));
+export const holderOf = (s, rank) => s.players.find(p => p.chars.some(c => rankOf(c) === rank));
+
+export function colorCount(p, color) {
+  return p.city.filter(d => d.color === color || d.id === 'school_of_magic').length;
+}
+export function buildCost(p, card) {
+  return card.color === 'purple' && card.id !== 'factory' && has(p, 'factory') ? Math.max(0, card.cost - 1) : card.cost;
+}
+export function canPlace(p, card) {
+  return !has(p, card.id) || has(p, 'quarry');
+}
+export function destroyCost(target, card) {
+  return Math.max(0, card.cost - 1) + (has(target, 'great_wall') && card.id !== 'great_wall' ? 1 : 0);
+}
+// Can the current Warlord touch this player's city at all?
+export function shielded(s, target) {
+  if (target.city.length >= s.cfg.goal) return 'complete';
+  if (target.chars.includes(5) && s.killed !== 5) return 'bishop'; // the Bishop only, not the Abbot
+  return null;
+}
+export function buildLimit(charId) {
+  return { 7: 3, 14: 2, 15: 2, 10: 0 }[charId] ?? 1;
+}
+export function countsTowardLimit(charId, card) {
+  return !(charId === 16 && card.color === 'green');
+}
+
+// ── setup ──────────────────────────────────────────────────────────────────
+// cfg: { players:[{name, ai, avatar}], chars:[charIds], goal:7|8, seed? }
+export function createGame(cfg) {
+  const n = cfg.players.length;
+  if (n < 2 || n > 7) throw new Error('2–7 players');
+  const ranks = cfg.chars.map(rankOf);
+  if (new Set(ranks).size !== ranks.length) throw new Error('one character per rank');
+  if (!ranks.includes(4)) throw new Error('rank 4 (crown) required');
+  if (cfg.chars.length < n * charsPerPlayer(n) + 1) throw new Error('not enough characters');
+
+  const s = {
+    v: VERSION, seed: cfg.seed ?? (Math.random() * 2 ** 31) | 0,
+    cfg: { chars: [...cfg.chars], goal: cfg.goal || 8, level: cfg.level || 'normal' },
+    players: cfg.players.map((p, i) => ({
+      id: i, name: p.name, ai: !!p.ai, avatar: p.avatar || '',
+      gold: 2, hand: [], city: [], chars: [], lastRank: 0, saw: [],
+    })),
+    deck: [], round: 0, phase: 'draft', crown: 0,
+    draft: null, call: 0, turn: null, killed: null, robbed: null, robber: null, revealed: [], interrupt: null,
+    firstComplete: null, scores: null, winner: null, ev: [], evSeq: 0,
+  };
+  s.deck = shuffle(s, makeDeck());
+  s.players.forEach(p => { p.hand = draw(s, 4); });
+  s.crown = Math.floor(rand(s) * n);
+  emit(s, 'start', {});
+  startRound(s);
   return s;
 }
 
-// ── STATE ──────────────────────────────────────────────────────────────────────
-function newGame(cfg){
-  cfg=cfg||{};
-  const numAI=cfg.numAI!==undefined?cfg.numAI:3;
-  const charPool=cfg.charPool||[1,2,3,4,5,6,7,8];
-  const AI_NAMES=['Lady Mira','Duke Arven','Baron Selt','Countess Vael','Lord Draven','Dame Isolde'];
-  const deck=shuffle(mkDeck());
-  const n=1+numAI;
-  const crown=0|Math.random()*n;
-  const dealt=dealDraft(charPool,n);
-  const players=[
-    {id:0,name:'You',ai:false,gold:2,hand:[],city:[],char:null,dead:false,stolenTarget:null,smithyUsed:false,labUsed:false,seerUsed:false,magicianUsed:false,wizardUsed:false,pendingKill:null},
-    ...Array.from({length:numAI},(_,i)=>({id:i+1,name:AI_NAMES[i]||'AI '+(i+2),ai:true,gold:2,hand:[],city:[],char:null,dead:false,stolenTarget:null,smithyUsed:false,labUsed:false,seerUsed:false,magicianUsed:false,wizardUsed:false,pendingKill:null}))
-  ];
-  const d=[...deck];players.forEach(p=>{p.hand=d.splice(0,4);});
-  return{phase:'draft',sub:'idle',round:1,deck:d,trash:[],players,crown,
-    charPool:[...charPool],
-    draftOrder:draftSeq(crown,n),draftIdx:0,avail:dealt.avail,faceDown:dealt.faceDown,faceUp:dealt.faceUp,
-    heraldQueue:[],heraldIdx:0,heraldAfter:'action',heraldAcks:[],
-    callIdx:1,log:['The game begins!'],firstCompleter:null,
-    collected:false,builtCount:0,noBuild:false,drawOpts:[],selCards:[],pendingDestroy:null,_confirmEnd:false,
-    wizardTargetId:null,_pendingSOTDraw:0};
-}
-function draftSeq(crown,n){return Array.from({length:n},(_,i)=>(crown+i)%n);}
-function dealDraft(charPool,numPlayers){
-  // Official rules: 1 face-down (hidden from all), max(0, pool-players-2) face-up (visible, unavailable).
-  // King/Patrician (rank 4) may never appear face-up — swap them to avail/faceDown if drawn.
-  const nFaceDown=charPool.length>numPlayers?1:0;
-  const nFaceUp=Math.max(0,charPool.length-numPlayers-2);
-  // Shuffle full pool once, then:
-  // 1) draw face-down from the full pool (may be rank 4),
-  // 2) draw face-up from the remainder, never allowing rank 4 to be face-up.
-  const pool=shuffle([...charPool]);
-  const faceDown=[];
-  let remainingPool=pool;
-  if(nFaceDown>0){
-    faceDown.push(remainingPool[0]);
-    remainingPool=remainingPool.slice(1);
+function startRound(s) {
+  s.round++;
+  s.phase = 'draft';
+  s.turn = null; s.call = 0; s.killed = null; s.robbed = null; s.robber = null; s.revealed = [];
+  s.players.forEach(p => { p.chars = []; p.saw = []; p.lastRank = 0; });
+  const n = s.players.length, per = charsPerPlayer(n);
+  const pool = shuffle(s, [...s.cfg.chars]);
+  const faceDown = [pool.pop()];
+  const nUp = n === 2 ? 0 : Math.max(0, pool.length - n * per - 1);
+  const faceUp = [];
+  for (let i = 0; i < pool.length && faceUp.length < nUp; i++) {
+    if (rankOf(pool[i]) === 4) continue; // the crown may never be revealed face-up
+    faceUp.push(...pool.splice(i--, 1));
   }
-  const faceUp=[];
-  const avail=[];
-  for(const id of remainingPool){
-    const c=CHARS.find(q=>q.id===id);
-    const isRank4=c&&c.rank===4;
-    if(faceUp.length<nFaceUp && !isRank4){
-      // Non-rank-4 card can be turned face-up while we still need more face-up cards.
-      faceUp.push(id);
-    }else{
-      // Either we've filled the face-up quota, or this is rank-4 which must not be face-up.
-      avail.push(id);
-    }
+  const order = [];
+  for (let k = 0; k < per; k++) for (let i = 0; i < n; i++) order.push((s.crown + i) % n);
+  // Two players (official): after the first pick, every pick is followed by a face-down discard.
+  const discard = order.map((_, i) => n === 2 && i > 0);
+  s.draft = { order, idx: 0, avail: pool, faceUp, faceDown, discard, mustDiscard: false };
+  emit(s, 'round', { n: s.round, crown: s.crown });
+}
+
+// The last picker may also take the face-down card if only one remains (official 7-player rule).
+export function draftOptions(s) {
+  const d = s.draft;
+  if (!d) return [];
+  if (d.mustDiscard) return [...d.avail];
+  const last = d.idx === d.order.length - 1;
+  return last && d.avail.length < 2 && s.players.length > 2 ? [...d.avail, ...d.faceDown] : [...d.avail];
+}
+export const currentActor = s =>
+  s.interrupt ? s.interrupt.pid
+    : s.phase === 'draft' ? s.draft.order[s.draft.idx] : s.phase === 'turns' && s.turn ? s.turn.pid : null;
+
+function nextCall(s) {
+  while (true) {
+    s.call++;
+    if (s.call > maxRank(s)) return endRound(s);
+    const charId = s.cfg.chars.find(c => rankOf(c) === s.call);
+    if (!charId) continue;
+    const holder = holderOf(s, s.call);
+    if (!holder) { emit(s, 'call', { rank: s.call, charId, pid: null }); continue; }
+    const cid = holder.chars.find(c => rankOf(c) === s.call);
+    s.revealed.push(cid);
+    holder.lastRank = Math.max(holder.lastRank, s.call);
+    if (s.killed === s.call) { emit(s, 'call', { rank: s.call, charId: cid, pid: holder.id, killed: true }); continue; }
+    return beginTurn(s, holder, cid);
   }
-  return{avail,faceDown,faceUp};
-}
-function charRank(id){const c=CHARS.find(q=>q.id===id);return c?c.rank:id;}
-function charById(id){return CHARS.find(q=>q.id===id)||{id,rank:id,name:'?',clr:'#888',emoji:'?',ability:''};}
-
-// Count districts of a given color, treating flex_color (School of Magic, Haunted City) as that color
-function cityColorCount(player,color){
-  return player.city.filter(d=>d.color===color||d.special==='flex_color').length;
 }
 
-function buildCost(player,district){
-  if(district.color==='purple'&&district.special!=='factory'&&player.city.some(d=>d.id==='factory'))
-    return Math.max(1,district.cost-1);
-  return district.cost;
-}
-function canBuildDistrict(player,district){
-  if(player.city.some(d=>d.id===district.id))
-    return player.city.some(d=>d.id==='quarry');
-  return true;
+function gain(s, p, n, why) {
+  if (n <= 0) return;
+  p.gold += n;
+  emit(s, 'gold', { pid: p.id, n, why });
 }
 
-// ── AI ─────────────────────────────────────────────────────────────────────────
-function aiPickChar(p,avail,state){
-  const humanMax=Math.max(0,...state.players.filter(q=>!q.ai).map(q=>q.city.length));
-  const pref=[];
-  if(humanMax>=6&&avail.includes(8))pref.push(8);
-  if(p.gold>=6&&avail.includes(7))pref.push(7);
-  if(p.city.filter(d=>d.color==='blue').length>=2&&avail.includes(5))pref.push(5);
-  if(p.city.filter(d=>d.color==='blue').length>=2&&avail.includes(13))pref.push(13);
-  if(p.city.filter(d=>d.color==='green').length>=2&&avail.includes(6))pref.push(6);
-  if(p.city.filter(d=>d.color==='green').length>=2&&avail.includes(16))pref.push(16);
-  if(p.city.filter(d=>d.color==='yellow').length>=2&&avail.includes(4))pref.push(4);
-  if(p.city.filter(d=>d.color==='yellow').length>=2&&avail.includes(12))pref.push(12);
-  for(const c of [...pref,6,16,4,12,5,13,3,11,15,2,1,8,7,14,10,9])if(avail.includes(c))return c;
-  return avail[0|Math.random()*avail.length];
-}
-function aiBestBuild(p,state){
-  let can=p.hand.filter(d=>{
-    const cost=buildCost(p,d);
-    if(!canBuildDistrict(p,d))return false;
-    if(cost<=p.gold)return true;
-    // Thieves' Den: can pay with cards from hand (excluding the card itself)
-    if(d.id==='thieves_den'){
-      const cardsAvail=p.hand.length-1; // minus the den itself
-      return cost<=p.gold+cardsAvail;
-    }
-    return false;
-  });
-  // Don't trigger game end (build 8th district) if clearly losing — first-completer bonus (+4)
-  // won't overcome the deficit, so let the game continue for more scoring opportunities.
-  if(can.length&&p.city.length===7&&state&&state.firstCompleter===null){
-    const maxOther=Math.max(0,...state.players.filter(q=>q.id!==p.id).map(q=>calcScore(q,false)));
-    // Simulate each possible 8th-district build and see the best score we could reach.
-    let bestSimScore=0;
-    for(const d of can){
-      // Remove exactly one instance of the district from hand to model spending the card.
-      const handCopy=p.hand.slice();
-      const idx=handCopy.indexOf(d);
-      if(idx!==-1)handCopy.splice(idx,1);
-      const simPlayer={...p,city:[...p.city,d],hand:handCopy};
-      const s=calcScore(simPlayer,true); // assume we become first completer
-      if(s>bestSimScore)bestSimScore=s;
-    }
-    if(bestSimScore<maxOther)can=[];// skip building 8th — not worth triggering end while losing
+function beginTurn(s, p, charId) {
+  const rank = rankOf(charId);
+  s.turn = { pid: p.id, charId, rank, income: false, built: 0, max: buildLimit(charId), used: {}, pending: null };
+  emit(s, 'call', { rank, charId, pid: p.id });
+
+  if (s.robbed === rank && s.robber !== p.id && p.gold > 0) {
+    const thief = s.players[s.robber], n = p.gold;
+    p.gold = 0; thief.gold += n;
+    emit(s, 'robbed', { from: p.id, to: thief.id, n });
   }
-  return can.length?can.sort((a,b)=>buildCost(p,a)-buildCost(p,b))[0]:null;
-}
-function addLog(s,msg){return{...s,log:[...s.log,msg]};}
-
-// ── DRAFT ──────────────────────────────────────────────────────────────────────
-function runAIDraft(state){
-  let s={...state,players:state.players.map(p=>({...p})),avail:[...state.avail]};
-  while(s.draftIdx<s.players.length){
-    const pid=s.draftOrder[s.draftIdx];
-    const p=s.players[pid];
-    if(!p.ai)break;
-    const picked=aiPickChar(p,s.avail,s);
-    s.players=s.players.map(q=>q.id===pid?{...q,char:picked}:q);
-    s.avail=s.avail.filter(c=>c!==picked);s.draftIdx++;
+  const c = CHAR[charId];
+  if (c.crown) {
+    s.crown = p.id;
+    emit(s, 'crown', { pid: p.id });
   }
-  if(s.draftIdx>=s.players.length)s=startActionPhase(s);
-  return s;
-}
-function humanDraft(state,charId){
-  let s={...state,players:state.players.map(p=>p.id===0?{...p,char:charId}:p),
-    avail:state.avail.filter(c=>c!==charId),draftIdx:state.draftIdx+1};
-  s=addLog(s,_te('log.choose_char'));
-  if(s.draftIdx>=s.players.length)return startActionPhase(s);
-  return runAIDraft(s);
-}
-
-// ── ACTION PHASE ───────────────────────────────────────────────────────────────
-function startActionPhase(state){
-  let s={...state,phase:'action',sub:'idle',callIdx:1,
-    collected:false,builtCount:0,noBuild:false,wizardTargetId:null,drawOpts:[],selCards:[],heraldQueue:[],heraldIdx:0,heraldAcks:[],_pendingSOTDraw:0,
-    players:state.players.map(p=>({...p,smithyUsed:false,labUsed:false,seerUsed:false,magicianUsed:false,wizardUsed:false}))};
-  s=addLog(s,_te('log.round_herald',{n:s.round}));
-  return advanceCall(s,_applyLocalSlot);
+  if (c.income) gain(s, p, colorCount(p, c.income) + (charId === 6 ? 1 : 0), 'income');
+  if (charId === 12) {
+    const cards = draw(s, colorCount(p, 'yellow'));
+    p.hand.push(...cards);
+    if (cards.length) emit(s, 'cards', { pid: p.id, n: cards.length, why: 'income' });
+  }
+  if (charId === 13) {
+    const rich = s.players.filter(q => q.id !== p.id && q.gold > 0).sort((a, b) => b.gold - a.gold)[0];
+    if (rich && rich.gold > p.gold) { rich.gold--; p.gold++; emit(s, 'tithe', { from: rich.id, to: p.id }); }
+  }
+  if (charId === 7) {
+    const cards = draw(s, 2);
+    p.hand.push(...cards);
+    if (cards.length) emit(s, 'cards', { pid: p.id, n: cards.length, why: 'architect' });
+  }
+  if (charId === 9) {
+    const n = s.players.length, king = holderOf(s, 4);
+    if (king && king.id !== p.id && [1, n - 1].includes(Math.abs(king.id - p.id))) gain(s, p, 3, 'queen');
+  }
 }
 
-function advanceCall(state, localSlot){
-  if(localSlot===undefined)localSlot=0;
-  let s={...state};
-  while(s.callIdx<=Math.max(0,...s.charPool.map(charRank))){
-    const holder=s.players.find(p=>charRank(p.char)===s.callIdx);
-    if(!holder){s={...s,heraldQueue:[...s.heraldQueue,{charId:s.callIdx,holderName:null,events:[]}],callIdx:s.callIdx+1};continue;}
-    if(holder.dead){s={...s,heraldQueue:[...s.heraldQueue,{charId:s.callIdx,holderName:holder.name,events:[
-      {icon:'☠️',text:_te('sot.assassinated_skip',{name:holder.name}),color:'#cc4444'}]}],callIdx:s.callIdx+1};continue;}
-
-    // Remote human peer — stop and wait for their action message
-    if(!holder.ai && holder.id!==localSlot){
-      const sotR=applyStartOfTurn(s,holder.char,holder.id);s=sotR.state;const sotEvents=sotR.events;
-      let q=[...s.heraldQueue];
-      if(sotEvents.length>0)q=[...q,{charId:s.callIdx,holderName:holder.name+"'s turn begins",events:sotEvents,isStartOnly:true}];
-      return{...s,heraldQueue:q.length?q:s.heraldQueue,heraldIdx:0,
-        phase:q.length?'herald':'action',
-        heraldAfter:'peer_act',
-        sub:'idle',collected:false,builtCount:0,drawOpts:[],selCards:[]};
-    }
-
-    // Local human — stop for local input; defer card draws so hand doesn't update during prior herald beats
-    if(!holder.ai && holder.id===localSlot){
-      const sotR=applyStartOfTurn(s,holder.char,localSlot,true);s=sotR.state;const sotEvents=sotR.events;
-      // If assassinated during start-of-turn (human pendingKill applied), skip turn like the dead branch
-      if(s.players.find(p=>p.id===localSlot).dead){
-        s={...s,heraldQueue:[...s.heraldQueue,{charId:s.callIdx,holderName:holder.name,events:sotEvents}],callIdx:s.callIdx+1};
-        continue;
-      }
-      if(s.heraldQueue.length>0||sotEvents.length>0){
-        let q=[...s.heraldQueue];
-        if(sotEvents.length>0)q=[...q,{charId:s.callIdx,holderName:'Your turn begins',events:sotEvents,isStartOnly:true}];
-        return{...s,heraldQueue:q,heraldIdx:0,phase:'herald',heraldAfter:'human_act'};
-      }
-      return _applyPendingSOTDraw({...s,phase:'action',sub:'choose',collected:false,builtCount:0,drawOpts:[],selCards:[]});
-    }
-
-    const {state:ns,events}=doAITurn(s,holder.id,holder.char);
-    s={...ns,heraldQueue:[...ns.heraldQueue,{charId:s.callIdx,holderName:holder.name,events}],callIdx:ns.callIdx+1};
+function checkComplete(s, p) {
+  if (p.city.length >= s.cfg.goal && s.firstComplete === null) {
+    s.firstComplete = p.id;
+    emit(s, 'complete', { pid: p.id });
   }
-  if(s.heraldQueue.length>0)return{...s,phase:'herald',heraldIdx:0,heraldAfter:'end_round'};
-  return endRound(s);
 }
 
-function applyStartOfTurn(state,charId,pid,defer){
-  let s={...state};const p=()=>s.players.find(q=>q.id===pid);const events=[];
-  const rank=charRank(charId);
-
-  // Apply pending assassination
-  if(rank!==1){
-    s.players.filter(q=>!q.ai&&q.pendingKill===rank).forEach(assassin=>{
-      const victim=s.players.find(q=>charRank(q.char)===rank&&q.id!==assassin.id);
-      if(victim){
-        s={...s,players:s.players.map(q=>
-          q.id===victim.id?{...q,dead:true}:
-          q.id===assassin.id?{...q,pendingKill:null}:q
-        )};
-        events.push({icon:'☠️',text:_te('sot.assassin_kills',{killer:assassin.name,char:cn(charId)}),color:'#cc7777'});
-      }
-    });
-  }
-
-  // Apply thief steal (only if target was not assassinated this same turn)
-  if(rank!==1&&rank!==2){
-    const thief=s.players.find(q=>charRank(q.char)===2&&!q.dead&&q.stolenTarget===rank);
-    if(thief&&!p().dead){const stolen=p().gold;if(stolen>0){
-      events.push({icon:'💰',text:_te('sot.thief_steals',{thief:thief.name,amt:stolen,target:p().name}),color:'#b0b0b0'});
-      s={...s,players:s.players.map(q=>{if(q.id===thief.id)return{...q,gold:q.gold+stolen};if(q.id===pid)return{...q,gold:0};return q;})};}}
-  }
-  // If assassinated this turn, skip all income/crown bonuses
-  if(p().dead)return{state:s,events};
-  let bonus=0,newCrown=s.crown;
-  if(charId===4||charId===12){
-    newCrown=pid;
-    if(charId===12){
-      // Patrician: draw 1 card per noble district (deferred for local human to avoid early hand reveal)
-      const cardCount=cityColorCount(p(),'yellow');
-      events.push({icon:'🏅',text:cardCount>0&&!defer?_te('sot.patrician_crown_noble',{name:p().name,n:cardCount}):_te('sot.patrician_crown',{name:p().name}),color:'#d4a843'});
-      s={...s,crown:newCrown};
-      if(cardCount>0){
-        if(defer)s={...s,_pendingSOTDraw:(s._pendingSOTDraw||0)+cardCount};
-        else{const drawn=s.deck.slice(0,Math.min(cardCount,s.deck.length));s={...s,deck:s.deck.slice(drawn.length),players:s.players.map(q=>q.id===pid?{...q,hand:[...q.hand,...drawn]}:q)};}
-      }
-    }else{
-      bonus=cityColorCount(p(),'yellow');
-      events.push({icon:'👑',text:bonus>0?_te('sot.king_crown_noble',{name:p().name,n:bonus}):_te('sot.king_crown',{name:p().name}),color:'#d4a843'});
-      s={...s,crown:newCrown};
-      if(bonus>0)s={...s,players:s.players.map(q=>q.id===pid?{...q,gold:q.gold+bonus}:q)};
-    }
-  }else if(charId===5){
-    bonus=cityColorCount(p(),'blue');
-    if(bonus>0){events.push({icon:'⛪',text:_te('sot.bishop_income',{name:p().name,n:bonus}),color:'#5a9fd4'});
-      s={...s,players:s.players.map(q=>q.id===pid?{...q,gold:q.gold+bonus}:q)};}
-  }else if(charId===13){
-    // Abbot: +1 gold per religious + steal 1 from richest
-    bonus=cityColorCount(p(),'blue');
-    const richest=s.players.filter(q=>q.id!==pid&&!q.dead&&q.gold>0).sort((a,b)=>b.gold-a.gold)[0];
-    if(bonus>0||richest){
-      if(bonus>0)s={...s,players:s.players.map(q=>q.id===pid?{...q,gold:q.gold+bonus}:q)};
-      if(richest){s={...s,players:s.players.map(q=>q.id===pid?{...q,gold:q.gold+1}:q.id===richest.id?{...q,gold:q.gold-1}:q)};}
-      events.push({icon:'🧎',text:_te('sot.abbot_income',{name:p().name,n:bonus,richest:richest?richest.name:null}),color:'#5a9fd4'});
-    }
-  }else if(charId===6){
-    bonus=1+cityColorCount(p(),'green');
-    events.push({icon:'💰',text:_te('sot.merchant_income',{name:p().name,n:bonus}),color:'#4db87a'});
-    s={...s,players:s.players.map(q=>q.id===pid?{...q,gold:q.gold+bonus}:q)};
-  }else if(charId===16){
-    bonus=cityColorCount(p(),'green');
-    if(bonus>0){events.push({icon:'🏦',text:_te('sot.trader_income',{name:p().name,n:bonus}),color:'#4db87a'});
-      s={...s,players:s.players.map(q=>q.id===pid?{...q,gold:q.gold+bonus}:q)};}
-  }else if(charId===8){
-    bonus=cityColorCount(p(),'red');
-    if(bonus>0){events.push({icon:'⚔️',text:_te('sot.warlord_income',{name:p().name,n:bonus}),color:'#d45a5a'});
-      s={...s,players:s.players.map(q=>q.id===pid?{...q,gold:q.gold+bonus}:q)};}
-  }else if(charId===9){
-    const king=s.players.find(q=>(q.char===4||q.char===12)&&!q.dead);
-    if(king){
-      const sorted=[...s.players].sort((a,b)=>a.id-b.id);
-      const n=sorted.length;
-      const myIdx=sorted.findIndex(q=>q.id===pid);
-      const kingIdx=sorted.findIndex(q=>q.id===king.id);
-      const diff=Math.abs(myIdx-kingIdx);
-      if(diff===1||diff===n-1){
-        events.push({icon:'🫅',text:_te('sot.queen_beside',{name:p().name}),color:'#d4a843'});
-        s={...s,players:s.players.map(q=>q.id===pid?{...q,gold:q.gold+3}:q)};
-      }else{
-        events.push({icon:'🫅',text:_te('sot.queen_not_beside',{name:p().name}),color:'#666'});
-      }
-    }
-  }
-  if(charId===7){
-    // Architect +2 cards: deferred for local human to avoid cards appearing in hand during earlier herald beats
-    if(defer){
-      s={...s,_pendingSOTDraw:(s._pendingSOTDraw||0)+2};
-    }else{
-      const drawn=s.deck.slice(0,Math.min(2,s.deck.length));
-      if(drawn.length>0){s={...s,deck:s.deck.slice(drawn.length),players:s.players.map(q=>q.id===pid?{...q,hand:[...q.hand,...drawn]}:q)};
-        events.push({icon:'🃏',text:_te('sot.arch_draw',{name:p().name,n:drawn.length}),color:'#e0975c'});}
-    }
-  }
-  // Extension start-of-turn hooks (for expansion characters)
-  EXT._sotHooks.forEach(fn=>{
-    const r=fn(s,charId,pid);
-    if(r){s=r.state||s;if(r.events)events.push(...r.events);}
-  });
-  return{state:s,events};
+function place(s, p, card) {
+  card.round = s.round;
+  p.city.push(card);
+  emit(s, 'build', { pid: p.id, card });
+  checkComplete(s, p);
 }
 
-// Apply any deferred start-of-turn card draws (Architect +2, Patrician per-noble) for the local human.
-// Cards are drawn at the moment the human's action phase starts, not during earlier herald beats.
-function _applyPendingSOTDraw(s){
-  const cnt=Math.min(s._pendingSOTDraw||0,s.deck.length);
-  if(cnt<=0)return{...s,_pendingSOTDraw:0};
-  const drawn=s.deck.slice(0,cnt);
-  return{...s,deck:s.deck.slice(cnt),_pendingSOTDraw:0,
-    players:s.players.map(q=>q.id===0?{...q,hand:[...q.hand,...drawn]}:q)};
+function endRound(s) {
+  s.turn = null;
+  if (s.killed === 4) { // an assassinated King still inherits the crown at round end
+    const heir = holderOf(s, 4);
+    if (heir) { s.crown = heir.id; emit(s, 'crown', { pid: heir.id, heir: true }); }
+  }
+  if (s.firstComplete !== null || s.round >= MAX_ROUNDS) return finish(s);
+  startRound(s);
 }
 
-function doAITurn(state,pid,charId){
-  let s={...state};const events=[];
-  const sotR=applyStartOfTurn(s,charId,pid);s=sotR.state;events.push(...sotR.events);
-  const p=()=>s.players.find(q=>q.id===pid);
-  // If this player was assassinated during start-of-turn (via human pendingKill), skip their turn
-  if(p().dead){return{state:s,events};}
-  // Navigator: replace normal income, cannot build
-  if(charId===10){
-    if(p().gold<5&&s.deck.length>0){
-      const cnt=Math.min(4,s.deck.length);const drawn=s.deck.slice(0,cnt);
-      s={...s,deck:s.deck.slice(cnt),players:s.players.map(q=>q.id===pid?{...q,hand:[...q.hand,...drawn]}:q)};
-      events.push({icon:'⚓',text:_te('ai.nav_draw',{name:p().name,n:cnt}),color:'#4a90d9'});
-    }else{
-      s={...s,players:s.players.map(q=>q.id===pid?{...q,gold:q.gold+4}:q)};
-      events.push({icon:'⚓',text:_te('ai.nav_gold',{name:p().name}),color:'#4a90d9'});
-    }
-    return{state:s,events};
+// ── scoring ────────────────────────────────────────────────────────────────
+export function score(s, p) {
+  const city = p.city, purple = city.filter(d => d.color === 'purple');
+  const parts = { base: city.reduce((t, d) => t + d.cost, 0), first: 0, complete: 0, colors: 0, extra: 0 };
+  if (s.firstComplete === p.id) parts.first = 4;
+  else if (city.length >= s.cfg.goal) parts.complete = 2;
+  // School of Magic is always wild; the Haunted Quarter only if it wasn't built in the final round.
+  const wild = d => d.id === 'school_of_magic' || (d.id === 'haunted_city' && d.round !== s.round);
+  const flex = city.filter(wild).length;
+  const present = new Set(city.filter(d => !wild(d)).map(d => d.color));
+  if (COLORS.length - present.size <= flex) parts.colors = 3;
+  const counts = {};
+  city.forEach(d => { counts[d.color] = (counts[d.color] || 0) + 1; });
+  for (const d of city) {
+    if (d.id === 'dragon_gate' || d.id === 'university') parts.extra += 2;
+    if (d.id === 'wishing_well') parts.extra += purple.length - 1;
+    if (d.id === 'map_room') parts.extra += p.hand.length;
+    if (d.id === 'basilica') parts.extra += city.filter(x => x.cost % 2).length;
+    if (d.id === 'capitol' && Object.values(counts).some(v => v >= 3)) parts.extra += 3;
+    if (d.id === 'ivory_tower' && purple.length === 1) parts.extra += 5;
+    if (d.id === 'secret_vault') parts.extra += 3;
   }
-  // Scholar: draw 7 keep best
-  if(charId===14){
-    if(s.deck.length>0){
-      const cnt=Math.min(7,s.deck.length);
-      const drawn=s.deck.slice(0,cnt);
-      const best=[...drawn].sort((a,b)=>b.cost-a.cost)[0];
-      const discarded=drawn.filter(d=>d.uid!==best.uid);
-      s={...s,deck:[...s.deck.slice(cnt),...discarded],
-        players:s.players.map(q=>q.id===pid?{...q,hand:[...q.hand,best]}:q)};
-      events.push({icon:'📖',text:_te('ai.scholar_draw',{name:p().name,n:cnt,card:dn(best)}),color:'#e0975c'});
-    }else{
-      s={...s,players:s.players.map(q=>q.id===pid?{...q,gold:q.gold+2}:q)};
-      events.push({icon:'✦',text:_te('ai.scholar_gold',{name:p().name}),color:'#d4a843'});
-    }
-    // Fall through to build (max 2)
-  }else{
-    // Normal income
-    const hasLib=p().city.some(d=>d.id==='library');
-    const hasObs=p().city.some(d=>d.id==='observatory');
-    if(p().hand.length<3&&s.deck.length>0){
-      // Observatory: draw 3, keep best 1 (discard rest to bottom of deck)
-      // Library: draw 2, keep both — these are independent; Observatory takes priority if both present
-      const cnt=hasObs?Math.min(3,s.deck.length):hasLib?Math.min(2,s.deck.length):1;
-      const drawn=s.deck.slice(0,cnt);
-      if(hasObs&&cnt>1){
-        const best=[...drawn].sort((a,b)=>b.cost-a.cost)[0];
-        const disc=drawn.filter(d=>d.uid!==best.uid);
-        s={...s,deck:[...s.deck.slice(cnt),...disc],players:s.players.map(q=>q.id===pid?{...q,hand:[...q.hand,best]}:q)};
-        events.push({icon:'🔭',text:_te('ai.draw_obs',{name:p().name,n:cnt,card:dn(best)}),color:'#888'});
-      }else{
-        s={...s,deck:s.deck.slice(cnt),players:s.players.map(q=>q.id===pid?{...q,hand:[...q.hand,...drawn]}:q)};
-        events.push({icon:'🃏',text:_te('ai.draw_cards',{name:p().name,n:cnt,lib:hasLib&&cnt>1}),color:'#888'});
-      }
-    }else{
-      s={...s,players:s.players.map(q=>q.id===pid?{...q,gold:q.gold+2}:q)};
-      events.push({icon:'✦',text:_te('ai.collect_gold',{name:p().name}),color:'#d4a843'});
-    }
-  }
-  // Specials
-  if(charId===1){
-    // AI Assassin uses heuristics — does NOT peek at hidden characters
-    const validRanks=CHARS.filter(c=>c.id!==1&&s.charPool.includes(c.id)).map(c=>c.rank);
-    // Prefer high-value targets: King (4) if behind on crown, Warlord (8) if city is big, Merchant (6) if low on gold
-    const myP=p();
-    const leadingOpp=s.players.filter(q=>q.id!==pid&&!q.dead).sort((a,b)=>b.city.length-a.city.length)[0];
-    let preferredRank=null;
-    if(leadingOpp&&leadingOpp.city.length>=myP.city.length){
-      // Target likely high-income chars on leading opponents: 6(Merchant) or 4(King) or 8(Warlord)
-      const highValueRanks=[6,4,8,3].filter(r=>validRanks.includes(r));
-      if(highValueRanks.length)preferredRank=highValueRanks[0|Math.random()*highValueRanks.length];
-    }
-    const target=preferredRank||validRanks[0|Math.random()*validRanks.length];
-    const victim=s.players.find(q=>charRank(q.char)===target);
-    if(victim&&victim.id!==pid){s={...s,players:s.players.map(q=>q.id===victim.id?{...q,dead:true}:q)};
-      events.push({icon:'🗡️',text:_te('ai.assassin_kill',{name:p().name,char:cn(victim.char)}),color:'#cc7777'});}
-  }else if(charId===2){
-    const others=s.players.filter(q=>q.id!==pid&&q.char&&!q.dead&&charRank(q.char)!==1&&charRank(q.char)!==2);
-    if(others.length){const richest=others.sort((a,b)=>b.gold-a.gold)[0];
-      s={...s,players:s.players.map(q=>q.id===pid?{...q,stolenTarget:charRank(richest.char)}:q)};
-      events.push({icon:'🦹',text:_te('ai.thief_declare',{name:p().name,char:cn(richest.char)}),color:'#b0b0b0'});}
-  }else if(charId===3){
-    const others=s.players.filter(q=>q.id!==pid);const most=others.sort((a,b)=>b.hand.length-a.hand.length)[0];
-    if(most&&most.hand.length>p().hand.length){
-      const myH=[...p().hand],thH=[...most.hand];
-      s={...s,players:s.players.map(q=>{if(q.id===pid)return{...q,hand:thH};if(q.id===most.id)return{...q,hand:myH};return q;})};
-      events.push({icon:'🔄',text:_te('ai.mag_swap',{name:p().name,target:most.name}),color:'#9b6fff'});
-    }else if(p().hand.length>0&&s.deck.length>0){
-      // Discard unaffordable cards and redraw the same number
-      const unaffordable=p().hand.filter(d=>buildCost(p(),d)>p().gold+6);
-      const toDiscard=unaffordable.length>0?unaffordable:p().hand.slice(0,1);
-      // Per rules: discarded cards go to bottom of deck, draw same number from top
-      const deck=[...s.deck,...toDiscard];const drawn=deck.splice(0,Math.min(toDiscard.length,deck.length));
-      s={...s,deck,players:s.players.map(q=>q.id===pid?{...q,hand:[...q.hand.filter(d=>!toDiscard.includes(d)),...drawn]}:q)};
-      events.push({icon:'🧙',text:_te('ai.mag_discard',{name:p().name,n:toDiscard.length}),color:'#9b6fff'});
-    }else events.push({icon:'🧙',text:_te('ai.mag_keep',{name:p().name}),color:'#9b6fff'});
-  }else if(charId===9){
-    // Queen: SOT bonus already applied in applyStartOfTurn; no additional action needed
-  }else if(charId===11){
-    const others=s.players.filter(q=>q.id!==pid&&q.hand.length>0);
-    if(others.length){
-      const target=others.sort((a,b)=>b.hand.length-a.hand.length)[0];
-      const card=[...target.hand].sort((a,b)=>b.cost-a.cost)[0];
-      s={...s,players:s.players.map(q=>q.id===target.id?{...q,hand:q.hand.filter(d=>d.uid!==card.uid)}:q)};
-      const myP=s.players.find(q=>q.id===pid);
-      const cost=buildCost(myP,card);
-      if(cost<=myP.gold&&canBuildDistrict(myP,card)){
-        s={...s,players:s.players.map(q=>q.id===pid?{...q,gold:q.gold-cost,city:[...q.city,card]}:q)};
-        events.push({icon:'🔮',text:_te('ai.wizard_take_build',{name:p().name,card:dn(card),target:target.name,cost}),color:'#9b6fff'});
-        s=addLog(s,_te('log.ai_build',{name:p().name,dist:dn(card)}));
-        if(s.players.find(q=>q.id===pid).city.length>=8&&s.firstCompleter===null){
-          s={...s,firstCompleter:pid};
-          events.push({icon:'🏆',text:_te('ai.complete8',{name:p().name}),color:'#d4a843'});
-          s=addLog(s,_te('log.ai_complete8',{name:p().name}));
-        }
-      }else{
-        s={...s,players:s.players.map(q=>q.id===pid?{...q,hand:[...q.hand,card]}:q)};
-        events.push({icon:'🔮',text:_te('ai.wizard_take',{name:p().name,card:dn(card),target:target.name}),color:'#9b6fff'});
-      }
-    }else events.push({icon:'🔮',text:_te('ai.wizard_no_target',{name:p().name}),color:'#9b6fff'});
-  }else if(charId===15){
-    // Seer: take 1 random card from each opponent
-    const opps=s.players.filter(q=>q.id!==pid&&q.hand.length>0);const taken=[];
-    for(const opp of opps){const idx=0|Math.random()*opp.hand.length;const card=opp.hand[idx];taken.push(card);
-      s={...s,players:s.players.map(q=>q.id===opp.id?{...q,hand:q.hand.filter(d=>d.uid!==card.uid)}:q)};}
-    if(taken.length){s={...s,players:s.players.map(q=>q.id===pid?{...q,seerUsed:true,hand:[...q.hand,...taken]}:q)};
-      events.push({icon:'🔯',text:_te('ai.seer_take',{name:p().name,n:taken.length}),color:'#9b6fff'});
-    }else events.push({icon:'🔯',text:_te('ai.seer_no_cards',{name:p().name}),color:'#9b6fff'});
-  }else if(charId===8){
-    const targets=s.players.filter(q=>q.id!==pid&&!(q.char===5&&!q.dead)&&q.city.length>0&&q.city.length<8);
-    const target=targets.sort((a,b)=>b.city.length-a.city.length)[0]||null;
-    if(target){
-      const wallBonus=target.city.some(d=>d.id==='great_wall');
-      const destructible=target.city.filter(d=>{if(d.id==='keep')return false;const c1=wallBonus?d.cost:Math.max(0,d.cost-1);return c1<=p().gold;});
-      if(destructible.length){const t=destructible.sort((a,b)=>b.cost-a.cost)[0];
-        const c1=wallBonus?t.cost:Math.max(0,t.cost-1);
-        s={...s,players:s.players.map(q=>{if(q.id===pid)return{...q,gold:q.gold-c1};if(q.id===target.id)return{...q,city:q.city.filter(d=>d.uid!==t.uid)};return q;})};
-        events.push({icon:'💥',text:_te('ai.warlord_destroy',{name:p().name,target:target.name,dist:dn(t),cost:c1}),color:'#d45a5a'});
-        const gv=s.players.find(q=>q.id===target.id);
-        if(gv&&t.id!=='graveyard'&&gv.city.some(d=>d.id==='graveyard')&&gv.gold>=1){
-          s={...s,players:s.players.map(q=>q.id===target.id?{...q,gold:q.gold-1,hand:[...q.hand,t]}:q)};
-          events.push({icon:'⚰️',text:_te('ai.graveyard_recover',{target:target.name,card:dn(t)}),color:'#c084fc'});
-        }}
-    }
-  }else if(EXT._aiHooks[charId]){
-    // Extension AI hook for expansion characters
-    const r=EXT._aiHooks[charId](s,pid);
-    if(r){s=r.state||s;if(r.events)events.push(...r.events);}
-  }
-  // Smithy
-  if(p().city.some(d=>d.id==='smithy')&&!p().smithyUsed&&p().gold>=2&&s.deck.length>=1){
-    const drawn=s.deck.slice(0,Math.min(3,s.deck.length));
-    s={...s,deck:s.deck.slice(drawn.length),players:s.players.map(q=>q.id===pid?{...q,gold:q.gold-2,hand:[...q.hand,...drawn],smithyUsed:true}:q)};
-    events.push({icon:'⚒️',text:_te('ai.smithy',{name:p().name,n:drawn.length}),color:'#c084fc'});
-  }
-  // Laboratory: discard lowest-cost unaffordable card for 2 gold (if useful)
-  if(p().city.some(d=>d.id==='laboratory')&&!p().labUsed&&p().hand.length>0){
-    const unaffordable=p().hand.filter(d=>buildCost(p(),d)>p().gold&&d.id!=='laboratory');
-    const toDiscard=unaffordable.length>0?unaffordable.sort((a,b)=>a.cost-b.cost)[0]:null;
-    if(toDiscard){
-      s={...s,deck:[...s.deck,toDiscard],players:s.players.map(q=>q.id===pid?{...q,gold:q.gold+2,hand:q.hand.filter(d=>d.uid!==toDiscard.uid),labUsed:true}:q)};
-      events.push({icon:'⚗️',text:_te('ai.lab',{name:p().name,card:dn(toDiscard)}),color:'#c084fc'});
-    }
-  }
-  // Build
-  const maxB=charId===7?3:(charId===14||charId===15||charId===16)?2:1;let built=0;
-  for(let i=0;i<maxB;i++){
-    const dist=aiBestBuild(p(),s);if(!dist)break;built++;
-    const cost=buildCost(p(),dist);
-    let goldPaid=cost,cardsDiscarded=0;
-    // Thieves' Den: AI pays with cheapest cards if not enough gold
-    if(dist.id==='thieves_den'&&cost>p().gold){
-      const deficit=cost-p().gold;
-      goldPaid=p().gold;
-      // Pick cheapest cards to discard (excluding the den itself)
-      const spares=p().hand.filter(c=>c.uid!==dist.uid).sort((a,b)=>a.cost-b.cost);
-      const toDiscard=spares.slice(0,deficit);
-      cardsDiscarded=toDiscard.length;
-      const discardSet=new Set(toDiscard.map(c=>c.uid));
-      s={...s,players:s.players.map(q=>q.id===pid?{...q,gold:0,
-        hand:q.hand.filter(c=>c.uid!==dist.uid&&!discardSet.has(c.uid)),city:[...q.city,dist]}:q)};
-    }else{
-      s={...s,players:s.players.map(q=>q.id===pid?{...q,gold:q.gold-cost,hand:q.hand.filter(c=>c.uid!==dist.uid),city:[...q.city,dist]}:q)};
-    }
-    const payDesc=cardsDiscarded>0?`${goldPaid}✦ + ${cardsDiscarded} card${cardsDiscarded>1?'s':''}`:cost+'✦';
-    events.push({icon:DEMOJI[dist.id]||'🏛️',text:_te('ai.build',{name:p().name,dist:dn(dist),pay:payDesc,clr:clabel(dist.color)}),color:CS[dist.color].txt});
-    s=addLog(s,_te('log.ai_build',{name:p().name,dist:dn(dist)}));
-    if(p().city.length>=8&&s.firstCompleter===null){s={...s,firstCompleter:pid};
-      events.push({icon:'🏆',text:_te('ai.complete8',{name:p().name}),color:'#d4a843'});
-      s=addLog(s,_te('log.ai_complete8',{name:p().name}));}
-  }
-  if(!built)events.push({icon:'—',text:_te('ai.cannot_build',{name:p().name}),color:'#7a6a4a'});
-  return{state:s,events};
+  return { pid: p.id, parts, total: Object.values(parts).reduce((a, b) => a + b, 0) };
 }
 
-function endRound(state){
-  let s={...state};if(s.firstCompleter!==null)return{...s,phase:'gameover'};
-  const crownIdx=s.draftOrder.indexOf(s.crown);
-  const newDraftOrder=crownIdx>=0
-    ?[...s.draftOrder.slice(crownIdx),...s.draftOrder.slice(0,crownIdx)]
-    :s.draftOrder;
-  const dealt=dealDraft(s.charPool,s.players.length);
-  s={...s,round:s.round+1,phase:'draft',sub:'idle',draftIdx:0,callIdx:1,heraldQueue:[],heraldIdx:0,heraldAcks:[],
-    draftOrder:newDraftOrder,avail:dealt.avail,faceDown:dealt.faceDown,faceUp:dealt.faceUp,
-    players:s.players.map(p=>({...p,char:null,dead:false,stolenTarget:null,pendingKill:null}))};
-  s={...s,pendingDestroy:null};
-  s=addLog(s,_te('log.round_begins',{n:s.round,crown:s.players[s.crown].name}));
-  return runAIDraft(s);
+function finish(s) {
+  s.phase = 'over';
+  s.turn = null;
+  s.scores = s.players.map(p => score(s, p));
+  // Tie-break: highest character rank revealed in the final round, then gold.
+  const order = [...s.scores].sort((a, b) =>
+    b.total - a.total || s.players[b.pid].lastRank - s.players[a.pid].lastRank || s.players[b.pid].gold - s.players[a.pid].gold);
+  s.winner = order[0].pid;
+  emit(s, 'over', { winner: s.winner });
 }
 
-function humanSlots(state){return state.players.filter(p=>!p.ai).map(p=>p.id);}
+// ── actions ────────────────────────────────────────────────────────────────
+const fail = error => ({ error });
 
-function heraldNext(state){return heraldAck(state,0);}
-
-function heraldAck(state,slotId){
-  const acks=[...new Set([...(state.heraldAcks||[]),slotId])];
-  const humans=humanSlots(state);
-  const allAcked=humans.every(id=>acks.includes(id));
-  if(!allAcked)return{...state,heraldAcks:acks};
-  const next=state.heraldIdx+1;
-  if(next<state.heraldQueue.length)return{...state,heraldIdx:next,heraldAcks:[]};
-  const cleared={...state,heraldQueue:[],heraldIdx:0,heraldAcks:[]};
-  if(cleared.heraldAfter==='end_round'){
-    const newState=endRound(cleared);
-    // Notify net.js that a round ended so the host can broadcast
-    if(_onRoundEnd)setTimeout(()=>_onRoundEnd(),50);
-    return newState;
-  }
-  if(cleared.heraldAfter==='peer_act')return{...cleared,phase:'action',sub:'idle'};
-  if(cleared.heraldAfter==='human_act')return _applyPendingSOTDraw({...cleared,phase:'action',sub:'choose',collected:false,builtCount:0,drawOpts:[],selCards:[]});
-  return{...cleared,phase:'action',sub:'choose',collected:false,builtCount:0,drawOpts:[],selCards:[]};
+// Never throws: anything unexpected (malformed peer input, a rules bug) becomes an {error}.
+export function act(state, pid, a) {
+  if (!a || typeof a !== 'object' || typeof a.t !== 'string') return fail('bad action');
+  if (!Number.isInteger(pid)) return fail('no player');
+  try { return actInner(state, pid, a); } catch (e) { return fail('internal: ' + (e?.message || e)); }
+}
+// For AI lookahead only: mutates `s` (skips the defensive copy). May leave `s` half-updated on error.
+export function actInPlace(s, pid, a) {
+  if (!a || typeof a !== 'object' || typeof a.t !== 'string') return fail('bad action');
+  try { return actInner(s, pid, a, true); } catch (e) { return fail('internal: ' + (e?.message || e)); }
 }
 
-// ── HUMAN ACTIONS ──────────────────────────────────────────────────────────────
-// These are regular function declarations so net.js can reassign them for peer-mode
-// play via _patchActionsForPeer(). Function declarations at the top level of
-// non-module scripts create window-level bindings that are patchable across files.
-
-function humanCollectGold(state){return addLog({...state,collected:true,players:state.players.map(p=>p.id===0?{...p,gold:p.gold+2}:p)},_te('log.collect_gold'));}
-
-function humanCollectCards(state){
-  if(!state.deck.length&&!state.trash.length)return state;
-  let deck=[...state.deck];let trash=[...state.trash];
-  if(!deck.length){deck=shuffle(trash);trash=[];}
-  const me=state.players[0];
-  const isScholar=me.char===14;
-  const hasObs=me.city.some(d=>d.id==='observatory');
-  const cnt=isScholar?Math.min(7,deck.length):hasObs?Math.min(3,deck.length):Math.min(2,deck.length);
-  const drawn=deck.slice(0,cnt);const newDeck=deck.slice(cnt);
-  if(!isScholar&&me.city.some(d=>d.id==='library')&&cnt===2)
-    return addLog({...state,collected:true,deck:newDeck,trash,players:state.players.map(p=>p.id===0?{...p,hand:[...p.hand,...drawn]}:p)},_te('log.library_both',{cards:drawn.map(d=>dn(d)).join(', ')}));
-  return{...state,deck:newDeck,trash,sub:'draw_pick',drawOpts:drawn};
+function endDraftStep(s, d) {
+  d.idx++;
+  if (d.idx >= d.order.length) { s.phase = 'turns'; d.faceDown.push(...d.avail); d.avail = []; nextCall(s); }
 }
 
-function humanKeepCard(state,uid){
-  const kept=state.drawOpts.find(d=>d.uid===uid);const disc=state.drawOpts.filter(d=>d.uid!==uid);
-  return addLog({...state,sub:'choose',collected:true,drawOpts:[],trash:[...state.trash,...disc],
-    players:state.players.map(p=>p.id===0?{...p,hand:[...p.hand,kept]}:p)},_te('log.keep_card',{card:dn(kept)}));
-}
+function actInner(state, pid, a, inPlace = false) {
+  const s = inPlace ? state : structuredClone(state);
+  const p = s.players[pid];
+  if (!p) return fail('no player');
 
-function humanBuild(state,uid,discardUids){
-  const p=state.players[0];const maxB=p.char===7?3:(p.char===14||p.char===15||p.char===16)?2:1;if(state.builtCount>=maxB)return state;
-  const card=p.hand.find(d=>d.uid===uid);if(!card)return state;
-  const cost=buildCost(p,card);
-  if(!canBuildDistrict(p,card))return state;
-  // Thieves' Den: pay with mix of gold and cards
-  if(card.id==='thieves_den'&&discardUids&&discardUids.length>0){
-    const cardsPayment=discardUids.length;
-    const goldNeeded=cost-cardsPayment;
-    if(goldNeeded<0||goldNeeded>p.gold)return state;
-    // Validate all discard uids exist in hand and aren't the card being built
-    const handWithout=p.hand.filter(d=>d.uid!==uid);
-    for(const duid of discardUids){if(!handWithout.some(d=>d.uid===duid))return state;}
-    const discardSet=new Set(discardUids);
-    let s={...state,builtCount:state.builtCount+1,
-      players:state.players.map(q=>q.id===0?{...q,gold:q.gold-goldNeeded,
-        hand:q.hand.filter(d=>d.uid!==uid&&!discardSet.has(d.uid)),city:[...q.city,card]}:q)};
-    s=addLog(s,_te('log.build_den',{dist:dn(card),gold:goldNeeded,n:cardsPayment}));
-    if(s.players[0].city.length>=8&&s.firstCompleter===null){
-      s={...s,firstCompleter:s.players[0].id};
-      s=addLog(s,_te('log.complete8_self'));
-    }
+  if (s.interrupt) { // someone else's decision pauses the turn (Graveyard)
+    const I = s.interrupt;
+    if (I.pid !== pid || a.t !== 'graveyard') return fail('waiting for ' + s.players[I.pid].name);
+    s.interrupt = null;
+    if (a.take && p.gold >= 1) { p.gold--; p.hand.push(I.card); emit(s, 'graveyard', { pid, card: I.card }); }
+    else s.deck.push(I.card);
     return s;
   }
-  if(cost>p.gold)return state;
-  let s={...state,builtCount:state.builtCount+1,
-    players:state.players.map(q=>q.id===0?{...q,gold:q.gold-cost,hand:q.hand.filter(d=>d.uid!==uid),city:[...q.city,card]}:q)};
-  s=addLog(s,_te('log.build',{dist:dn(card),cost,disc:card.cost>cost}));
-  if(s.players[0].city.length>=8&&s.firstCompleter===null){
-    s={...s,firstCompleter:s.players[0].id};
-    s=addLog(s,_te('log.complete8_self'));
-  }
-  return s;
-}
 
-function humanUseSmithy(state){
-  const me=state.players[0];
-  if(!me.city.some(d=>d.id==='smithy')||me.smithyUsed||me.gold<2||!state.deck.length)return state;
-  const drawn=state.deck.slice(0,Math.min(3,state.deck.length));
-  return addLog({...state,deck:state.deck.slice(drawn.length),
-    players:state.players.map(p=>p.id===0?{...p,gold:p.gold-2,hand:[...p.hand,...drawn],smithyUsed:true}:p)},_te('log.smithy',{n:drawn.length}));
-}
-
-// TODO(multiplayer): net.js applyAction() and _patchActionsForPeer() need a 'useLab' entry
-//   to sync Laboratory usage across peers. net.js is intentionally not modified here — add
-//   case 'useLab': out=humanUseLab(ns,data.uid) and humanUseLab=(_s,uid)=>{peerSend('useLab',{uid});} there.
-function humanUseLab(state,uid){
-  const me=state.players[0];
-  if(!me.city.some(d=>d.id==='laboratory')||me.labUsed||!me.hand.length)return state;
-  const card=me.hand.find(d=>d.uid===uid);if(!card)return state;
-  // Discard the card to the bottom of the deck, gain 2 gold
-  return addLog({...state,deck:[...state.deck,card],
-    players:state.players.map(p=>p.id===0?{...p,gold:p.gold+2,hand:p.hand.filter(d=>d.uid!==uid),labUsed:true}:p)},
-    _te('log.lab',{card:dn(card)}));
-}
-
-function humanSeer(state){
-  const me=state.players.find(p=>p.id===0);
-  if(me.seerUsed)return state;
-  let s={...state};
-  const opps=s.players.filter(q=>q.id!==0&&q.hand.length>0);const taken=[];
-  for(const opp of opps){const idx=0|Math.random()*opp.hand.length;const card=opp.hand[idx];taken.push(card);
-    s={...s,players:s.players.map(q=>q.id===opp.id?{...q,hand:q.hand.filter(d=>d.uid!==card.uid)}:q)};}
-  s={...s,players:s.players.map(p=>p.id===0?{...p,seerUsed:true,hand:[...p.hand,...taken]}:p)};
-  if(taken.length)return addLog(s,_te('log.seer_take',{n:taken.length}));
-  return addLog(s,_te('log.seer_no_cards'));
-}
-
-function humanNavigator(state,choice){
-  let s={...state,collected:true,noBuild:true};
-  if(choice==='gold'){
-    s={...s,players:s.players.map(p=>p.id===0?{...p,gold:p.gold+4}:p)};
-    return addLog(s,_te('log.nav_gold'));
-  }
-  let deck=[...s.deck];let trash=[...s.trash];
-  if(!deck.length&&trash.length){deck=shuffle(trash);trash=[];}
-  const cnt=Math.min(4,deck.length);
-  if(!cnt)return addLog({...s,players:s.players.map(p=>p.id===0?{...p,gold:p.gold+4}:p)},_te('log.nav_gold_no_cards'));
-  const drawn=deck.slice(0,cnt);
-  s={...s,deck:deck.slice(cnt),trash,players:s.players.map(p=>p.id===0?{...p,hand:[...p.hand,...drawn]}:p)};
-  return addLog(s,_te('log.nav_draw',{n:cnt}));
-}
-function humanWizardTarget(state,targetId){
-  return{...state,sub:'wizard_pick',wizardTargetId:targetId};
-}
-function humanWizardTake(state,cardUid,doBuild){
-  const me=state.players[0];
-  const target=state.players.find(p=>p.id===state.wizardTargetId);
-  if(!target)return state;
-  const card=target.hand.find(d=>d.uid===cardUid);
-  if(!card)return state;
-  let s={...state,wizardTargetId:null,sub:'choose',
-    players:state.players.map(p=>p.id===target.id?{...p,hand:p.hand.filter(d=>d.uid!==cardUid)}:p.id===0?{...p,wizardUsed:true}:p)};
-  if(doBuild){
-    const cost=buildCost(me,card);
-    if(cost<=me.gold&&canBuildDistrict(me,card)){
-      s={...s,builtCount:s.builtCount+1,
-        players:s.players.map(q=>q.id===0?{...q,gold:q.gold-cost,city:[...q.city,card]}:q)};
-      s=addLog(s,_te('log.wizard_take_build',{card:dn(card),target:target.name,cost}));
-      if(s.players[0].city.length>=8&&s.firstCompleter===null){s={...s,firstCompleter:0};s=addLog(s,_te('log.complete8_self2'));}
+  if (s.phase === 'draft') {
+    const d = s.draft;
+    if (d.order[d.idx] !== pid) return fail('not your pick');
+    if (a.t === 'discard') {
+      if (!d.mustDiscard || !d.avail.includes(a.charId)) return fail('cannot discard');
+      d.avail = d.avail.filter(c => c !== a.charId);
+      d.faceDown.push(a.charId);
+      d.mustDiscard = false;
+      emit(s, 'discard', { pid });
+      endDraftStep(s, d);
       return s;
     }
+    if (a.t !== 'pick' || d.mustDiscard) return fail('drafting');
+    const opts = draftOptions(s);
+    if (!opts.includes(a.charId)) return fail('unavailable');
+    p.saw.push(opts);
+    d.avail = d.avail.filter(c => c !== a.charId);
+    d.faceDown = d.faceDown.filter(c => c !== a.charId);
+    p.chars.push(a.charId);
+    emit(s, 'pick', { pid });
+    if (d.discard?.[d.idx] && d.avail.length) { d.mustDiscard = true; return s; }
+    endDraftStep(s, d);
+    return s;
   }
-  s={...s,players:s.players.map(q=>q.id===0?{...q,hand:[...q.hand,card]}:q)};
-  return addLog(s,_te('log.wizard_take',{card:dn(card),target:target.name}));
+  if (s.phase !== 'turns' || !s.turn || s.turn.pid !== pid) return fail('not your turn');
+
+  const T = s.turn, pend = T.pending, cid = T.charId;
+  const needFree = () => (pend ? 'finish the current choice first' : null);
+  const takeFromHand = uid => { const i = p.hand.findIndex(c => c.uid === uid); return i < 0 ? null : p.hand.splice(i, 1)[0]; };
+  const ability = (charId, extra) => {
+    if (cid !== charId) return 'not your ability';
+    if (T.used.ability) return 'ability already used';
+    return needFree() || extra || null;
+  };
+  let err;
+
+  switch (a.t) {
+    case 'gold':
+      if ((err = needFree()) || (T.income && (err = 'income taken'))) return fail(err);
+      T.income = true;
+      gain(s, p, 2, 'take');
+      return s;
+
+    case 'draw': {
+      if ((err = needFree()) || (T.income && (err = 'income taken'))) return fail(err);
+      if (!s.deck.length) return fail('deck empty');
+      T.income = true;
+      const cards = draw(s, has(p, 'observatory') ? 3 : 2);
+      emit(s, 'draw', { pid, n: cards.length });
+      if (has(p, 'library')) p.hand.push(...cards);
+      else T.pending = { k: 'keep', cards, n: 1 };
+      return s;
+    }
+
+    case 'keep': {
+      if (!pend || pend.k !== 'keep') return fail('nothing to keep');
+      const uids = [...new Set(a.uids || [])];
+      if (uids.length !== Math.min(pend.n, pend.cards.length) || !uids.every(u => pend.cards.some(c => c.uid === u)))
+        return fail('pick ' + pend.n);
+      const kept = pend.cards.filter(c => uids.includes(c.uid)), rest = pend.cards.filter(c => !uids.includes(c.uid));
+      p.hand.push(...kept);
+      s.deck.push(...rest);
+      if (pend.shuffle) shuffle(s, s.deck); // Scholar: shuffled back into the whole deck
+      T.pending = null;
+      return s;
+    }
+
+    case 'build': {
+      if ((err = needFree())) return fail(err);
+      if (!T.income) return fail('take income first');
+      const card = p.hand.find(c => c.uid === a.uid);
+      if (!card) return fail('not in hand');
+      const counts = countsTowardLimit(cid, card);
+      if (counts && T.built >= T.max) return fail('build limit');
+      if (!canPlace(p, card)) return fail('duplicate');
+      const cost = buildCost(p, card);
+      const pay = [...new Set(a.pay || [])];
+      if (pay.length && card.id !== 'thieves_den') return fail('only Thieves\' Den takes cards');
+      if (pay.includes(card.uid) || !pay.every(u => p.hand.some(c => c.uid === u))) return fail('bad payment');
+      const goldDue = cost - pay.length;
+      if (goldDue < 0 || goldDue > p.gold) return fail('cannot afford');
+      takeFromHand(card.uid);
+      s.deck.push(...pay.map(takeFromHand));
+      p.gold -= goldDue;
+      if (counts) T.built++;
+      place(s, p, card);
+      return s;
+    }
+
+    case 'kill': {
+      if ((err = ability(1, targetRankError(s, a.rank, [1])))) return fail(err);
+      T.used.ability = true;
+      s.killed = a.rank;
+      emit(s, 'kill', { pid, rank: a.rank });
+      return s;
+    }
+
+    case 'rob': {
+      if ((err = ability(2, targetRankError(s, a.rank, [1, 2, s.killed])))) return fail(err);
+      T.used.ability = true;
+      s.robbed = a.rank; s.robber = pid;
+      emit(s, 'rob', { pid, rank: a.rank });
+      return s;
+    }
+
+    case 'swap': {
+      const o = s.players[a.target];
+      if ((err = ability(3, !o || o.id === pid ? 'bad target' : null))) return fail(err);
+      T.used.ability = true;
+      [p.hand, o.hand] = [o.hand, p.hand];
+      emit(s, 'swap', { pid, target: o.id, a: o.hand.length, b: p.hand.length });
+      return s;
+    }
+
+    case 'redraw': {
+      const uids = [...new Set(a.uids || [])];
+      if ((err = ability(3, !uids.length || !uids.every(u => p.hand.some(c => c.uid === u)) ? 'bad cards' : null))) return fail(err);
+      T.used.ability = true;
+      s.deck.push(...uids.map(takeFromHand));
+      p.hand.push(...draw(s, uids.length));
+      emit(s, 'redraw', { pid, n: uids.length });
+      return s;
+    }
+
+    case 'destroy': {
+      const o = s.players[a.target], card = o && o.city.find(c => c.uid === a.uid);
+      const why = !card ? 'bad target' : shielded(s, o) || (card.id === 'keep' ? 'keep' : null) ||
+        (destroyCost(o, card) > p.gold ? 'cannot afford' : null);
+      if ((err = ability(8, why))) return fail(err);
+      T.used.ability = true;
+      const cost = destroyCost(o, card);
+      p.gold -= cost;
+      o.city = o.city.filter(c => c.uid !== card.uid);
+      emit(s, 'destroy', { pid, target: o.id, card, cost });
+      if (o.id !== pid && card.id !== 'graveyard' && has(o, 'graveyard') && o.gold >= 1)
+        s.interrupt = { k: 'graveyard', pid: o.id, card }; // the owner decides whether to pay 1
+      else s.deck.push(card);
+      return s;
+    }
+
+    case 'peek': {
+      const o = s.players[a.target];
+      if ((err = ability(11, !o || o.id === pid || !o.hand.length ? 'bad target' : null))) return fail(err);
+      T.used.ability = true;
+      T.pending = { k: 'wizard', target: o.id, cards: structuredClone(o.hand) };
+      emit(s, 'peek', { pid, target: o.id });
+      return s;
+    }
+
+    case 'wizTake': {
+      if (!pend || pend.k !== 'wizard') return fail('not peeking');
+      const o = s.players[pend.target], card = o.hand.find(c => c.uid === a.uid);
+      if (!card) return fail('bad card');
+      if (a.build && (!canPlace(p, card) || buildCost(p, card) > p.gold)) return fail('cannot build');
+      o.hand = o.hand.filter(c => c.uid !== card.uid);
+      T.pending = null;
+      emit(s, 'wizTake', { pid, target: o.id });
+      if (a.build) { p.gold -= buildCost(p, card); place(s, p, card); } // free build: doesn't count toward limit
+      else p.hand.push(card);
+      return s;
+    }
+
+    case 'seer': {
+      if ((err = ability(15))) return fail(err);
+      T.used.ability = true;
+      const from = s.players.filter(q => q.id !== pid && q.hand.length);
+      for (const q of from) p.hand.push(q.hand.splice(Math.floor(rand(s) * q.hand.length), 1)[0]);
+      emit(s, 'seer', { pid, n: from.length });
+      if (from.length) T.pending = { k: 'seerGive', targets: from.map(q => q.id) };
+      return s;
+    }
+
+    case 'seerGive': {
+      if (!pend || pend.k !== 'seerGive') return fail('nothing to give');
+      const uids = [...new Set(a.uids || [])];
+      if (uids.length !== pend.targets.length || !uids.every(u => p.hand.some(c => c.uid === u))) return fail('give one card to each');
+      uids.forEach((u, i) => s.players[pend.targets[i]].hand.push(takeFromHand(u)));
+      T.pending = null;
+      emit(s, 'seerGive', { pid, n: uids.length });
+      return s;
+    }
+
+    case 'nav': {
+      if ((err = ability(10, ['gold', 'cards'].includes(a.choice) ? null : 'bad choice'))) return fail(err);
+      T.used.ability = true;
+      if (a.choice === 'gold') gain(s, p, 4, 'navigator');
+      else { const c = draw(s, 4); p.hand.push(...c); emit(s, 'cards', { pid, n: c.length, why: 'navigator' }); }
+      return s;
+    }
+
+    case 'scholar': {
+      if ((err = ability(14, s.deck.length ? null : 'deck empty'))) return fail(err);
+      T.used.ability = true;
+      T.pending = { k: 'keep', cards: draw(s, 7), n: 1, shuffle: true };
+      emit(s, 'draw', { pid, n: T.pending.cards.length, why: 'scholar' });
+      return s;
+    }
+
+    case 'smithy':
+      if ((err = needFree()) || (!has(p, 'smithy') && (err = 'no smithy')) || (T.used.smithy && (err = 'used')) ||
+        (p.gold < 2 && (err = 'cannot afford'))) return fail(err);
+      T.used.smithy = true;
+      p.gold -= 2;
+      { const c = draw(s, 3); p.hand.push(...c); emit(s, 'cards', { pid, n: c.length, why: 'smithy', cost: 2 }); }
+      return s;
+
+    case 'lab': {
+      if ((err = needFree()) || (!has(p, 'laboratory') && (err = 'no lab')) || (T.used.lab && (err = 'used'))) return fail(err);
+      const card = takeFromHand(a.uid);
+      if (!card) return fail('bad card');
+      T.used.lab = true;
+      s.deck.push(card);
+      gain(s, p, 2, 'lab');
+      return s;
+    }
+
+    case 'end':
+      if ((err = needFree())) return fail(err);
+      if (!T.income) return fail('take income first');
+      emit(s, 'end', { pid });
+      s.turn = null;
+      nextCall(s);
+      return s;
+  }
+  return fail('unknown action');
 }
 
-function humanEndTurn(state){
-  let s={...state};
-  const demolishEvent=[];
-  if(s.pendingDestroy){
-    const{cost:c1,name:dname,tpName,pid:tpid,distObj}=s.pendingDestroy;
-    demolishEvent.push({icon:'💥',text:_te('human.demolish',{target:tpName,dist:dn(distObj),cost:c1}),color:'#d45a5a'});
-    s={...s,pendingDestroy:null};
-    const gv=s.players.find(q=>q.id===tpid);
-    if(gv&&distObj&&distObj.id!=='graveyard'&&gv.city.some(d=>d.id==='graveyard')&&gv.gold>=1){
-      s={...s,players:s.players.map(q=>q.id===tpid?{...q,gold:q.gold-1,hand:[...q.hand,distObj]}:q)};
-      demolishEvent.push({icon:'⚰️',text:_te('human.graveyard_recover',{target:gv.name,card:dn(distObj)}),color:'#c084fc'});
+// Ranks a targeted ability may name: in this game's pool, not face-up, not excluded.
+export function targetRanks(s, exclude) {
+  const up = (s.draft?.faceUp || []).map(rankOf);
+  return [...new Set(s.cfg.chars.map(rankOf))]
+    .filter(r => !exclude.includes(r) && !up.includes(r)).sort((a, b) => a - b);
+}
+function targetRankError(s, rank, exclude) {
+  return targetRanks(s, exclude).includes(rank) ? null : 'bad target';
+}
+
+// ── hidden information ─────────────────────────────────────────────────────
+// What player `pid` is allowed to know. Sent to peers and fed to the AI, so nobody cheats.
+// pid = -1 → spectator view.
+export function viewFor(s, pid) {
+  const v = structuredClone(s);
+  const over = s.phase === 'over';
+  v.seed = 0;
+  v.deckCount = s.deck.length;
+  v.deck = [];
+  v.me = pid;
+  for (const q of v.players) {
+    q.handCount = q.hand.length;
+    q.charCount = q.chars.length;
+    if (q.id !== pid && !over) {
+      q.saw = [];
+      q.hand = q.hand.map((_, i) => ({ uid: 'h' + q.id + '_' + i, hidden: true }));
+      q.chars = q.chars.filter(c => s.revealed.includes(c));
     }
   }
-  const me=s.players[0];const charId=me.char;const humanEvents=[];
-  if(s.collected)humanEvents.push({icon:'✦',text:_te('human.income_collected'),color:'#d4a843'});
-  if(me.smithyUsed)humanEvents.push({icon:'⚒️',text:_te('human.smithy_used'),color:'#c084fc'});
-  if(me.labUsed)humanEvents.push({icon:'⚗️',text:_te('human.lab_used'),color:'#c084fc'});
-  humanEvents.push(...demolishEvent);
-  const built=s.builtCount;
-  if(built>0)me.city.slice(-built).forEach(d=>humanEvents.push({icon:DEMOJI[d.id]||'🏛️',text:_te('human.built',{dist:dn(d),cost:buildCost(me,d)}),color:CS[d.color].txt}));
-  else humanEvents.push({icon:'—',text:_te('human.not_build'),color:'#7a6a4a'});
-  s={...s,heraldQueue:[...s.heraldQueue,{charId,holderName:me.name,events:humanEvents,isHuman:true}],callIdx:s.callIdx+1,sub:'idle'};
-  return advanceCall(s,_applyLocalSlot);
+  if (v.draft) {
+    v.draft.availCount = s.draft.avail.length;
+    v.draft.faceDown = s.draft.faceDown.map(() => 0);
+    if (s.phase !== 'draft' || s.draft.order[s.draft.idx] !== pid) v.draft.avail = [];
+    else v.draft.options = draftOptions(s);
+  }
+  if (v.turn?.pending && v.turn.pid !== pid) v.turn.pending = { k: v.turn.pending.k };
+  return v;
 }
-
-function humanKill(s,tc){
-  return addLog({...s,sub:'choose',players:s.players.map(p=>p.id===0?{...p,pendingKill:charRank(tc)}:p)},
-    _te('log.assassin_target',{char:cn(tc)}));
-}
-
-function humanSteal(s,tc){return addLog({...s,sub:'choose',players:s.players.map(p=>p.id===0?{...p,stolenTarget:charRank(tc)}:p)},_te('log.thief_target',{char:cn(tc)}));}
-
-function humanMagSwap(s,tid){
-  const me=s.players[0];if(me.magicianUsed)return s;
-  const o=s.players.find(p=>p.id===tid);if(!o)return s;
-  return addLog({...s,sub:'choose',players:s.players.map(p=>{if(p.id===0)return{...p,hand:[...o.hand],magicianUsed:true};if(p.id===tid)return{...p,hand:[...me.hand]};return p;})},_te('log.mag_swap',{target:o.name}));}
-
-function humanMagDiscard(s,uids){
-  if(!uids.length)return{...s,sub:'choose',selCards:[]};
-  const me=s.players[0];if(me.magicianUsed)return{...s,sub:'choose',selCards:[]};
-  const disc=me.hand.filter(d=>uids.includes(d.uid));
-  // Per rules: discarded cards go to the BOTTOM of the deck, then draw equal number from top
-  let deck=[...s.deck,...disc];
-  const drawn=deck.splice(0,Math.min(uids.length,deck.length));
-  return addLog({...s,sub:'choose',selCards:[],deck,
-    players:s.players.map(p=>p.id===0?{...p,magicianUsed:true,hand:[...p.hand.filter(d=>!uids.includes(d.uid)),...drawn]}:p)},
-    _te('log.mag_discard',{n:uids.length,m:drawn.length}));
-}
-
-function humanWarlord(s,tpid,duid){
-  const me=s.players[0],tp=s.players.find(p=>p.id===tpid);
-  if(!tp||tp.id===0||(tp.char===5&&!tp.dead)||tp.city.length>=8)return{...s,sub:'choose'};
-  const dist=tp.city.find(d=>d.uid===duid);if(!dist||dist.id==='keep')return{...s,sub:'choose'};
-  const wallBonus=tp.city.some(d=>d.id==='great_wall');
-  const c1=wallBonus?dist.cost:Math.max(0,dist.cost-1);if(c1>me.gold)return{...s,sub:'choose'};
-  let ns={...s,pendingDestroy:{pid:tpid,duid,cost:c1,name:dist.name,tpName:tp.name,distObj:dist},
-    players:s.players.map(p=>{
-      if(p.id===0)return{...p,gold:p.gold-c1};
-      if(p.id===tpid)return{...p,city:p.city.filter(d=>d.uid!==duid)};
-      return p;
-    })};
-  return addLog({...ns,sub:'choose'},_te('log.warlord_destroy',{target:tp.name,dist:dn(dist),cost:c1}));
-}
-
-var _applyLocalSlot=0;
