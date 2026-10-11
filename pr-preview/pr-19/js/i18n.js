@@ -1,12 +1,32 @@
-// Two languages, one table. t('key', {vars}) — '{name}' placeholders.
+// English + Chinese live in the table below; other languages are one file each in ./lang/ (missing keys
+// fall back to English). t('key', {vars}) — '{name}' placeholders.
 import { CHAR } from './data.js';
+import ja from './lang/ja.js';
+import ko from './lang/ko.js';
+import es from './lang/es.js';
+import fr from './lang/fr.js';
+
+const EXTRA = { ja, ko, es, fr };
+export const LANGS = { en: 'English', zh: '简体中文', ja: '日本語', ko: '한국어', es: 'Español', fr: 'Français' };
+const HTML_LANG = { zh: 'zh-CN' };
 
 let lang = (() => {
-  try { return localStorage.getItem('c3d.lang') || (navigator.language.startsWith('zh') ? 'zh' : 'en'); }
-  catch { return 'en'; }
+  try {
+    const saved = localStorage.getItem('c3d.lang');
+    if (LANGS[saved]) return saved;
+    const nav = (navigator.language || 'en').slice(0, 2);
+    return LANGS[nav] ? nav : 'en';
+  } catch { return 'en'; }
 })();
 export const getLang = () => lang;
-export function setLang(l) { lang = l; try { localStorage.setItem('c3d.lang', l); } catch {} document.documentElement.lang = l === 'zh' ? 'zh-CN' : 'en'; }
+export function setLang(l) {
+  lang = LANGS[l] ? l : 'en';
+  try { localStorage.setItem('c3d.lang', lang); } catch {}
+  document.documentElement.lang = HTML_LANG[lang] || lang;
+}
+// A native <select>: touch, keyboard and screen readers work for free.
+export const langSelect = () => `<select class="lang-sel" data-a="lang" aria-label="${t('lb.lang')}">${
+  Object.entries(LANGS).map(([k, name]) => `<option value="${k}"${k === lang ? ' selected' : ''}>${name}</option>`).join('')}</select>`;
 
 const D = {
   // characters
@@ -229,7 +249,7 @@ const D = {
   'lb.minPlayers': ['2–7 seats', '2–7 个座位'],
   'lb.offline': ['Online play needs an internet connection.', '联机需要网络连接。'],
   'lb.loading': ['Carving the city…', '正在雕琢城池…'],
-  'lb.lang': ['中文', 'English'],
+  'lb.lang': ['Language', '语言'],
   'lb.defaultName': ['Wanderer', '旅人'],
   'lb.level': ['AI difficulty', 'AI 难度'],
   'lb.lvl.easy': ['Easy', '简单'], 'lb.lvl.normal': ['Normal', '普通'], 'lb.lvl.hard': ['Cunning', '狡诈'],
@@ -277,9 +297,10 @@ const D = {
   'coach.cam': ['Drag the table to look around · tap a city to inspect it.', '拖动桌面旋转视角 · 点击城市查看详情。'],
 };
 
+export const KEYS = () => Object.keys(D); // for the translation completeness test
 export function t(key, vars) {
   const e = D[key];
-  let s = e ? e[lang === 'zh' ? 1 : 0] : key;
+  let s = !e ? key : lang === 'zh' ? e[1] : EXTRA[lang]?.[key] ?? e[0];
   if (vars) s = s.replace(/\{(\w+)\}/g, (_, k) => (vars[k] ?? ''));
   return s;
 }
@@ -289,6 +310,7 @@ export const dname = card => t('d.' + (card.id || card));
 export const ddesc = id => (D['dd.' + id] ? t('dd.' + id) : '');
 
 export const RULES = {
+  ja: ja._rules, ko: ko._rules, es: es._rules, fr: fr._rules,
   en: `<h3>Goal</h3><p>Build the most valuable city. When someone finishes a city of <b>{goal}</b> districts, the round is played out and the highest score wins.</p>
 <h3>Each round</h3><ol><li><b>Choose characters.</b> Starting with the Crown, each player secretly takes a character. Some are set aside face up, one face down.</li>
 <li><b>Royal court.</b> Characters are called in rank order (I → IX). On your turn: take <b>2 gold</b> or <b>draw 2 cards and keep 1</b>; then build a district by paying its cost; use your character's power at any time.</li></ol>

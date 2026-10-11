@@ -5,7 +5,7 @@ import { CHAR, HUE, DIST, COLORS, SEAT_HUES } from './data.js';
 import {
   rankOf, has, buildCost, canPlace, destroyCost, shielded, targetRanks, countsTowardLimit, score,
 } from './engine.js';
-import { t, cname, cabil, dname, ddesc, RULES, getLang, setLang } from './i18n.js';
+import { t, cname, cabil, dname, ddesc, RULES, getLang, setLang, langSelect } from './i18n.js';
 import { svg, ROMAN } from './icons.js';
 import { sfx, soundOn, setSound, musicEnabled, setMusic } from './sfx.js';
 
@@ -85,7 +85,7 @@ export function createUI(ctx) {
       <span class="card-art" ${thumb(card.id)}></span>
       <span class="card-cost${cost < card.cost ? ' disc' : ''}">${cost}</span>
       ${card.color === 'purple' ? '<span class="card-gem">✦</span>' : ''}
-      <span class="card-name${/^[ -~]{9,}$/.test(dname(card)) ? ' long' : ''}">${esc(dname(card))}</span></button>`;
+      <span class="card-name${/^[^\u3040-\u9fff\uac00-\ud7af]{9,}$/.test(dname(card)) ? ' long' : ''}">${esc(dname(card))}</span></button>`;
   }
   function charHTML(id, { cls = '', attrs = '', sub = '' } = {}) {
     const c = CHAR[id];
@@ -625,7 +625,7 @@ export function createUI(ctx) {
         <div class="menu-row"><span>${t('ui.music')}</span><button class="btn small" data-a="music" aria-pressed="${musicEnabled()}">${musicEnabled() ? '♪ ON' : '♪ OFF'}</button></div>
         ${ctx.mode() !== 'peer' ? `<div class="menu-row"><span>${t('lb.speed')}</span><div class="seg">${['slow', 'normal', 'fast'].map(k => `<button class="${sp === k ? 'on' : ''}" data-a="speed" data-v="${k}">${t('lb.' + k)}</button>`).join('')}</div></div>` : ''}
         <div class="menu-row"><span>${t('ui.quality')}</span><div class="seg">${['high', 'low'].map(k => `<button class="${q === k ? 'on' : ''}" data-a="quality" data-v="${k}">${t('ui.q.' + k)}</button>`).join('')}</div></div>
-        <div class="menu-row"><span>${svg('lang')}</span><button class="btn small" data-a="lang">${t('lb.lang')}</button></div>
+        <div class="menu-row"><span>${t('lb.lang')}</span><label class="lang-pick">${svg('lang')}${langSelect()}</label></div>
         <p class="note">${t('ui.keys')}</p>`,
         { foot: `<div class="sh-foot"><button class="btn danger" data-a="leave">${t('ui.leave')}</button></div>` });
     } else if (s === 'over') {
@@ -665,6 +665,7 @@ export function createUI(ctx) {
 
   // ── input ──
   const go = a => { L.multi.clear(); L.hint = null; ctx.dispatch(a); };
+  root.addEventListener('change', e => { if (e.target.dataset.a === 'lang') { setLang(e.target.value); ctx.relang(); } });
   root.addEventListener('click', e => {
     const el = e.target.closest('[data-a]');
     if (!$('.emote-wrap', root)?.contains(e.target)) els.top.classList.remove('emoting');
@@ -673,7 +674,7 @@ export function createUI(ctx) {
       return;
     }
     const a = el.dataset.a, v = el.dataset.v, view = L.view;
-    if (!view) return;
+    if (!view || a === 'lang') return; // the <select> handles itself (see 'change')
     const me = view.players[view.me];
     switch (a) {
       case 'close': return closeSheet();
@@ -734,7 +735,6 @@ export function createUI(ctx) {
       case 'music': setMusic(!musicEnabled()); return renderSheet();
       case 'speed': ctx.setSpeed(v); return renderSheet();
       case 'quality': ctx.scene.setQuality(v); return renderSheet();
-      case 'lang': setLang(getLang() === 'zh' ? 'en' : 'zh'); ctx.relang(); return;
       case 'leave': if (ctx.mode() === 'solo' || confirm(t('ui.leaveConfirm'))) ctx.leave(); return;
       case 'again': closeSheet(); return ctx.again();
       case 'home': closeSheet(); return ctx.leave();

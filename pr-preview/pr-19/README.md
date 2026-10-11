@@ -1,6 +1,6 @@
 # Citadels 3D · 富饶之城
 
-**English** · [简体中文](README.zh-CN.md)
+**English** · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Español](README.es.md) · [Français](README.fr.md)
 
 Build your city on a candle-lit 3D table: pick a secret character each round, outwit your rivals, and score the most points. Finishing first doesn't guarantee the win.
 
@@ -25,7 +25,7 @@ New to Citadels? The home screen has **How to play**, and during a game the **Hi
 
 - **2–7 players**, solo or online.
 - **Three AI levels:** Easy, Normal and Cunning. The AI only knows what it is allowed to know; it never sees your hand or hidden characters.
-- **English and Chinese**, switchable at any time.
+- **Six languages:** English, 简体中文, 日本語, 한국어, Español and Français. Pick one from the 🌐 menu at any time.
 - **Never lose a game:** solo games autosave, and online players who refresh go straight back to their seat.
 - **Keys:** G gold · D draw · B build · A character ability · E end turn · H hint · 1–9 select a card.
 
@@ -40,7 +40,7 @@ node serve.mjs    # then open http://localhost:5173
 Tests:
 
 ```bash
-node test/engine.test.mjs     # rules self-check
+node test/engine.test.mjs     # rules self-check + every language covers every string
 node test/pressure.mjs 600    # pressure test: fairness (AI can't see hidden info), random-move fuzzing, AI behaviour stats
 node test/ai-duel.mjs 400     # Cunning vs Normal AI win rate
 ```
@@ -52,6 +52,9 @@ node test/ai-duel.mjs 400     # Cunning vs Normal AI win rate
 | `js/scene.js`, `js/models.js`, `js/materials.js` | 3D table, district models, materials |
 | `js/ui.js`, `js/lobby.js` | In-game interface and lobby |
 | `js/main.js`, `js/net.js` | Game flow, saves, online play (PeerJS) |
-| `js/data.js`, `js/i18n.js`, `js/sfx.js` | Card data, English/Chinese text, sound |
+| `js/i18n.js`, `js/lang/*.js` | Text: English and Chinese in `i18n.js`, one file per other language |
+| `js/data.js`, `js/sfx.js` | Card data, sound |
+
+**Adding a language:** copy `js/lang/fr.js`, translate the values (keep the `{placeholders}`), and register it in `LANGS` and `EXTRA` in `js/i18n.js`. `node test/engine.test.mjs` fails if a key or placeholder is missing.
 
 Merging to `main` publishes the link above automatically, and every pull request gets its own preview link.
