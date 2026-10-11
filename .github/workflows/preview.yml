@@ -13,6 +13,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Stamp asset versions (cache-busting)
+        if: github.event.action != 'closed'
+        run: bash .github/stamp.sh "${{ github.event.pull_request.head.sha }}"
+
       - uses: rossjrw/pr-preview-action@v1
         with:
           source-dir: .

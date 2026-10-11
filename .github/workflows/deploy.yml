@@ -18,6 +18,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Stamp asset versions (cache-busting)
+        run: bash .github/stamp.sh "${GITHUB_SHA::8}"
+
       - name: Deploy to gh-pages branch
         uses: peaceiris/actions-gh-pages@v4
         with:
