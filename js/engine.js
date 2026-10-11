@@ -24,6 +24,8 @@ function emit(s, k, o) {
   if (s.ev.length > MAX_EV) s.ev.splice(0, s.ev.length - MAX_EV);
 }
 const draw = (s, n) => s.deck.splice(0, n);
+// Public per-player tallies for the end-of-game recap (older saves start without them).
+const bump = (p, k, n = 1) => { p.st ||= {}; p.st[k] = (p.st[k] || 0) + n; };
 
 export const rankOf = id => CHAR[id].rank;
 export const charsPerPlayer = n => (n <= 3 ? 2 : 1);
@@ -129,8 +131,9 @@ function nextCall(s) {
     if (!holder) { emit(s, 'call', { rank: s.call, charId, pid: null }); continue; }
     const cid = holder.chars.find(c => rankOf(c) === s.call);
     s.revealed.push(cid);
+    (holder.played ||= []).push(cid); // public once called
     holder.lastRank = Math.max(holder.lastRank, s.call);
-    if (s.killed === s.call) { emit(s, 'call', { rank: s.call, charId: cid, pid: holder.id, killed: true }); continue; }
+    if (s.killed === s.call) { bump(holder, 'slain'); emit(s, 'call', { rank: s.call, charId: cid, pid: holder.id, killed: true }); continue; }
     return beginTurn(s, holder, cid);
   }
 }
@@ -138,6 +141,7 @@ function nextCall(s) {
 function gain(s, p, n, why) {
   if (n <= 0) return;
   p.gold += n;
+  bump(p, 'earned', n);
   emit(s, 'gold', { pid: p.id, n, why });
 }
 
@@ -149,6 +153,7 @@ function beginTurn(s, p, charId) {
   if (s.robbed === rank && s.robber !== p.id && p.gold > 0) {
     const thief = s.players[s.robber], n = p.gold;
     p.gold = 0; thief.gold += n;
+    bump(thief, 'stole', n); bump(p, 'robbed', n);
     emit(s, 'robbed', { from: p.id, to: thief.id, n });
   }
   const c = CHAR[charId];
@@ -164,7 +169,7 @@ function beginTurn(s, p, charId) {
   }
   if (charId === 13) {
     const rich = s.players.filter(q => q.id !== p.id && q.gold > 0).sort((a, b) => b.gold - a.gold)[0];
-    if (rich && rich.gold > p.gold) { rich.gold--; p.gold++; emit(s, 'tithe', { from: rich.id, to: p.id }); }
+    if (rich && rich.gold > p.gold) { rich.gold--; p.gold++; bump(p, 'earned'); emit(s, 'tithe', { from: rich.id, to: p.id }); }
   }
   if (charId === 7) {
     const cards = draw(s, 2);
@@ -186,6 +191,7 @@ function checkComplete(s, p) {
 
 function place(s, p, card) {
   card.round = s.round;
+  bump(p, 'built');
   p.city.push(card);
   emit(s, 'build', { pid: p.id, card });
   checkComplete(s, p);
@@ -404,6 +410,7 @@ function actInner(state, pid, a, inPlace = false) {
       const cost = destroyCost(o, card);
       p.gold -= cost;
       o.city = o.city.filter(c => c.uid !== card.uid);
+      if (o.id !== pid) { bump(p, 'razed'); bump(o, 'lost'); }
       emit(s, 'destroy', { pid, target: o.id, card, cost });
       if (o.id !== pid && card.id !== 'graveyard' && has(o, 'graveyard') && o.gold >= 1)
         s.interrupt = { k: 'graveyard', pid: o.id, card }; // the owner decides whether to pay 1

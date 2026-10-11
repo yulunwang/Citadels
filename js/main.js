@@ -11,6 +11,7 @@ import { DIST_IDS, AI_NAMES, AVATARS, PRESETS } from './data.js';
 import { t, getLang, setLang } from './i18n.js';
 import * as net from './net.js';
 import { initSettings, openSettings, closeSettings } from './settings.js';
+import { startTutorial, stopTutorial, tutorialActive } from './tutorial.js';
 
 const SPEED = { slow: 1.45, normal: 1, fast: 0.5 };
 const store = {
@@ -53,6 +54,8 @@ const lobby = createLobby({
   getSpeed: () => G.speed, setSpeed, relang, openSettings,
   canContinue, cont, stats: () => store.get('c3d.stats'),
   startSolo, createRoom, addAI, removeSeat, startHost, joinRoom,
+  // the guided first game: easy opponents, the classic eight, a fixed deal that teaches well
+  startTutorial: o => { startTutorial(); startSolo({ ...o, opp: 3, chars: PRESETS.classic, goal: 8, level: 'easy', seed: 2026 }); },
   cancelNet: () => { closeRoom(); closeLink(); },
 });
 
@@ -222,6 +225,7 @@ function enterGame(mode) {
 function leave() {
   clearTimeout(G.aiTimer);
   closeSettings();
+  if (tutorialActive()) stopTutorial();
   if (G.mode === 'host') { store.del('c3d.hostsave'); closeRoom(); }
   if (G.mode === 'peer') { store.del('c3d.peer', sessionStorage); closeLink(); }
   G.mode = null; G.S = null; G.view = null; G.queue = []; G.deadline = null;
@@ -244,7 +248,7 @@ function aiPlayers(n, taken) {
 }
 
 function startSolo(o) {
-  G.cfg = { players: [{ name: o.name, avatar: o.avatar, ai: false }, ...aiPlayers(o.opp, [o.avatar])], chars: o.chars, goal: o.goal, level: o.level };
+  G.cfg = { players: [{ name: o.name, avatar: o.avatar, ai: false }, ...aiPlayers(o.opp, [o.avatar])], chars: o.chars, goal: o.goal, level: o.level, seed: o.seed };
   G.me = 0;
   enterGame('solo');
   setState(createGame(G.cfg));

@@ -28,6 +28,8 @@ Three.js and PeerJS load from CDNs (importmap in `index.html`), so the first loa
   from a view; `js/scene.js` renders the 3D table from a view and plays event effects.
 - `js/settings.js` owns player preferences (`prefs`, saved in localStorage) and the ⚙️ panel used by both the lobby
   and the game; `js/sfx.js` synthesizes all sound, including the four generative music tracks (`TRACKS`).
+- `js/tutorial.js` is the guided first game (spotlight + bubble, steps advance on the player's own actions).
+  The engine keeps public per-player tallies (`p.st`, `p.played`) for the end-of-game recap.
 - **UI text goes through `t(key)`.** A new key needs English + Chinese in `js/i18n.js` and a translation in every
   `js/lang/*.js` (zh-TW, ja, ko, es, fr, de, pt, ru, it); `test/engine.test.mjs` fails on a missing key or mismatched `{placeholder}`.
 - Bump `VERSION` in `engine.js` when saved states become incompatible.

@@ -9,6 +9,7 @@ import { t, cname, cabil, dname, ddesc, RULES, getLang } from './i18n.js';
 import { svg, ROMAN } from './icons.js';
 import { sfx } from './sfx.js';
 import { prefs, alertTurn, vibrate } from './settings.js';
+import { update as tutorialUpdate, tutorialActive } from './tutorial.js';
 
 const $ = (sel, el = document) => el.querySelector(sel);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -50,7 +51,7 @@ export function createUI(ctx) {
 
   function chrome() {
     els.top.innerHTML = `
-      <div class="tb-left"><div class="round-chip"></div></div>
+      <div class="tb-left"><button class="round-chip" data-a="sheet" data-v="round" title="${t('tl.open')}"></button></div>
       <div class="calltrack" aria-label="call order"></div>
       <div class="tb-right">
         <div class="emote-wrap"><button class="icon-btn" data-a="emotes" title="${t('ui.react')}">😀</button>
@@ -181,7 +182,7 @@ export function createUI(ctx) {
   }
   // First-time guidance: each tip shows once per device.
   function coach(key) {
-    if (!prefs.tips) return;
+    if (!prefs.tips || tutorialActive()) return; // the tutorial does the explaining
     try {
       if (localStorage.getItem('c3d.coach.' + key)) return;
       localStorage.setItem('c3d.coach.' + key, '1');
@@ -239,10 +240,12 @@ export function createUI(ctx) {
   // Called by the controller for every new event, in order. Returns ms to let it breathe.
   function event(e, view) {
     L.view = view;
+    L.evShown = e.id;
     const txt = evText(e);
     if (txt && e.k !== 'gold' && e.k !== 'cards') L.log.push({ id: e.id, k: e.k, txt });
     if (L.log.length > 300) L.log.splice(0, L.log.length - 300);
-    if (L.sheet === 'log') renderSheet();
+    if (L.sheet === 'log' || L.sheet === 'round') renderSheet();
+    if (e.k !== 'pick' && e.k !== 'discard') feedLine();
     const mine = e.pid === view.me;
     switch (e.k) {
       case 'call':
@@ -273,6 +276,30 @@ export function createUI(ctx) {
       case 'over': sfx('win'); return 600;
     }
     return 300;
+  }
+
+  // ── round feed: who did what this round, grouped by character call ──
+  function roundFeed(v) {
+    const seen = v.ev.filter(e => e.id <= (L.evShown ?? Infinity));
+    const from = seen.findLastIndex(e => e.k === 'round');
+    const calls = [];
+    for (const e of seen.slice(from + 1)) {
+      if (e.k === 'call') { calls.push({ e, items: [] }); continue; }
+      const cur = calls.at(-1);
+      if (!cur || e.k === 'end') continue;
+      const self = e.pid === cur.e.pid;
+      const line = e.k === 'gold' && self ? t('fy.gold', { n: e.n }) : e.k === 'cards' && self ? t('fy.cards', { n: e.n }) : evText(e);
+      if (line) cur.items.push({ k: e.k, line });
+    }
+    return calls;
+  }
+  // under "X is thinking…": what the current character has done so far
+  function feedLine() {
+    const el = els.prompt.querySelector('.feed-last');
+    if (!el || !L.view) return;
+    const cur = roundFeed(L.view).at(-1);
+    // the animation trails the state, so follow the last character shown rather than view.turn
+    el.innerHTML = cur && cur.e.pid !== null && cur.e.pid !== L.view.me && cur.items.length ? cur.items.slice(-2).map(x => `<span>${x.line}</span>`).join('') : '';
   }
 
   // ── render ──
@@ -312,6 +339,8 @@ export function createUI(ctx) {
     renderHand(view, me, myTurn);
     renderActions(view, me, myTurn, draftMine);
     renderPrompt(view, myTurn, draftMine);
+    if (L.evShown === undefined) L.evShown = view.ev.at(-1)?.id ?? 0; // resumed mid-game: history so far counts as seen
+    feedLine();
 
     // decisions that can't wait open themselves
     const pend = myTurn ? T.pending : null;
@@ -329,6 +358,7 @@ export function createUI(ctx) {
     renderSheet();
     ctx.scene.highlight(L.sheet === 'war' ? warTargets(view).filter(x => x.ok).map(x => x.card.uid) : []);
     insets();
+    tutorialUpdate(view);
   }
 
   function renderTrack(view) {
@@ -476,7 +506,7 @@ export function createUI(ctx) {
         <div class="tg-ab">${esc(cabil(T.charId))}</div>`;
     } else if (draftMine) s = `<b>${t(view.draft.mustDiscard ? 'ui.discardTitle' : 'ui.pickChar')}</b>`;
     else if (view.phase === 'draft') s = t(view.draft.mustDiscard ? 'ui.waitingDiscard' : 'ui.waitingDraft', { name: pname(view.draft.order[view.draft.idx]) });
-    else if (view.turn) s = t('ui.waitingFor', { name: pname(view.turn.pid) });
+    else if (view.turn) s = `${t('ui.waitingFor', { name: pname(view.turn.pid) })} <span class="muted">· ${esc(cname(view.turn.charId))}</span><span class="feed-last"></span>`;
     const dl = ctx.deadline?.();
     if (dl && dl.pid === actor && view.phase !== 'over') s += ` <span class="timer" data-at="${dl.at}"></span>`;
     els.prompt.innerHTML = s;
@@ -564,7 +594,7 @@ export function createUI(ctx) {
     const v = L.view, s = L.sheet;
     els.wrap.classList.toggle('open', !!s);
     els.wrap.classList.toggle('blocking', BLOCKING.includes(s));
-    els.wrap.classList.toggle('side', ['war', 'inspect', 'log'].includes(s)); // keep the table clickable
+    els.wrap.classList.toggle('side', ['war', 'inspect', 'log', 'round'].includes(s)); // keep the table clickable
     if (!s || !v) { els.sheet.innerHTML = ''; return; }
     // never leave a decision dialog on screen with nothing to decide
     if ((s === 'draft' || s === 'discard') && !(v.phase === 'draft' && v.draft.options?.length)) { L.sheet = null; return renderSheet(); }
@@ -686,6 +716,14 @@ export function createUI(ctx) {
         ${p.chars.map(c => chip(c)).join('')}</div>
         <div class="cards-pick city">${p.city.length ? p.city.map(c => cardHTML(c, { attrs: 'data-a="none"' })).join('') : `<p class="muted">—</p>`}</div>`);
       wide = true;
+    } else if (s === 'round') {
+      const calls = roundFeed(v);
+      html = sheetFrame(t('tl.title', { n: v.round }), calls.length ? `<ol class="feed">${calls.map(({ e, items }, i) => {
+        const c = CHAR[e.charId], now = i === calls.length - 1 && v.turn?.pid === e.pid && v.phase === 'turns';
+        const who = e.pid === null ? `<span class="muted">${t('ui.calledNobody')}</span>` : `${avatar(P(e.pid))}${pname(e.pid)}${e.killed ? ` <span class="tag danger">${t('ui.slain')}</span>` : ''}`;
+        return `<li class="${now ? 'now' : ''} ${e.pid === null ? 'none' : ''}" style="--cc:${c.color}"><div class="fd-head">${chip(e.charId)}<b>${esc(cname(e.charId))}</b><span class="fd-who">${who}</span></div>
+          ${items.length ? `<ul>${items.map(x => `<li class="lk-${x.k}">${x.line}</li>`).join('')}</ul>` : ''}</li>`;
+      }).join('')}</ol>` : `<p class="muted center">${t('tl.empty')}</p>`, { cls: 'scroll' });
     } else if (s === 'log') {
       html = sheetFrame(t('ui.log'), `<ol class="log">${L.log.map(l => `<li class="lk-${l.k}">${l.txt}</li>`).join('')}</ol>`, { cls: 'scroll' });
     } else if (s === 'rules') {
@@ -698,15 +736,27 @@ export function createUI(ctx) {
       wide = true;
     } else if (s === 'over') {
       const rows = [...v.scores].sort((a, b) => b.total - a.total);
-      const win = v.winner === v.me;
+      const win = v.winner === v.me, mine = rows.findIndex(r => r.pid === v.me);
       const cols = ['base', 'first', 'complete', 'colors', 'extra'].filter(k => rows.some(r => r.parts[k]));
       const rec = ctx.stats?.();
+      // highlights from the public tallies the engine keeps (st) — best player per category, if anyone scored
+      const st = (p, k) => p.st?.[k] || 0;
+      const moments = [['built', 'build', 'mo.n.built'], ['earned', 'gold', 'mo.n.gold'], ['stole', 'thief', 'mo.n.gold'], ['razed', 'warlord', 'mo.n.built'], ['slain', 'skull', 'mo.n.times']]
+        .map(([k, icon, unit]) => { const p = v.players.reduce((b, q) => (st(q, k) > st(b, k) ? q : b)); return st(p, k) ? { k, icon, unit, p, n: st(p, k) } : null; })
+        .filter(Boolean);
+      const placing = mine < 0 ? '' : win ? t('ov.win', { n: rows[0].total })
+        : `${t('ov.place', { rank: mine + 1, n: rows[mine].total })} · ${t('ov.behind', { n: rows[0].total - rows[mine].total })}`;
       html = `<div class="over ${win ? 'win' : ''}">
         <div class="over-ico">${svg('trophy')}</div>
         <h1>${win ? t('ui.youWin') : t('ui.youLose', { name: realName(v.winner) })}</h1>
+        ${placing ? `<p class="placing">${placing}</p>` : ''}
         <table class="score"><thead><tr><th></th>${[...cols, 'total'].map(k => `<th>${t('ui.score.' + k)}</th>`).join('')}</tr></thead>
-        <tbody>${rows.map((r, i) => `<tr class="${r.pid === v.winner ? 'w' : ''}" style="--d:${i * 120}ms;--seat:${seatHue(r.pid)}"><td>${avatar(P(r.pid))}${r.pid === v.me ? t('ui.you') : realName(r.pid)}</td>
+        <tbody>${rows.map((r, i) => `<tr class="${r.pid === v.winner ? 'w' : ''} ${r.pid === v.me ? 'me' : ''}" style="--d:${i * 120}ms;--seat:${seatHue(r.pid)}"><td>${avatar(P(r.pid))}${r.pid === v.me ? t('ui.you') : realName(r.pid)}</td>
           ${cols.map(k => `<td>${r.parts[k] || '·'}</td>`).join('')}<td class="tot">${r.total}</td></tr>`).join('')}</tbody></table>
+        ${moments.length ? `<h4 class="ov-h">${t('ov.moments')}</h4><div class="moments">${moments.map(m => `<div class="mo">${svg(m.icon)}<span class="mo-k">${t('mo.' + m.k)}</span>
+          <span class="mo-v">${avatar(m.p)}<span class="mo-name">${m.p.id === v.me ? t('ui.you') : realName(m.p.id)}</span><b>${t(m.unit, { n: m.n })}</b></span></div>`).join('')}</div>` : ''}
+        ${v.players.some(p => p.played?.length) ? `<details class="journeys"><summary>${t('ov.journey')}</summary>${rows.map(r => { const p = P(r.pid);
+          return `<div class="jr"><span class="jr-who">${avatar(p)}${p.id === v.me ? t('ui.you') : realName(p.id)}</span><span class="jr-chars">${(p.played || []).map(id => chip(id)).join('')}</span></div>`; }).join('')}</details>` : ''}
         ${rec ? `<p class="note">${t('lb.stats', rec)}</p>` : ''}
         <div class="sh-foot two">${ctx.mode() !== 'peer' ? `<button class="btn primary" data-a="again">${svg('play')}${t('ui.again')}</button>` : ''}<button class="btn" data-a="home">${t('ui.home')}</button></div></div>`;
       wide = true;
@@ -926,6 +976,6 @@ export function createUI(ctx) {
     relang() { chrome(); if (L.view) render(L.view); },
     show() { root.classList.add('on'); insets(); },
     hide() { root.classList.remove('on'); L.sheet = null; L.log = []; L.shown = null; L.labelEls.forEach(el => el.remove()); L.labelEls.clear(); els.wrap.classList.remove('open'); hideTip(); },
-    resetLog() { L.log = []; L.shown = null; },
+    resetLog() { L.log = []; L.evShown = undefined; L.shown = null; },
   };
 }

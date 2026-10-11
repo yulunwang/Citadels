@@ -3,6 +3,7 @@ import { CHAR, PRESETS, AVATARS } from './data.js';
 import { t, cname, cabil, getLang, RULES } from './i18n.js';
 import { svg, ROMAN } from './icons.js';
 import { sfx } from './sfx.js';
+import { tutorialSeen } from './tutorial.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -56,15 +57,17 @@ export function createLobby(ctx) {
     const back = `<button class="link back" data-a="go" data-v="home">${svg('back')}${t('lb.back')}</button>`;
     switch (L.screen) {
       case 'home': {
-        const cont = ctx.canContinue();
+        const cont = ctx.canContinue(), newcomer = !tutorialSeen() && !ctx.stats?.()?.g && !cont;
         body = `<div class="hero"><div class="crest">${svg('crown')}</div><h1>${t('lb.title')}</h1><p class="tag">${t('lb.tag')}</p>${ctx.stats?.()?.g ? `<p class="record">${svg('trophy')}${t('lb.stats', ctx.stats())}</p>` : ''}</div>
           ${err}
           <nav class="menu">
             ${cont ? `<button class="btn primary big" data-a="continue">${svg('play')}<span>${t('lb.continue')}</span><small>${esc(cont)}</small></button>` : ''}
-            <button class="btn ${cont ? '' : 'primary'} big" data-a="go" data-v="solo">${svg('users')}<span>${t('lb.solo')}</span></button>
+            ${newcomer ? `<button class="btn primary big" data-a="tutorial">${svg('help')}<span>${t('tut.start')}</span><small>${t('tut.pitch')}</small></button>` : ''}
+            <button class="btn ${cont || newcomer ? '' : 'primary'} big" data-a="go" data-v="solo">${svg('users')}<span>${t('lb.solo')}</span></button>
             <button class="btn big" data-a="go" data-v="host">${svg('link')}<span>${t('lb.host')}</span></button>
             <button class="btn big" data-a="go" data-v="join">${svg('end')}<span>${t('lb.join')}</span></button>
-            <button class="btn ghost" data-a="go" data-v="rules">${svg('help')}<span>${t('lb.rules')}</span></button>
+            <div class="menu-links"><button class="btn ghost" data-a="go" data-v="rules">${svg('help')}<span>${t('lb.rules')}</span></button>
+            ${newcomer ? '' : `<button class="btn ghost" data-a="tutorial">${svg('play')}<span>${t('tut.start')}</span></button>`}</div>
           </nav>`;
         break;
       }
@@ -128,6 +131,7 @@ export function createLobby(ctx) {
       case 'rankpick': { const r = +el.dataset.r; L.chars = L.chars.filter(c => CHAR[c].rank !== r); if (+v) L.chars.push(+v); L.custom = true; break; }
       case 'goal': L.goal = +v; break;
       case 'settings': return ctx.openSettings();
+      case 'tutorial': persist(); return ctx.startTutorial({ name: myName(), avatar: L.avatar });
       case 'level': L.level = v; break;
       case 'timer': L.timer = +v; break;
       case 'continue': return ctx.cont();
