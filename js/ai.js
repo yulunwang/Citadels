@@ -9,12 +9,12 @@
 //    then samples with a temperature so play stays varied rather than scripted.
 // Levels: easy (impulsive, short-sighted) · normal · hard ("cunning": full model, sharper choices).
 
-import { CHAR, COLORS } from './data.js';
+import { CHAR, COLORS } from './data.js?v=7e94daef';
 import {
   rankOf, has, colorCount, buildCost, canPlace, destroyCost, shielded,
   targetRanks, countsTowardLimit, score,
-} from './engine.js';
-import { search } from './search.js';
+} from './engine.js?v=7e94daef';
+import { search } from './search.js?v=7e94daef';
 
 // Lookahead budget for the cunning AI (rollouts per decision); tests may turn it off.
 export const SEARCH = { on: true, budget: 120 };

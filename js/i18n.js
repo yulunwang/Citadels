@@ -1,15 +1,15 @@
 // English + Chinese live in the table below; other languages are one file each in ./lang/ (missing keys
 // fall back to English). t('key', {vars}) — '{name}' placeholders.
-import { CHAR } from './data.js';
-import ja from './lang/ja.js';
-import ko from './lang/ko.js';
-import es from './lang/es.js';
-import fr from './lang/fr.js';
-import zhTW from './lang/zh-TW.js';
-import de from './lang/de.js';
-import pt from './lang/pt.js';
-import ru from './lang/ru.js';
-import it from './lang/it.js';
+import { CHAR } from './data.js?v=7e94daef';
+import ja from './lang/ja.js?v=7e94daef';
+import ko from './lang/ko.js?v=7e94daef';
+import es from './lang/es.js?v=7e94daef';
+import fr from './lang/fr.js?v=7e94daef';
+import zhTW from './lang/zh-TW.js?v=7e94daef';
+import de from './lang/de.js?v=7e94daef';
+import pt from './lang/pt.js?v=7e94daef';
+import ru from './lang/ru.js?v=7e94daef';
+import it from './lang/it.js?v=7e94daef';
 
 export const EXTRA = { 'zh-TW': zhTW, ja, ko, es, fr, de, pt, ru, it };
 export const LANGS = {
@@ -36,9 +36,6 @@ export function setLang(l) {
   try { localStorage.setItem('c3d.lang', lang); } catch {}
   document.documentElement.lang = HTML_LANG[lang] || lang;
 }
-// A native <select>: touch, keyboard and screen readers work for free.
-export const langSelect = () => `<select class="lang-sel" data-a="lang" aria-label="${t('lb.lang')}">${
-  Object.entries(LANGS).map(([k, name]) => `<option value="${k}"${k === lang ? ' selected' : ''}>${name}</option>`).join('')}</select>`;
 
 const D = {
   // characters
@@ -307,6 +304,32 @@ const D = {
   'coach.turn': ['Your turn! First take 2 gold or draw cards, then build a district you can afford. Unsure? Tap Hint.', '轮到你了！先拿 2 金或摸牌，再建造付得起的建筑。拿不准？点「提示」。'],
   'coach.call': ['The court calls characters from I to IX — follow the track at the top.', '宫廷按 I 到 IX 依次召见角色——留意顶部的顺序条。'],
   'coach.cam': ['Drag the table to look around · tap a city to inspect it.', '拖动桌面旋转视角 · 点击城市查看详情。'],
+
+  // settings
+  'set.title': ['Settings', '设置'],
+  'set.sound': ['Sound', '声音'],
+  'set.sfx': ['Sound effects', '音效'],
+  'set.track': ['Music track', '背景音乐'],
+  'set.track.candle': ['Candlelight', '烛光'],
+  'set.track.garden': ['Moonlit Garden', '月下庭园'],
+  'set.track.neon': ['Neon Citadel', '霓虹之城'],
+  'set.track.tavern': ['Tavern Night', '酒馆之夜'],
+  'set.game': ['Gameplay', '游戏'],
+  'set.confirmEnd': ['Confirm ending a turn with builds left', '还能建造时，结束回合前确认'],
+  'set.turnAlert': ['Alert me when it\'s my turn', '轮到我时提醒'],
+  'set.tips': ['Beginner tips', '新手提示'],
+  'set.tipsReset': ['Show again', '重新显示'],
+  'set.tipsAgain': ['Will show again ✓', '将重新显示 ✓'],
+  'set.display': ['Display', '画面'],
+  'set.motion': ['Reduce motion', '减少动态效果'],
+  'set.symbols': ['Colour symbols on cards', '卡牌显示颜色符号'],
+  'set.record': ['Record', '战绩'],
+  'set.noGames': ['No games yet', '还没有对局'],
+  'set.reset': ['Reset', '清零'],
+  'set.resetSure': ['Tap again to reset', '再点一次确认清零'],
+  'ui.endSure': ['End anyway?', '仍要结束？'],
+  'ui.endHint': ['You can still build this turn.', '本回合还能建造。'],
+  'ui.yourTurnTitle': ['Your turn!', '轮到你了！'],
 };
 
 export const KEYS = () => Object.keys(D); // for the translation completeness test

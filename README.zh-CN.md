@@ -25,7 +25,8 @@
 
 - **2–7 人**，单人或联机都行。
 - **三档电脑难度**：简单、普通、狡诈。电脑只知道它该知道的信息，不会偷看你的手牌和角色。
-- **11 种语言**：English、简体中文、繁體中文、日本語、한국어、Español、Français、Deutsch、Português、Русский、Italiano，随时从 🌐 菜单切换。
+- **11 种语言**：English、简体中文、繁體中文、日本語、한국어、Español、Français、Deutsch、Português、Русский、Italiano，随时在 ⚙️ 设置里切换。
+- **设置（⚙️）**：四首程序生成的背景音乐（烛光、月下庭园、霓虹之城、酒馆之夜）和音量调节、AI 速度、还能建造时结束回合前确认、轮到你时提醒（标签页闪烁、手机震动）、减少动态效果、色盲辅助的卡牌颜色符号。
 - **断线不怕**：单人游戏自动存档；联机时刷新页面会自动回到座位。
 - **快捷键**：G 拿金币 · D 摸牌 · B 建造 · A 角色技能 · E 结束回合 · H 提示 · 1–9 选手牌。
 
@@ -50,7 +51,7 @@ node test/ai-duel.mjs 400     # 狡诈 vs 普通 AI 胜率
 | `js/engine.js` | 规则引擎：`act(state, pid, action)`、`viewFor(state, pid)`（每个人能看到的信息） |
 | `js/ai.js`、`js/search.js` | 电脑玩家（只接收 `viewFor`）和狡诈难度的前瞻搜索 |
 | `js/scene.js`、`js/models.js`、`js/materials.js` | 3D 牌桌、建筑模型、材质 |
-| `js/ui.js`、`js/lobby.js` | 游戏界面、大厅 |
+| `js/ui.js`、`js/lobby.js`、`js/settings.js` | 游戏界面、大厅 |
 | `js/main.js`、`js/net.js` | 流程控制、存档、联机（PeerJS） |
 | `js/i18n.js`、`js/lang/*.js` | 文本：中英文在 `i18n.js`，其他语言各一个文件 |
 | `js/data.js`、`js/sfx.js` | 卡牌数据、音效 |

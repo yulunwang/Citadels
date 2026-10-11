@@ -25,7 +25,8 @@ No hay nada que descargar ni instalar: funciona en cualquier navegador de ordena
 
 - **De 2 a 7 jugadores**, solo o en línea.
 - **Tres niveles de IA:** Fácil, Normal y Astuta. La IA solo sabe lo que le corresponde: nunca ve tu mano ni los personajes ocultos.
-- **11 idiomas:** English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português, Русский e Italiano. Cámbialo cuando quieras desde el menú 🌐.
+- **11 idiomas:** English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português, Русский e Italiano. Cámbialo cuando quieras en ⚙️ Ajustes.
+- **Ajustes (⚙️):** cuatro pistas de música generadas (Luz de velas, Jardín lunar, Ciudadela neón, Noche de taberna) con volumen, velocidad de la IA, confirmación antes de terminar un turno en el que aún puedes construir, avisos de turno (título parpadeante, vibración), reducir movimiento y símbolos de color en las cartas para daltónicos.
 - **Nunca pierdes una partida:** las partidas en solitario se guardan solas, y si recargas la página en línea vuelves directamente a tu asiento.
 - **Atajos:** G oro · D robar cartas · B construir · A habilidad del personaje · E terminar turno · H pista · 1–9 elegir carta.
 
@@ -50,7 +51,7 @@ node test/ai-duel.mjs 400     # porcentaje de victorias de Astuta contra Normal
 | `js/engine.js` | Motor de reglas: `act(state, pid, action)` y `viewFor(state, pid)` (lo que puede ver cada jugador) |
 | `js/ai.js`, `js/search.js` | Jugadores de la IA (solo reciben `viewFor`) y la búsqueda anticipada del nivel Astuta |
 | `js/scene.js`, `js/models.js`, `js/materials.js` | Mesa 3D, modelos de edificios, materiales |
-| `js/ui.js`, `js/lobby.js` | Interfaz de la partida y vestíbulo |
+| `js/ui.js`, `js/lobby.js`, `js/settings.js` | Interfaz de la partida y vestíbulo |
 | `js/main.js`, `js/net.js` | Flujo de la partida, guardado, juego en línea (PeerJS) |
 | `js/i18n.js`, `js/lang/*.js` | Textos: inglés y chino en `i18n.js`, un archivo por cada otro idioma |
 | `js/data.js`, `js/sfx.js` | Datos de cartas, sonido |

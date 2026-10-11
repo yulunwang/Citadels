@@ -25,7 +25,8 @@
 
 - **2–7명**, 혼자서도 온라인으로도 즐길 수 있습니다.
 - **세 단계 AI**: 쉬움, 보통, 교활함. AI는 알아도 되는 정보만 보며, 당신의 손패나 숨겨진 역할을 엿보지 않습니다.
-- **11개 언어**: English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português, Русский, Italiano. 🌐 메뉴에서 언제든 바꿀 수 있습니다.
+- **11개 언어**: English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português, Русский, Italiano. ⚙️ 설정에서 언제든 바꿀 수 있습니다.
+- **설정(⚙️)**: 자동 생성되는 배경 음악 4곡(촛불, 달빛 정원, 네온 시타델, 선술집의 밤)과 음량, AI 속도, 건설할 수 있는데 차례를 끝낼 때 확인, 내 차례 알림(탭 깜빡임, 진동), 움직임 줄이기, 색각 보조 카드 기호.
 - **끊겨도 걱정 없음**: 혼자 하는 게임은 자동 저장되고, 온라인에서 새로고침해도 자동으로 자리로 돌아갑니다.
 - **단축키**: G 금화 · D 카드 뽑기 · B 건설 · A 역할 능력 · E 차례 끝내기 · H 힌트 · 1–9 카드 선택.
 
@@ -50,7 +51,7 @@ node test/ai-duel.mjs 400     # 교활함 대 보통 승률
 | `js/engine.js` | 규칙 엔진: `act(state, pid, action)`와 `viewFor(state, pid)`(각 플레이어가 볼 수 있는 정보) |
 | `js/ai.js`, `js/search.js` | 컴퓨터 플레이어(`viewFor`만 받음)와 교활함 난이도의 수읽기 |
 | `js/scene.js`, `js/models.js`, `js/materials.js` | 3D 테이블, 건물 모델, 재질 |
-| `js/ui.js`, `js/lobby.js` | 게임 화면과 로비 |
+| `js/ui.js`, `js/lobby.js`, `js/settings.js` | 게임 화면과 로비 |
 | `js/main.js`, `js/net.js` | 게임 흐름, 저장, 온라인 대전(PeerJS) |
 | `js/i18n.js`, `js/lang/*.js` | 텍스트: 영어·중국어는 `i18n.js`, 그 밖의 언어는 언어마다 파일 하나 |
 | `js/data.js`, `js/sfx.js` | 카드 데이터, 효과음 |

@@ -261,6 +261,32 @@ export default {
   'coach.call': 'La corte chiama i personaggi dal I al IX: segui la barra in alto.',
   'coach.cam': 'Trascina il tavolo per guardarti intorno · tocca una città per esaminarla.',
 
+  // settings
+  'set.title': 'Impostazioni',
+  'set.sound': 'Audio',
+  'set.sfx': 'Effetti sonori',
+  'set.track': 'Brano musicale',
+  'set.track.candle': 'Lume di candela',
+  'set.track.garden': 'Giardino lunare',
+  'set.track.neon': 'Cittadella neon',
+  'set.track.tavern': 'Notte in taverna',
+  'set.game': 'Gioco',
+  'set.confirmEnd': 'Conferma fine turno se puoi ancora costruire',
+  'set.turnAlert': 'Avvisami quando tocca a me',
+  'set.tips': 'Consigli per principianti',
+  'set.tipsReset': 'Mostra di nuovo',
+  'set.tipsAgain': 'Verranno mostrati ✓',
+  'set.display': 'Schermo',
+  'set.motion': 'Riduci movimento',
+  'set.symbols': 'Simboli dei colori sulle carte',
+  'set.record': 'Statistiche',
+  'set.noGames': 'Nessuna partita ancora',
+  'set.reset': 'Azzera',
+  'set.resetSure': 'Tocca di nuovo',
+  'ui.endSure': 'Finire comunque?',
+  'ui.endHint': 'Puoi ancora costruire in questo turno.',
+  'ui.yourTurnTitle': 'Tocca a te!',
+
   _rules: `<h3>Obiettivo</h3><p>Costruisci la città di maggior valore. Quando qualcuno completa una città di <b>{goal}</b> quartieri, si finisce il round e vince il punteggio più alto.</p>
 <h3>Ogni round</h3><ol><li><b>Scelta dei personaggi.</b> A partire da chi ha la Corona, ognuno prende in segreto un personaggio. Alcuni vengono scartati scoperti, uno coperto.</li>
 <li><b>Corte reale.</b> I personaggi vengono chiamati per rango (I → IX). Nel tuo turno: prendi <b>2 oro</b> oppure <b>pesca 2 carte e tienine 1</b>; poi costruisci un quartiere pagandone il costo. Il potere del personaggio si usa in qualsiasi momento.</li></ol>

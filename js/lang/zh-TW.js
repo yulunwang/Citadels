@@ -261,6 +261,32 @@ export default {
   'coach.call': '宮廷按 I 到 IX 依次召見角色——留意頂部的順序條。',
   'coach.cam': '拖動桌面旋轉視角 · 點擊城市查看詳情。',
 
+  // settings
+  'set.title': '設定',
+  'set.sound': '聲音',
+  'set.sfx': '音效',
+  'set.track': '背景音樂',
+  'set.track.candle': '燭光',
+  'set.track.garden': '月下庭園',
+  'set.track.neon': '霓虹之城',
+  'set.track.tavern': '酒館之夜',
+  'set.game': '遊戲',
+  'set.confirmEnd': '還能建造時，結束回合前確認',
+  'set.turnAlert': '輪到我時提醒',
+  'set.tips': '新手提示',
+  'set.tipsReset': '重新顯示',
+  'set.tipsAgain': '將重新顯示 ✓',
+  'set.display': '畫面',
+  'set.motion': '減少動態效果',
+  'set.symbols': '卡牌顯示顏色符號',
+  'set.record': '戰績',
+  'set.noGames': '還沒有對局',
+  'set.reset': '清零',
+  'set.resetSure': '再點一次確認清零',
+  'ui.endSure': '仍要結束？',
+  'ui.endHint': '本回合還能建造。',
+  'ui.yourTurnTitle': '輪到你了！',
+
   _rules: `<h3>目標</h3><p>建造價值最高的城市。當有人建成 <b>{goal}</b> 座建築時，本輪結束後遊戲終止，分數最高者獲勝。</p>
 <h3>每一輪</h3><ol><li><b>挑選角色。</b>從持有王冠者開始，每人秘密挑選一個角色。部分角色會公開移除，另有一張暗置。</li>
 <li><b>宮廷召見。</b>按等級（I → IX）依次召喚角色。輪到你時：拿 <b>2 金</b>，或 <b>摸 2 張留 1 張</b>；然後支付造價建造建築；角色技能可在回合內任何時候使用。</li></ol>
