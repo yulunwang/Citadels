@@ -1,6 +1,6 @@
 // Lobby screens: home, solo setup, host room, join room, waiting room.
 import { CHAR, PRESETS, AVATARS } from './data.js';
-import { t, cname, cabil, getLang, setLang, RULES } from './i18n.js';
+import { t, cname, cabil, getLang, setLang, RULES, langSelect } from './i18n.js';
 import { svg, ROMAN } from './icons.js';
 import { sfx, soundOn, setSound, musicEnabled, setMusic } from './sfx.js';
 
@@ -102,7 +102,7 @@ export function createLobby(ctx) {
         break;
     }
     root.innerHTML = `<div class="lb-panel ${L.screen}">${body}</div>
-      <div class="lb-corner"><button class="icon-btn" data-a="lang" title="${t('lb.lang')}">${svg('lang')}<span>${t('lb.lang')}</span></button>
+      <div class="lb-corner"><label class="icon-btn lang-pick" title="${t('lb.lang')}">${svg('lang')}${langSelect()}</label>
       <button class="icon-btn" data-a="music" title="${t('lb.music')}" aria-pressed="${musicEnabled()}">${musicEnabled() ? '♪' : '<s>♪</s>'}</button>
       <button class="icon-btn" data-a="sound" aria-pressed="${soundOn()}">${svg(soundOn() ? 'sound' : 'mute')}</button></div>`;
   }
@@ -119,6 +119,7 @@ export function createLobby(ctx) {
     if (!el) return;
     readFields();
     const a = el.dataset.a, v = el.dataset.v;
+    if (a === 'lang') return; // the <select> handles itself (see 'change')
     sfx('click');
     switch (a) {
       case 'go': L.error = null; if (L.screen === 'room' || L.screen === 'wait' || L.screen === 'connecting') ctx.cancelNet(); L.screen = v; break;
@@ -129,7 +130,6 @@ export function createLobby(ctx) {
       case 'rankpick': { const r = +el.dataset.r; L.chars = L.chars.filter(c => CHAR[c].rank !== r); if (+v) L.chars.push(+v); L.custom = true; break; }
       case 'goal': L.goal = +v; break;
       case 'speed': ctx.setSpeed(v); break;
-      case 'lang': setLang(getLang() === 'zh' ? 'en' : 'zh'); ctx.relang(); break;
       case 'sound': setSound(!soundOn()); break;
       case 'music': setMusic(!musicEnabled()); break;
       case 'level': L.level = v; break;
@@ -148,6 +148,7 @@ export function createLobby(ctx) {
     }
     render();
   });
+  root.addEventListener('change', e => { if (e.target.dataset.a === 'lang') { setLang(e.target.value); ctx.relang(); } });
   root.addEventListener('keydown', e => {
     if (e.key === 'Enter' && e.target.id === 'lb-code') { readFields(); $('[data-a="joinRoom"]', root)?.click(); }
   });
