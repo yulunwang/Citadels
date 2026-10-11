@@ -1,4 +1,4 @@
-// Run: node citadels-3d/test/ai-duel.mjs [games] ['{"hard":{"leadDiv":4}}']
+// Run: node test/ai-duel.mjs [games] ['{"hard":{"leadDiv":4}}']
 // Head-to-head: two "hard" vs two "normal" seats, rotated; prints hard's share of wins (fair = 50%).
 import { createGame, act, viewFor, currentActor } from '../js/engine.js';
 import { aiAction, safeAction, TUNE } from '../js/ai.js';

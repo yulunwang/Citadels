@@ -1,4 +1,4 @@
-// Run: node citadels-3d/test/ai-stats.mjs [games]
+// Run: node test/ai-stats.mjs [games]
 // Measures AI behaviour so "smart" is a number, not a feeling: targeting accuracy, hoarding,
 // missed builds, repetitive picks and head-to-head win rates between levels.
 import { createGame, act, viewFor, currentActor, rankOf, score, buildCost, canPlace } from '../js/engine.js';

@@ -1,4 +1,4 @@
-// Run: node citadels-3d/test/engine.test.mjs
+// Run: node test/engine.test.mjs
 // Plays hundreds of all-AI games across player counts, character sets and AI levels, fuzzes the
 // action API with garbage, and checks rules + hidden-information invariants.
 import assert from 'node:assert/strict';

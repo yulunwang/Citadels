@@ -1,4 +1,4 @@
-// Run: node citadels-3d/test/pressure.mjs [games]
+// Run: node test/pressure.mjs [games]
 // Pressure test. Plays thousands of games in every mode and checks three things:
 //  1. Fairness: the AI's input must not change when only hidden information changes ("twin worlds").
 //  2. Robustness: a random-move "monkey" seat mixed with AIs never breaks the rules or stalls.

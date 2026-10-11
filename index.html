@@ -1,44 +1,29 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>⚜ Citadels</title>
-  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css">
-  <link rel="preload" href="img/bg/lobby.svg" as="image">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#06080c">
+  <title>Citadels</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Inter:wght@400;500;600&family=Noto+Serif+SC:wght@600;700&family=Noto+Sans+SC:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+    }
+  }
+  </script>
 </head>
 <body>
-<div id="app"></div>
-
-<!--
-  Load order is a strict dependency chain — do not reorder.
-  1. ext-api.js  — extension registry (no deps)
-  2. data.js     — base game data; uses EXT._extraDistricts
-  3. engine.js   — game logic; calls EXT hooks at runtime
-  4. ui.js       — render functions; reads S, CHARS, CS, NET
-  5. net.js      — multiplayer; captures render() from ui.js, sets _onRoundEnd
-  6. lobby.js    — lobby UI; calls NET, render, game functions
-
-  Extensions are loaded AFTER lobby.js but BEFORE the boot line.
-  Each extension self-registers via EXT.register({...}).
--->
-<script src="js/ext-api.js"></script>
-<script src="js/data.js"></script>
-<script src="js/i18n.js"></script>
-<script src="js/engine.js"></script>
-<script src="js/ui.js"></script>
-<script src="js/net.js"></script>
-<script src="js/lobby.js"></script>
-
-<!-- ── Extensions ── uncomment to activate ──────────────────────────────────
-<script src="extensions/dark-city/extension.js"></script>
-<script src="extensions/citadels-2016/extension.js"></script>
--->
-
-<script>
-  // Boot
-  renderLobby({ screen: 'home' });
-</script>
+  <canvas id="gl"></canvas>
+  <div id="hud"></div>
+  <div id="lobby"></div>
+  <div id="boot"><div class="boot-in"><svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 34L6 14l10 8 8-12 8 12 10-8-2 20z"/><path d="M8 40h32"/></svg><span>Citadels · 富饶之城</span></div></div>
+  <noscript>Citadels needs JavaScript.</noscript>
+  <script type="module" src="js/main.js"></script>
 </body>
 </html>

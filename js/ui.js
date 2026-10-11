@@ -1,1307 +1,822 @@
-// ═══════════════════════════════════════════════════════════════════════════════
-// UI — DOM helpers and all render functions (except renderLobby, which is in lobby.js)
-// ═══════════════════════════════════════════════════════════════════════════════
+// In-game HUD: top bar, call track, seat labels, hand dock, action buttons, sheets (modals),
+// character-call banner, toasts, floating numbers, emotes and the end screen. Pure DOM over WebGL.
 
-// ── DOM HELPERS ────────────────────────────────────────────────────────────────
-function el(tag,attrs,text){
-  const e=document.createElement(tag);
-  if(attrs)for(const[k,v]of Object.entries(attrs)){if(k==='style')e.style.cssText=v;else if(k==='class')e.className=v;else e.setAttribute(k,v);}
-  if(text!==undefined)e.textContent=text;return e;
-}
-function gbtn(label,color,onClick,extra){
-  var b=el('button',{class:'gbtn',style:`--btn-clr:${color};${extra||''}`},label);
-  b.onclick=onClick;return b;
-}
+import { CHAR, HUE, DIST, COLORS, SEAT_HUES } from './data.js';
+import {
+  rankOf, has, buildCost, canPlace, destroyCost, shielded, targetRanks, countsTowardLimit, score,
+} from './engine.js';
+import { t, cname, cabil, dname, ddesc, RULES, getLang, setLang } from './i18n.js';
+import { svg, ROMAN } from './icons.js';
+import { sfx, soundOn, setSound, musicEnabled, setMusic } from './sfx.js';
 
-// District card — landscape orientation (emoji left, info right)
-function mkCard(d,opts){
-  opts=opts||{};
-  const cost=opts.player?buildCost(opts.player,d):d.cost;
-  const disc=opts.player&&cost<d.cost;
-  const portrait=opts.portrait;
-  const small=opts.small;
+const $ = (sel, el = document) => el.querySelector(sel);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const ACTIVE = { assassin: 'kill', thief: 'rob', magician: 'mag', warlord: 'war', wizard: 'wiz', seer: 'seer', navigator: 'nav', scholar: 'scholar' };
+const ABILITY_ICON = { kill: 'assassin', rob: 'thief', mag: 'magician', war: 'warlord', wiz: 'wizard', seer: 'seer', nav: 'navigator', scholar: 'scholar' };
+const ABILITY_OF_ACTION = { kill: 'kill', rob: 'rob', swap: 'mag', redraw: 'mag', destroy: 'war', peek: 'wiz', seer: 'seer', nav: 'nav', scholar: 'scholar' };
+const BLOCKING = ['draft', 'discard', 'keep', 'wizPick', 'seerGive', 'grave', 'over'];
+const TURN_SHEETS = ['kill', 'rob', 'mag', 'war', 'wiz', 'seer', 'nav', 'scholar', 'den', 'lab'];
+export const EMOTES = ['👍', '😂', '😮', '😡', '😈', '👑', '🙏', '🎉'];
+const seatHue = pid => SEAT_HUES[pid % SEAT_HUES.length];
 
-  const div=el('div');
-  let cls='dcard color-'+d.color;
-  if(opts.onClick&&!opts.disabled)cls+=' clickable';
-  if(opts.selected)cls+=' selected';
-  if(portrait)cls+=' portrait';
-  div.className=cls;
+export function createUI(ctx) {
+  const root = $('#hud');
+  root.innerHTML = `
+    <header class="topbar"></header>
+    <div class="labels"></div>
+    <div class="floaters"></div>
+    <div class="toasts" aria-live="polite"></div>
+    <div class="banner"></div>
+    <section class="dock">
+      <div class="prompt"></div>
+      <div class="dock-row">
+        <div class="me-panel"></div>
+        <div class="hand"></div>
+        <div class="actions"></div>
+      </div>
+    </section>
+    <div class="sheet-wrap"><div class="sheet" role="dialog" aria-modal="true"></div></div>
+    <div class="tip"></div>`;
 
-  if(!portrait){
-    const h=small?42:54;const ew=small?30:42;const iw=small?62:96;
-    div.style.cssText=`opacity:${opts.disabled?0.4:1};height:${h}px;width:${ew+iw}px`;
-  }else{
-    if(opts.disabled)div.style.opacity='0.4';
-  }
-
-  const emojiCol=el('div',{class:'dcard-emoji-col'});
-  if(!portrait){
-    const ew=small?30:42;
-    emojiCol.style.width=ew+'px';
-    emojiCol.style.fontSize=(small?14:22)+'px';
-  }
-  emojiCol.textContent=DEMOJI[d.id]||'🏛';
-  // Try to load district art
-  if(typeof IMG !== 'undefined' && IMG.district[d.id]) {
-    var imgSrc = IMG.district[d.id].full;
-    emojiCol.style.backgroundImage = 'url(' + imgSrc + ')';
-    emojiCol.style.backgroundSize = 'cover';
-    emojiCol.style.backgroundPosition = 'center';
-    var probe = new Image();
-    probe.onload = function() { emojiCol.textContent = ''; };
-    probe.onerror = function() { emojiCol.style.backgroundImage = ''; };
-    probe.src = imgSrc;
-  }
-  div.appendChild(emojiCol);
-
-  const infoCol=el('div',{class:'dcard-info-col'});
-  const costEl=el('div',{class:disc?'dcard-cost dcard-cost-disc':'dcard-cost'});
-  costEl.textContent=disc?`${cost}✦ (${d.cost}✦)`:`${cost}✦`;
-  const nm=el('div',{class:'dcard-name'});nm.textContent=dn(d);
-  const tp=el('div',{class:'dcard-type'});tp.textContent=clabel(d.color);
-  infoCol.append(costEl,nm,tp);
-
-  const showDesc=!opts.noDesc&&(portrait||(!small&&d.special))&&d.special&&SDESC[d.special];
-  if(showDesc){
-    const desc=el('div',{class:'dcard-desc'});
-    desc.textContent=sdesc(d.special);
-    infoCol.appendChild(desc);
-  }
-
-  div.appendChild(infoCol);
-  if(opts.onClick&&!opts.disabled){
-    div.onclick=opts.onClick;
-  }else if(portrait&&!opts.disabled){
-    // Tap portrait card (hand/city) → enlarged detail popup
-    div.style.cursor='pointer';
-    div.onclick=function(e){e.stopPropagation();showCardDetail(d,cost,disc);};
-  }
-  return div;
-}
-
-function showCardDetail(d,cost,disc){
-  var existing=document.getElementById('card-detail-overlay');
-  if(existing){existing.remove();return;}
-  var overlay=el('div',{id:'card-detail-overlay'});
-  overlay.onclick=function(e){if(e.target===overlay)overlay.remove();};
-  var box=el('div',{class:'card-detail-box color-'+d.color});
-  // Art zone
-  var art=el('div',{class:'card-detail-art'});
-  var emoji=DEMOJI[d.id]||'🏛';
-  art.textContent=emoji;
-  if(typeof IMG!=='undefined'&&IMG.district[d.id]){
-    var src=IMG.district[d.id].full;
-    art.style.backgroundImage='url('+src+')';
-    art.style.backgroundSize='cover';
-    art.style.backgroundPosition='center';
-    var probe=new Image();
-    probe.onload=function(){art.textContent='';};
-    probe.onerror=function(){art.style.backgroundImage='';};
-    probe.src=src;
-  }
-  box.appendChild(art);
-  // Info zone
-  var info=el('div',{class:'card-detail-info'});
-  var costStr=disc?t('cost.normally',{cost,orig:d.cost}):cost+'✦';
-  info.appendChild(el('div',{class:'card-detail-cost'},costStr));
-  info.appendChild(el('div',{class:'card-detail-name'},dn(d)));
-  info.appendChild(el('div',{class:'card-detail-type'},clabel(d.color)));
-  if(d.special&&SDESC[d.special]){
-    info.appendChild(el('div',{class:'card-detail-desc'},sdesc(d.special)));
-  }
-  var closeBtn=el('button',{class:'card-detail-close'},'✕');
-  closeBtn.onclick=function(){overlay.remove();};
-  info.appendChild(closeBtn);
-  box.appendChild(info);
-  overlay.appendChild(box);
-  document.body.appendChild(overlay);
-}
-
-// ── GAME STATE ─────────────────────────────────────────────────────────────────
-var S=null; // shared global; written by lobby.js, net.js, and game action handlers
-
-// ── MAIN RENDER ───────────────────────────────────────────────────────────────
-function render(){
-  if(!S){renderLobby({screen:'home'});return;}
-
-  const app=document.getElementById('app');app.innerHTML='';
-  // Clean up floating panels from previous render
-  ['char-ref-panel','char-ref-tip'].forEach(function(id){var e=document.getElementById(id);if(e)e.remove();});
-  if(S.phase==='gameover'){app.appendChild(renderGameOver());return;}
-
-  const isMobile=window.innerWidth<=768;
-  const wrap=el('div',{class:`game-wrap phase-${S.phase}${isMobile?' mobile':''}`});
-  if(typeof IMG !== 'undefined') {
-    wrap.style.background = 'linear-gradient(150deg, #faf7f0 0%, #ece5d8 100%)';
-  }
-
-  // ── TOP BAR ──────────────────────────────────────────────────────────────────
-  const topbar=el('div',{id:'topbar'});
-
-  if(isMobile){
-    // ── MOBILE: Mini HUD bar (two rows) ──
-    const hud=el('div',{class:'mob-hud'});
-    // Row 1: round info + your stats + end button
-    const row1=el('div',{class:'mob-hud-row1'});
-    const hudLeft=el('div',{class:'mob-hud-left'});
-    hudLeft.appendChild(el('span',{class:'mob-hud-round'},`R${S.round}`));
-    if((S.phase==='action'||S.phase==='herald')&&S.callIdx<=Math.max(0,...S.charPool.map(charRank))){
-      const activeChar=S.players.find(p=>charRank(p.char)===S.callIdx);
-      const c=activeChar?charById(activeChar.char):CHARS.find(ch=>ch.rank===S.callIdx)||{emoji:'?',name:'?',clr:'#888'};
-      hudLeft.appendChild(el('span',{class:'mob-hud-calling',style:`--char-clr:${c.clr}`},`${c.emoji} ${cn(c.id)}`));
-    }else if(S.phase==='draft'){
-      hudLeft.appendChild(el('span',{class:'mob-hud-calling'},t('topbar.draft')));
-    }
-    row1.appendChild(hudLeft);
-    const meH=S.players[0];
-    const hudStats=el('div',{class:'mob-hud-stats'});
-    var statsSpan=el('span',null,'');
-    statsSpan.innerHTML='💰'+meH.gold+' 🃏'+meH.hand.length+' 🏰'+meH.city.length+'/8';
-    hudStats.appendChild(statsSpan);
-    row1.appendChild(hudStats);
-    const hudRight=el('div',{class:'mob-hud-right'});
-    hudRight.appendChild(mkLangToggle());
-    const endBtn=el('button',{class:'btn-danger mob-end-btn'},t('topbar.end_btn_short'));
-    endBtn.onclick=()=>{S={...S,_confirmEnd:true};render();};
-    hudRight.appendChild(endBtn);
-    row1.appendChild(hudRight);
-    hud.appendChild(row1);
-    // Row 2: opponent chips (horizontally scrollable)
-    const row2=el('div',{class:'mob-hud-row2'});
-    const chips=el('div',{class:'mob-opp-chips'});
-    S.players.filter(function(p){return p.id!==0;}).forEach(function(p){
-      var avatar=typeof getAvatar==='function'?getAvatar(p.id):(p.ai?'🤖':'👤');
-      var chip=el('div',{class:'mob-opp-chip'+(p.dead?' dead':'')});
-      chip.appendChild(el('span',{class:'mob-opp-chip-avatar'},avatar));
-      var stat=el('span',{class:'mob-opp-chip-stat'});
-      stat.innerHTML='💰'+p.gold+'&thinsp;🏰'+p.city.length;
-      chip.appendChild(stat);
-      chip.onclick=function(e){
-        e.stopPropagation();
-        var existing=document.getElementById('player-detail-sheet');
-        if(existing){existing.remove();return;}
-        var sheet=el('div',{id:'player-detail-sheet'});
-        sheet.onclick=function(ev){if(ev.target===sheet)sheet.remove();};
-        var box=el('div',{class:'player-detail-box'});
-        var hdr=el('div',{class:'player-detail-hdr'});
-        var charRevealed=false;
-        if(p.char){
-          if(S.phase==='action'){charRevealed=charRank(p.char)<S.callIdx;}
-          else if(S.phase==='herald'&&S.heraldQueue){
-            var beatIdx=S.heraldQueue.findIndex(function(b){return b.playerId===p.id;});
-            charRevealed=beatIdx>=0&&beatIdx<S.heraldIdx;
-          }else if(S.phase==='gameover'){charRevealed=true;}
-        }
-        var charObj=charRevealed&&p.char?charById(p.char):null;
-        var nameText=p.name+(charObj?' · '+charObj.emoji+' '+cn(charObj.id):'');
-        hdr.appendChild(el('span',{class:'player-detail-name'},nameText));
-        var score=calcScore(p,S.firstCompleter===p.id);
-        hdr.appendChild(el('span',{class:'player-detail-score'},'💰'+p.gold+'  🃏'+p.hand.length+'  🏰'+p.city.length+'/8  ~'+score+'pts'));
-        var closeBtn=el('button',{class:'player-detail-close'},'✕');
-        closeBtn.onclick=function(){sheet.remove();};
-        hdr.appendChild(closeBtn);
-        box.appendChild(hdr);
-        if(p.city.length){
-          var cityWrap=el('div',{class:'player-detail-city'});
-          ['yellow','blue','green','red','purple'].forEach(function(col){
-            p.city.filter(function(d){return d.color===col;}).forEach(function(d){cityWrap.appendChild(mkCard(d,{portrait:true,player:p}));});
-          });
-          box.appendChild(cityWrap);
-        }else{box.appendChild(el('p',{class:'player-detail-empty'},t('player.no_city')));}
-        sheet.appendChild(box);
-        document.body.appendChild(sheet);
-      };
-      chips.appendChild(chip);
-    });
-    row2.appendChild(chips);
-    hud.appendChild(row2);
-    topbar.appendChild(hud);
-  }else{
-    // ── DESKTOP: Full topbar ──
-    const tbHdr=el('div',{class:'tb-header'});
-    tbHdr.appendChild(el('span',{class:'tb-title'},t('topbar.title')));
-    tbHdr.appendChild(el('span',{class:'tb-meta'},t('topbar.round_crown',{n:S.round,name:S.players[S.crown].name})));
-    if((S.phase==='action'||S.phase==='herald')&&S.callIdx<=Math.max(0,...S.charPool.map(charRank))){
-      const activeChar=S.players.find(p=>charRank(p.char)===S.callIdx);
-      const c=activeChar?charById(activeChar.char):CHARS.find(ch=>ch.rank===S.callIdx)||{emoji:'?',name:'?',clr:'#888'};
-      tbHdr.appendChild(el('span',{class:'tb-calling',style:`--char-clr:${c.clr}`},t('topbar.calling',{emoji:c.emoji,name:cn(c.id)})));
-    }
-    tbHdr.appendChild(mkLangToggle());
-    const endBtn=el('button',{class:'btn-danger'},t('topbar.end_game'));
-    endBtn.onclick=()=>{S={...S,_confirmEnd:true};render();};
-    tbHdr.appendChild(endBtn);
-    topbar.appendChild(tbHdr);
-  }
-
-  // Helper: build a player panel div
-  function mkPlayerPanel(p,compact){
-    const isActive=(S.phase==='action')&&charRank(p.char)===S.callIdx&&!p.dead;
-    const isMe=p.id===0;
-    const cls='tb-player'+(isActive?' active':'')+(isMe?' me':'')+(compact?' tb-player-compact':'');
-    const pDiv=el('div',{class:cls});
-    // Row 1: crown + name (+ YOU/dead badge). In compact mode: name truncates, char badge moves to r2.
-    const r1=el('div',{class:'tb-player-row1'});
-    if(S.crown===p.id)r1.appendChild(el('span',null,'👑'));
-    r1.appendChild(el('span',{class:'tb-player-name'},p.name));
-    if(isMe)r1.appendChild(el('span',{class:'badge-you'},t('badge.you')));
-    if(p.dead)r1.appendChild(el('span',{class:'badge-dead'},'☠️'));
-    pDiv.appendChild(r1);
-    // Character visibility
-    let charRevealed=isMe;
-    if(!charRevealed&&p.char){
-      if(S.phase==='action'){charRevealed=charRank(p.char)<S.callIdx;}
-      else if(S.phase==='herald'){
-        const beatIdx=S.heraldQueue.findIndex(b=>b.charId===p.char);
-        charRevealed=beatIdx>=0&&beatIdx<S.heraldIdx;
-      }
-    }
-    // In full panels: char badge in row1. In compact: char badge in row2 inline with stats.
-    const r2=el('div',{class:'tb-player-stats'});
-    if(!compact){
-      if(p.char&&charRevealed){const c=charById(p.char);
-        // Character thumbnail
-        if(typeof IMG!=='undefined'&&IMG.char[c.id]){
-          var thumbImg=el('img',{src:IMG.char[c.id].thumb,alt:c.name,class:'tb-char-thumb',loading:'lazy',decoding:'async'});
-          thumbImg.onerror=function(){thumbImg.style.display='none';};
-          r1.appendChild(thumbImg);
-        }
-        const badge=el('span',{class:'tb-player-char',style:`--char-clr:${c.clr};color:var(--char-clr);border-color:color-mix(in srgb,var(--char-clr) 35%,var(--border-main));background:color-mix(in srgb,var(--char-clr) 10%,var(--bg-card))`});
-        badge.textContent=`${c.emoji} ${cn(c.id)}`;r1.appendChild(badge);
-      }else if(p.char&&!charRevealed&&!isMe){
-        const badge=el('span',{class:'tb-player-char badge-hidden'});badge.textContent=t('badge.hidden');r1.appendChild(badge);
-      }
-    }else{
-      // Compact: tiny char indicator prefixed to stats row
-      if(p.char&&charRevealed){const c=charById(p.char);
-        const badge=el('span',{class:'tb-player-char tb-char-compact',style:`--char-clr:${c.clr};color:var(--char-clr)`});
-        badge.textContent=`${c.emoji}`;r2.appendChild(badge);
-      }else if(p.char&&!charRevealed&&!isMe){
-        const badge=el('span',{class:'tb-char-compact tb-char-hidden'},'🎭');r2.appendChild(badge);
-      }
-    }
-    r2.innerHTML=`<span>💰<span class="tb-stat-val"> ${p.gold}✦</span></span>`+
-      `<span>🏰<span class="tb-stat-val"> ${p.city.length}/8</span></span>`+
-      `<span>🃏<span class="tb-stat-val"> ${p.hand.length}</span></span>`+
-      `<span>📊<span class="tb-stat-val"> ${calcScore(p,S.firstCompleter===p.id)} ${t('pts.suffix')}</span></span>`;
-    pDiv.appendChild(r2);
-    if(!compact&&p.city.length){
-      const cityDiv=el('div',{class:'tb-city'});
-      p.city.forEach(d=>{
-        const isUnique=d.color==='purple'&&d.special&&SDESC[d.special];
-        const chip=el('div',{class:'tb-chip'+(isUnique?' has-tip':'')});
-        const label=el('span',{class:'tb-chip-label color-'+d.color});
-        label.appendChild(document.createTextNode(`${DEMOJI[d.id]||'🏛'} ${dn(d)} `));
-        const ptsSpan=el('span',{class:'tb-chip-pts'});ptsSpan.textContent=`${d.cost}✦`;
-        label.appendChild(ptsSpan);chip.appendChild(label);
-        if(isUnique){const tip=el('div',{class:'tb-chip-tip'});tip.textContent=`✨ ${dn(d)}\n${sdesc(d.special)}`;chip.appendChild(tip);}
-        cityDiv.appendChild(chip);
-      });
-      pDiv.appendChild(cityDiv);
-    }
-    // Tap any panel to see city details in a bottom sheet
-    pDiv.style.cursor='pointer';
-    pDiv.onclick=function(e){
-      e.stopPropagation();
-      var existing=document.getElementById('player-detail-sheet');
-      if(existing){existing.remove();return;}
-      var sheet=el('div',{id:'player-detail-sheet'});
-      sheet.onclick=function(ev){if(ev.target===sheet)sheet.remove();};
-      var box=el('div',{class:'player-detail-box'});
-      var hdr=el('div',{class:'player-detail-hdr'});
-      hdr.appendChild(el('span',{class:'player-detail-name'},p.name+(isMe?t('player.you'):'')));
-      var score=calcScore(p,S.firstCompleter===p.id);
-      hdr.appendChild(el('span',{class:'player-detail-score'},`💰${p.gold}✦  🏰${p.city.length}/8  📊${score}pts`));
-      var closeBtn=el('button',{class:'player-detail-close'},'✕');
-      closeBtn.onclick=function(){sheet.remove();};
-      hdr.appendChild(closeBtn);
-      box.appendChild(hdr);
-      if(p.city.length){
-        var cityWrap=el('div',{class:'player-detail-city'});
-        ['yellow','blue','green','red','purple'].forEach(function(col){
-          p.city.filter(function(d){return d.color===col;}).forEach(function(d){cityWrap.appendChild(mkCard(d,{portrait:true,player:p}));});
-        });
-        box.appendChild(cityWrap);
-      }else{
-        box.appendChild(el('p',{class:'player-detail-empty'},t('player.no_city')));
-      }
-      sheet.appendChild(box);
-      document.body.appendChild(sheet); // attach to body so render() can't wipe it
-    };
-    return pDiv;
-  }
-
-  // All players in a single compact grid (desktop only)
-  const me=S.players[0];
-  if(!isMobile){
-    const tbGrid=el('div',{class:'tb-grid'});
-    const allOrder=[me,...S.players.filter(p=>p.id!==0).sort((a,b)=>{
-      const ai=S.draftOrder.indexOf(a.id);const bi=S.draftOrder.indexOf(b.id);
-      return(ai===-1?99:ai)-(bi===-1?99:bi);
-    })];
-    allOrder.forEach(p=>tbGrid.appendChild(mkPlayerPanel(p,true)));
-    topbar.appendChild(tbGrid);
-  }
-  wrap.appendChild(topbar);
-
-  // Mobile: all-players bottom sheet (triggered by opponents button)
-  function showAllPlayersSheet(){
-    var existing=document.getElementById('player-detail-sheet');
-    if(existing){existing.remove();return;}
-    var sheet=el('div',{id:'player-detail-sheet'});
-    sheet.onclick=function(ev){if(ev.target===sheet)sheet.remove();};
-    var box=el('div',{class:'player-detail-box mob-all-players'});
-    var hdr=el('div',{class:'player-detail-hdr'});
-    hdr.appendChild(el('span',{class:'player-detail-name'},t('all_players')));
-    var closeBtn=el('button',{class:'player-detail-close'},'✕');
-    closeBtn.onclick=function(){sheet.remove();};
-    hdr.appendChild(closeBtn);
-    box.appendChild(hdr);
-    var allOrder=[...S.players].sort(function(a,b){
-      var ai=S.draftOrder.indexOf(a.id);var bi=S.draftOrder.indexOf(b.id);
-      return(ai===-1?99:ai)-(bi===-1?99:bi);
-    });
-    allOrder.forEach(function(p){
-      var panel=mkPlayerPanel(p,false);
-      panel.style.cursor='default';
-      // Re-bind tap to show city detail inside the sheet
-      panel.onclick=function(e){e.stopPropagation();
-        var existingSub=document.getElementById('player-detail-sheet');
-        if(existingSub)existingSub.remove();
-        // Open individual player detail
-        var subSheet=el('div',{id:'player-detail-sheet'});
-        subSheet.onclick=function(ev){if(ev.target===subSheet)subSheet.remove();};
-        var subBox=el('div',{class:'player-detail-box'});
-        var subHdr=el('div',{class:'player-detail-hdr'});
-        subHdr.appendChild(el('span',{class:'player-detail-name'},p.name+(p.id===0?t('player.you'):'')));
-        var score=calcScore(p,S.firstCompleter===p.id);
-        subHdr.appendChild(el('span',{class:'player-detail-score'},'💰'+p.gold+'✦  🏰'+p.city.length+'/8  📊'+score+'pts'));
-        var subClose=el('button',{class:'player-detail-close'},'✕');
-        subClose.onclick=function(){subSheet.remove();};
-        subHdr.appendChild(subClose);
-        subBox.appendChild(subHdr);
-        if(p.city.length){
-          var cityWrap=el('div',{class:'player-detail-city'});
-          ['yellow','blue','green','red','purple'].forEach(function(col){
-            p.city.filter(function(d){return d.color===col;}).forEach(function(d){cityWrap.appendChild(mkCard(d,{portrait:true,player:p}));});
-          });
-          subBox.appendChild(cityWrap);
-        }else{subBox.appendChild(el('p',{class:'player-detail-empty'},t('player.no_city')));}
-        subSheet.appendChild(subBox);
-        document.body.appendChild(subSheet);
-      };
-      box.appendChild(panel);
-    });
-    sheet.appendChild(box);
-    document.body.appendChild(sheet);
-  }
-
-  // ── CENTER ────────────────────────────────────────────────────────────────────
-  const main=el('div',{id:'main'});
-  const center=el('div',{id:'center'});
-  // Player bar — persistent across all game phases
-  if(S.phase==='draft'||S.phase==='herald'||S.phase==='action'){
-    center.appendChild(renderPlayerBar());
-  }
-
-  if(S.phase==='draft'){
-    const currentDrafter=S.draftOrder[S.draftIdx];
-    const draftingPlayer=S.players[currentDrafter];
-    if(currentDrafter===0)center.appendChild(renderDraft());
-    else{
-      const msg=draftingPlayer&&!draftingPlayer.ai
-        ?t('state.waiting_peer',{name:draftingPlayer.name})
-        :t('state.waiting_others');
-      center.appendChild(el('div',{class:'state-waiting'},msg));
-    }
-  }else if(S.phase==='herald'){
-    center.appendChild(renderHerald());
-  }else if(S.phase==='action'){
-    const me=S.players[0];
-    const humanIsNow=me&&charRank(me.char)===S.callIdx&&!me.dead&&S.sub!=='idle';
-    if(humanIsNow)center.appendChild(renderAction());
-    else{
-      const activePlayer=S.players.find(p=>charRank(p.char)===S.callIdx&&!p.dead&&!p.ai);
-      const waitMsg=activePlayer&&activePlayer.id!==0
-        ?t('state.waiting_player',{name:activePlayer.name}):t('state.waiting_dot');
-      center.appendChild(el('div',{class:'state-waiting'},waitMsg));
-    }
-  }
-  main.appendChild(center);
-
-  // ── YOUR CITY (mobile: collapsible in #main; desktop: in #bottom) ──
-  const myScore=calcScore(me,S.firstCompleter===me.id);
-  const botCity=el('div',{id:'bot-city'});
-  if(isMobile&&me.city.length>0){
-    // Collapsible city section — only shown when player has built districts
-    const cityHdr=el('div',{class:'mob-city-hdr'});
-    cityHdr.innerHTML=`<span>${t('city.label',{n:me.city.length,pts:myScore})}</span><span class="mob-city-toggle">▼</span>`;
-    botCity.appendChild(cityHdr);
-    const cityWrap=el('div',{class:'cards-wrap mob-city-cards'});
-    cityWrap.style.display='none';
-    ['yellow','blue','green','red','purple'].forEach(col=>{
-      me.city.filter(d=>d.color===col).forEach(d=>cityWrap.appendChild(mkCard(d,{portrait:true,player:me})));
-    });
-    botCity.appendChild(cityWrap);
-    cityHdr.onclick=function(){
-      var cards=cityHdr.nextElementSibling;
-      var toggle=cityHdr.querySelector('.mob-city-toggle');
-      if(cards.style.display==='none'){cards.style.display='';toggle.textContent='▲';}
-      else{cards.style.display='none';toggle.textContent='▼';}
-    };
-    main.appendChild(botCity);
-  }
-
-  wrap.appendChild(main);
-
-  // ── BOTTOM PANEL ──────────────────────────────────────────────────────────────
-  const bottom=el('div',{id:'bottom'});
-
-  const botHand=el('div',{id:'bot-hand'});
-  if(isMobile){
-    // Mobile: compact hand label
-    const handLabel=el('div',{class:'bot-label'});
-    const handLeft=el('span',{class:'bot-label-left'});
-    handLeft.appendChild(el('span',null,t('hand.label_mobile')));
-    if(me.char){const c=charById(me.char);
-      handLeft.appendChild(el('span',{class:'bot-char-badge',style:`--char-clr:${c.clr}`},`${c.emoji} ${cn(c.id)}`));
-    }
-    handLabel.appendChild(handLeft);
-    botHand.appendChild(handLabel);
-  }else{
-    // Desktop: full hand label
-    const handLabel=el('div',{class:'bot-label'});
-    const handLeft=el('span',{class:'bot-label-left'});
-    handLeft.appendChild(el('span',null,t('hand.label')));
-    if(me.char){const c=charById(me.char);
-      const charBadge=el('span',{class:'bot-char-badge',style:`--char-clr:${c.clr}`},`${c.emoji} ${cn(c.id)}`);
-      handLeft.appendChild(charBadge);
-    }
-    handLabel.appendChild(handLeft);
-    handLabel.appendChild(el('span',{class:'bot-label-right'},`💰 ${me.gold}✦  🃏 ${me.hand.length}`));
-    botHand.appendChild(handLabel);
-  }
-  const handWrap=el('div',{class:'cards-wrap'});
-  if(me.hand.length)me.hand.forEach(d=>handWrap.appendChild(mkCard(d,{portrait:true,player:me})));
-  else handWrap.appendChild(el('span',{class:'state-empty'},t('hand.empty')));
-  botHand.appendChild(handWrap);
-
-  if(!isMobile){
-    // Desktop: city in bottom panel
-    const cityLabel=el('div',{class:'bot-label'});
-    cityLabel.innerHTML=`<span>${t('city.desktop',{n:me.city.length})}</span><span class="bot-label-right">📊 ~${myScore} ${t('pts.suffix')}</span>`;
-    botCity.appendChild(cityLabel);
-    const cityWrap=el('div',{class:'cards-wrap'});
-    if(me.city.length){
-      ['yellow','blue','green','red','purple'].forEach(col=>{
-        me.city.filter(d=>d.color===col).forEach(d=>cityWrap.appendChild(mkCard(d,{portrait:true,player:me})));
-      });
-    }else cityWrap.appendChild(el('span',{class:'state-empty'},t('hand.nothing_built')));
-    botCity.appendChild(cityWrap);
-    bottom.append(botHand,botCity);
-  }else{
-    bottom.appendChild(botHand);
-  }
-  wrap.appendChild(bottom);
-
-  // Confirmation modal
-  if(S._confirmEnd){
-    const overlay=el('div',{class:'confirm-overlay'});
-    const box=el('div',{class:'confirm-box'});
-    box.appendChild(el('h3',null,t('confirm.end.title')));
-    box.appendChild(el('p',null,t('confirm.end.body')));
-    const btns=el('div',{class:'confirm-btns'});
-    const cancelBtn=el('button',{class:'btn-cancel'},t('confirm.end.cancel'));
-    cancelBtn.onclick=()=>{S={...S,_confirmEnd:false};render();};
-    const confirmBtn=el('button',{class:'btn-danger'},t('confirm.end.confirm'));
-    confirmBtn.onclick=()=>{
-      try{NET.peer?.destroy();}catch(e){}
-      NET.mode='solo';NET.peer=null;NET.hostConn=null;NET.conns={};
-      S=null;renderLobby({screen:'home'});
-    };
-    btns.append(cancelBtn,confirmBtn);box.appendChild(btns);
-    overlay.appendChild(box);wrap.appendChild(overlay);
-  }
-
-  app.appendChild(wrap);
-}
-
-// ── HERALD ─────────────────────────────────────────────────────────────────────
-function charByRank(rank){
-  // Find the player who holds a char of that rank (for correct character display in herald)
-  const holder=S.players.find(p=>p.char&&charRank(p.char)===rank);
-  if(holder)return charById(holder.char);
-  return CHARS.find(c=>c.rank===rank)||{emoji:'?',name:'?',clr:'#888',ability:''};
-}
-function renderHerald(){
-  const beat=S.heraldQueue[S.heraldIdx];if(!beat)return el('div',null,'');
-  const c=charByRank(beat.charId);const total=S.heraldQueue.length;
-  const isLast=S.heraldIdx===total-1;
-  const nextLabel=isLast?(S.heraldAfter==='end_round'?t('herald.end_round'):t('herald.your_turn')):t('herald.next');
-  const wrap=el('div',{class:'herald-wrap'});
-  const pips=el('div',{class:'herald-pips'});
-  for(let i=0;i<total;i++){const q=S.heraldQueue[i];const qc=charByRank(q.charId);
-    const pipCls='herald-pip'+(i===S.heraldIdx?' current':i<S.heraldIdx?' past':' future');
-    const pip=el('div',{class:pipCls});
-    pip.textContent=qc.emoji;
-    pip.style.setProperty('--pip-clr',qc.clr);
-    pip.style.borderColor='var(--pip-clr)';
-    if(i===S.heraldIdx)pip.style.background='color-mix(in srgb, var(--pip-clr) 10%, transparent)';
-    else if(i<S.heraldIdx)pip.style.background='color-mix(in srgb, var(--pip-clr) 8%, transparent)';
-    pip.title=`${q.charId}. ${cn(qc.id)}`;pips.appendChild(pip);}
-  wrap.appendChild(pips);
-  const card=el('div',{class:'herald-card'});
-  card.style.setProperty('--herald-clr',c.clr);
-  card.appendChild(el('div',{class:'herald-char-num'},t('herald.char_n_of_m',{n:beat.charId,m:Math.max(0,...S.charPool.map(charRank))})));
-  const iconRow=el('div',{class:'herald-icon-row'});
-  var portraitEl;
-  if(typeof IMG !== 'undefined' && IMG.char[c.id]) {
-    portraitEl = el('img', {src: IMG.char[c.id].full, alt: c.name, class: 'herald-portrait'});
-    portraitEl.onerror = function() {
-      var span = el('span', {class:'herald-icon'});
-      span.textContent = c.emoji;
-      if(portraitEl.parentNode) portraitEl.parentNode.replaceChild(span, portraitEl);
-    };
-  } else {
-    portraitEl = el('span', {class:'herald-icon'});
-    portraitEl.textContent = c.emoji;
-  }
-  iconRow.appendChild(portraitEl);
-  const titleBlock=el('div',{class:'herald-title-block'});
-  const titleEl=el('div',{class:'herald-title'});titleEl.style.color=c.clr;titleEl.textContent=cn(c.id);titleBlock.appendChild(titleEl);
-  titleBlock.appendChild(el('div',{class:'herald-ability'},ca(c.id)));
-  iconRow.appendChild(titleBlock);card.appendChild(iconRow);
-  if(!beat.holderName){
-    card.appendChild(el('div',{class:'herald-empty'},t('herald.no_one')));
-  }else{
-    // Visual player→character assignment chip
-    const who=el('div',{class:'herald-sub'});
-    if(beat.isStartOnly){
-      who.textContent=beat.holderName;
-    }else{
-      var holder=S.players.find(function(p){return p.name===beat.holderName;});
-      var hAvatar=holder&&typeof getAvatar==='function'?getAvatar(holder.id):(beat.isHuman?'👤':'🤖');
-      var hName=beat.isHuman?(beat.holderName===(S.players[0]?.name||'You')?S.players[0]?.name||'You':beat.holderName):beat.holderName;
-      var pChip=el('span',{class:'herald-chip herald-chip-player'});
-      pChip.innerHTML='<span class="hc-avatar">'+hAvatar+'</span><span class="hc-label">'+hName+'</span>';
-      var arrow=el('span',{class:'herald-arrow'},'→');
-      var cChip=el('span',{class:'herald-chip herald-chip-char'});
-      cChip.style.setProperty('--chip-clr',c.clr);
-      cChip.innerHTML='<span class="hc-avatar">'+c.emoji+'</span><span class="hc-label">'+cn(c.id)+'</span>';
-      who.append(pChip,arrow,cChip);
-      if(beat.isHuman)who.appendChild(el('span',{class:'herald-turn-label'},t('herald.turn_summary')));
-    }
-    card.appendChild(who);
-    if(beat.events.length){
-      const evts=el('div',{class:'herald-events'});
-      beat.events.forEach(function(ev,idx){
-        var row=el('div',{class:'herald-event'});row.style.borderLeftColor=ev.color;
-        row.style.animationDelay=(idx*80)+'ms';
-        var iconWrap=el('div',{class:'herald-ev-icon'});
-        iconWrap.style.setProperty('--ev-clr',ev.color);
-        iconWrap.textContent=ev.icon;
-        // Parse amounts from text for visual badges
-        var txt=el('div',{class:'herald-ev-text'});
-        var t=ev.text;
-        // Highlight gold amounts like "2✦" or "1✦"
-        t=t.replace(/(\d+)✦/g,'<span class="ev-gold">$1✦</span>');
-        // Highlight card counts like "draws 3 cards"
-        t=t.replace(/draws? (\d+) card/g,'draws <span class="ev-cards">$1</span> card');
-        txt.innerHTML=t;
-        row.append(iconWrap,txt);evts.appendChild(row);
-      });
-      card.appendChild(evts);
-    }else card.appendChild(el('div',{class:'herald-empty'},t('herald.no_actions')));
-  }
-  const cb=el('button',{class:'herald-cont'});
-  cb.style.cssText=`--btn-clr:${c.clr};background:color-mix(in srgb,var(--btn-clr) 12%,var(--bg-panel));border-color:color-mix(in srgb,var(--btn-clr) 35%,var(--border-main));color:var(--btn-clr)`;
-  const humans=humanSlots(S);
-  const myOrigSlot=NET.mode==='peer'?NET.mySlot:0;
-  const iHaveAcked=(S.heraldAcks||[]).includes(myOrigSlot);
-  if(humans.length>1){
-    const ackedCount=(S.heraldAcks||[]).length;
-    const totalHumans=humans.length;
-    if(iHaveAcked){
-      cb.textContent=t('herald.ready',{n:ackedCount,m:totalHumans});
-      cb.style.opacity='0.5';cb.style.cursor='default';
-      cb.onclick=null;
-    }else{
-      cb.textContent=t('herald.next_multi',{label:nextLabel,n:ackedCount,m:totalHumans});
-      cb.onclick=()=>{{const _nr=heraldNext(S);if(_nr)S=_nr;render();};};
-    }
-  }else{
-    cb.textContent=nextLabel;
-    cb.onclick=()=>{{const _nr=heraldNext(S);if(_nr)S=_nr;render();};};
-  }
-  card.appendChild(cb);wrap.appendChild(card);return wrap;
-}
-
-// ── PLAYER BAR — persistent across all phases ─────────────────────────────────
-function renderPlayerBar(){
-  const bar=el('div',{class:'draft-order'});
-  // Determine player order — use draftOrder if available, else by id
-  const order=S.draftOrder||S.players.map(function(p){return p.id;});
-  order.forEach(function(pid,i){
-    const p=S.players[pid];
-    if(!p)return;
-    const avatar=typeof getAvatar==='function'?getAvatar(pid):(p.ai?'🤖':'👤');
-    var state='neutral';
-    var statusText='';
-    if(S.phase==='draft'){
-      state=i<S.draftIdx?'done':i===S.draftIdx?'active':'waiting';
-      statusText=state==='done'?t('state.picked'):state==='active'?t('state.choosing'):t('state.waiting');
-    }else if(S.phase==='herald'||S.phase==='action'){
-      // Highlight the player whose character is currently being called
-      var ch=p.char;
-      var isActive=ch&&charRank(ch)===S.callIdx&&!p.dead;
-      state=isActive?'active':'neutral';
-      var charObj=ch?charById(ch):null;
-      statusText=isActive?(charObj?charObj.emoji+' '+cn(charObj.id):t('state.active')):(p.dead?t('state.killed'):'');
-    }
-    const pip=el('div',{class:'draft-pip '+ state});
-    pip.textContent=(S.phase==='draft'&&state==='done')?'✓':avatar;
-    if(S.phase!=='draft'&&p.dead)pip.classList.add('dead');
-    // Rich hover tooltip
-    pip.onmouseenter=function(e){
-      var tip=document.getElementById('draft-pip-tip');
-      if(!tip){tip=document.createElement('div');tip.id='draft-pip-tip';tip.className='draft-pip-tip';document.body.appendChild(tip);}
-      var label=pid===0?'You':p.name;
-      var charInfo='';
-      if(S.phase!=='draft'&&p.char&&!isActive){var co=charById(p.char);if(co&&charRank(p.char)<S.callIdx)charInfo='<div class="dpt-char" style="color:'+co.clr+'">'+co.emoji+' '+cn(co.id)+'</div>';}
-      var extra='';
-      if(p.dead)extra='<div class="dpt-status dpt-dead">💀 '+t('state.killed')+'</div>';
-      else if(statusText)extra='<div class="dpt-status dpt-'+state+'">'+statusText+'</div>';
-      tip.innerHTML='<div class="dpt-avatar">'+avatar+'</div><div class="dpt-name">'+label+'</div>'+charInfo+extra;
-      tip.style.display='block';
-      var r=pip.getBoundingClientRect();
-      tip.style.left=Math.max(8,Math.min(r.left+r.width/2-tip.offsetWidth/2,window.innerWidth-tip.offsetWidth-8))+'px';
-      tip.style.top=(r.bottom+8)+'px';
-    };
-    pip.onmouseleave=function(){var tip=document.getElementById('draft-pip-tip');if(tip)tip.style.display='none';};
-    bar.appendChild(pip);
-  });
-  // Character reference button
-  var refBtn=el('button',{class:'char-ref-btn'},'ℹ');
-  refBtn.title=t('char_ref.title');
-  refBtn.onclick=function(e){
-    e.stopPropagation();
-    var existing=document.getElementById('char-ref-panel');
-    if(existing){existing.remove();var et=document.getElementById('char-ref-tip');if(et)et.remove();return;}
-    var panel=el('div',{id:'char-ref-panel',class:'char-ref-panel'});
-    var hdr=el('div',{class:'char-ref-hdr'});
-    hdr.appendChild(el('span',{class:'char-ref-title'},t('char_ref.title')));
-    var closeBtn=el('button',{class:'char-ref-close'},'✕');
-    closeBtn.onclick=function(){panel.remove();var t=document.getElementById('char-ref-tip');if(t)t.remove();};
-    hdr.appendChild(closeBtn);
-    panel.appendChild(hdr);
-    var pool=(S.charPool||[]).slice().sort(function(a,b){
-      var ra=CHARS.find(function(c){return c.id===a;});
-      var rb=CHARS.find(function(c){return c.id===b;});
-      return ((ra&&ra.rank)||0)-((rb&&rb.rank)||0);
-    });
-    pool.forEach(function(charId){
-      var c=CHARS.find(function(ch){return ch.id===charId;});
-      if(!c)return;
-      var row=el('div',{class:'char-ref-row'});
-      row.appendChild(el('span',{class:'char-ref-rank'},String(c.rank)));
-      row.appendChild(el('span',{class:'char-ref-emoji'},c.emoji));
-      row.appendChild(el('span',{class:'char-ref-name',style:'--char-clr:'+c.clr},cn(c.id)));
-      row.onmouseenter=function(){
-        var tip=document.getElementById('char-ref-tip');
-        if(!tip){tip=document.createElement('div');tip.id='char-ref-tip';tip.className='char-ref-tip';document.body.appendChild(tip);}
-        tip.innerHTML='<div class="crt-header"><span class="crt-emoji">'+c.emoji+'</span><span class="crt-name" style="--char-clr:'+c.clr+'">'+cn(c.id)+'</span></div><p class="crt-ability">'+ca(c.id)+'</p>';
-        tip.style.display='block';
-        var pr=panel.getBoundingClientRect();var rr=row.getBoundingClientRect();
-        setTimeout(function(){
-          var tw=tip.offsetWidth;var th=tip.offsetHeight;
-          var tipLeft=pr.right+8;
-          var fitsRight=tipLeft+tw<=window.innerWidth-8;
-          var fitsLeft=pr.left-tw-8>=8;
-          if(fitsRight){tip.style.left=tipLeft+'px';}
-          else if(fitsLeft){tip.style.left=(pr.left-tw-8)+'px';}
-          else{
-            // Not enough room on sides — show below the row, same x as panel
-            tip.style.left=Math.max(8,Math.min(pr.left,window.innerWidth-tw-8))+'px';
-            tip.style.top=Math.min(rr.bottom+6,window.innerHeight-th-8)+'px';
-            return;
-          }
-          var tipTop=rr.top;
-          if(tipTop+th>window.innerHeight-8)tipTop=window.innerHeight-th-8;
-          tip.style.top=Math.max(8,tipTop)+'px';
-        },0);
-      };
-      row.onmouseleave=function(){var tip=document.getElementById('char-ref-tip');if(tip)tip.style.display='none';};
-      panel.appendChild(row);
-    });
-    document.body.appendChild(panel);
-    var br=refBtn.getBoundingClientRect();
-    panel.style.top=(br.bottom+8)+'px';
-    setTimeout(function(){
-      var pw=panel.offsetWidth;
-      var left=br.right-pw;
-      if(left<8)left=8;
-      if(left+pw>window.innerWidth-8)left=window.innerWidth-pw-8;
-      panel.style.left=left+'px';
-    },0);
-    function closePanel(){
-      panel.remove();var t=document.getElementById('char-ref-tip');if(t)t.remove();
-      document.removeEventListener('click',outsideClick,true);
-    }
-    function outsideClick(ev){
-      if(!panel.contains(ev.target)&&ev.target!==refBtn){closePanel();}
-    }
-    // Store cleanup reference so re-opens don't accumulate listeners
-    if(refBtn._cleanupCharRef)refBtn._cleanupCharRef();
-    refBtn._cleanupCharRef=function(){document.removeEventListener('click',outsideClick,true);};
-    setTimeout(function(){document.addEventListener('click',outsideClick,true);},50);
+  const els = {
+    top: $('.topbar', root), labels: $('.labels', root), floaters: $('.floaters', root), toasts: $('.toasts', root),
+    banner: $('.banner', root), dock: $('.dock', root), prompt: $('.prompt', root), me: $('.me-panel', root),
+    hand: $('.hand', root), actions: $('.actions', root), wrap: $('.sheet-wrap', root), sheet: $('.sheet', root),
+    tip: $('.tip', root),
   };
-  bar.appendChild(refBtn);
-  return bar;
-}
 
-function renderDraft(){
-  const wrap=el('div',null);
-  const faceDown=S.faceDown||[];const faceUp=S.faceUp||[];
+  function chrome() {
+    els.top.innerHTML = `
+      <div class="tb-left"><div class="round-chip"></div></div>
+      <div class="calltrack" aria-label="call order"></div>
+      <div class="tb-right">
+        <div class="emote-wrap"><button class="icon-btn" data-a="emotes" title="${t('ui.react')}">😀</button>
+          <div class="emote-pal">${EMOTES.map(e => `<button data-a="emote" data-v="${e}">${e}</button>`).join('')}</div></div>
+        <button class="icon-btn" data-a="overview" title="${t('ui.resetView')}">${svg('focus')}</button>
+        <button class="icon-btn" data-a="sheet" data-v="log" title="${t('ui.log')}">${svg('log')}</button>
+        <button class="icon-btn" data-a="sheet" data-v="rules" title="${t('ui.rules')}">${svg('help')}</button>
+        <button class="icon-btn" data-a="sheet" data-v="menu" title="${t('ui.menu')}">${svg('menu')}</button>
+      </div>`;
+    els.round = $('.round-chip', els.top);
+    els.track = $('.calltrack', els.top);
+  }
+  chrome();
 
-  wrap.appendChild(el('div',{class:'draft-title'},t('draft.choose')));
+  // local (non-game) UI state
+  const L = { sel: null, sheet: null, multi: new Set(), inspect: null, log: [], view: null, labelEls: new Map(), hint: null, shown: null };
 
-  // Only hint at how many cards total are out of play — never reveal which ones
-  const totalRemoved=(faceDown.length||0)+(faceUp.length||0);
-  if(totalRemoved){
-    const info=el('div',{class:'draft-info'});
-    info.appendChild(el('span',{class:'draft-info-ghost'},
-      totalRemoved>1?t('draft.removed_p',{n:totalRemoved}):t('draft.removed_s',{n:totalRemoved})));
-    wrap.appendChild(info);
+  const insets = () => ctx.scene.setInsets({ top: els.top.offsetHeight + 8, bottom: els.dock.offsetHeight + 8 });
+  new ResizeObserver(insets).observe(els.dock);
+
+  // ── helpers ──
+  const P = pid => L.view.players[pid];
+  const thumb = id => ctx.thumbs[id] ? `style="background-image:url(${ctx.thumbs[id]})"` : '';
+  const avatar = p => `<span class="av">${esc(p?.avatar || '◆')}</span>`;
+  const pname = pid => (pid === L.view.me ? t('ui.you') : esc(P(pid)?.name ?? '?'));
+  const realName = pid => esc(P(pid)?.name ?? '?');
+  const shownScore = (v, p) => score(v, p).total - (p.id !== v.me && has(p, 'secret_vault') && v.phase !== 'over' ? 3 : 0);
+  const sortHand = hand => [...hand].sort((a, b) => COLORS.indexOf(a.color) - COLORS.indexOf(b.color) || a.cost - b.cost || a.id.localeCompare(b.id));
+  const actorOf = v => v.interrupt ? v.interrupt.pid : v.phase === 'draft' ? v.draft.order[v.draft.idx] : v.phase === 'turns' ? v.turn?.pid : null;
+
+  function cardHTML(card, { cls = '', costShown, attrs = '' } = {}) {
+    if (card.hidden) return `<div class="card back ${cls}"></div>`;
+    const cost = costShown ?? card.cost;
+    return `<button class="card c-${card.color} ${cls}" data-uid="${card.uid}" data-id="${card.id}" ${attrs}>
+      <span class="card-art" ${thumb(card.id)}></span>
+      <span class="card-cost${cost < card.cost ? ' disc' : ''}">${cost}</span>
+      ${card.color === 'purple' ? '<span class="card-gem">✦</span>' : ''}
+      <span class="card-name${/^[ -~]{9,}$/.test(dname(card)) ? ' long' : ''}">${esc(dname(card))}</span></button>`;
+  }
+  function charHTML(id, { cls = '', attrs = '', sub = '' } = {}) {
+    const c = CHAR[id];
+    return `<button class="ccard ${cls}" style="--cc:${c.color}" data-char="${id}" ${attrs}>
+      <span class="cc-rank">${ROMAN[c.rank]}</span>
+      <span class="cc-emb">${svg(c.key, 'emb')}</span>
+      <span class="cc-name">${esc(cname(id))}</span>
+      <span class="cc-ab">${esc(sub || cabil(id))}</span></button>`;
+  }
+  const chip = (id, extra = '') => `<span class="chip" style="--cc:${CHAR[id].color}" data-char="${id}" ${extra}>${svg(CHAR[id].key)}<b>${ROMAN[CHAR[id].rank]}</b></span>`;
+  const rankChar = r => L.view.cfg.chars.find(c => rankOf(c) === r);
+
+  // ── event text (log + toasts) ──
+  function evText(e) {
+    const n = pid => (pid === null || pid === undefined ? '' : realName(pid));
+    switch (e.k) {
+      case 'start': return t('l.start');
+      case 'round': return t('l.round', { n: e.n, name: n(e.crown) });
+      case 'pick': return t('l.pick', { name: n(e.pid) });
+      case 'discard': return t('l.discard', { name: n(e.pid) });
+      case 'call':
+        if (e.pid === null) return t('l.callNone', { char: cname(e.charId) });
+        if (e.killed) return t('l.callKilled', { char: cname(e.charId), name: n(e.pid) });
+        return t('l.call', { char: cname(e.charId), name: n(e.pid) });
+      case 'robbed': return t('l.robbed', { to: n(e.to), from: n(e.from), n: e.n });
+      case 'crown': return t(e.heir ? 'l.heir' : 'l.crown', { name: n(e.pid) });
+      case 'gold': return t('l.gold', { name: n(e.pid), n: e.n });
+      case 'cards': return t('l.cards', { name: n(e.pid), n: e.n });
+      case 'tithe': return t('l.tithe', { from: n(e.from) });
+      case 'draw': return t('l.draw', { name: n(e.pid), n: e.n });
+      case 'build': return t('l.build', { name: n(e.pid), dist: dname(e.card) });
+      case 'complete': return t('l.complete', { name: n(e.pid) });
+      case 'kill': return t('l.kill', { char: cname(rankChar(e.rank)) });
+      case 'rob': return t('l.rob', { char: cname(rankChar(e.rank)) });
+      case 'swap': return t('l.swap', { name: n(e.pid), target: n(e.target) });
+      case 'redraw': return t('l.redraw', { name: n(e.pid), n: e.n });
+      case 'destroy': return t('l.destroy', { name: n(e.pid), target: n(e.target), dist: dname(e.card) });
+      case 'graveyard': return t('l.graveyard', { name: n(e.pid), dist: dname(e.card) });
+      case 'peek': return t('l.peek', { name: n(e.pid), target: n(e.target) });
+      case 'wizTake': return t('l.wizTake', { name: n(e.pid), target: n(e.target) });
+      case 'seer': return t('l.seer', { name: n(e.pid), n: e.n });
+      case 'seerGive': return t('l.seerGive', { name: n(e.pid), n: e.n });
+      case 'over': return t('l.over', { name: n(e.winner) });
+    }
+    return null;
   }
 
-  const grid=el('div',{class:'draft-grid'});
-  CHARS.filter(c=>S.charPool.includes(c.id)).forEach(c=>{
-    const avail=S.avail.includes(c.id);
-    const removed=faceUp.includes(c.id);
-    // Only show cards still available to pick — hide drafted + removed cards
-    // (face-up removed would tell you what's gone; that breaks the guessing game)
-    if(!avail)return;
-    const stateClass='available';
-    const card=el('div',{class:`charcard ${stateClass} animate-in`,style:`--char-clr:${c.clr}`});
-    // Rank badge
-    card.appendChild(el('div',{class:'charcard-rank'},String(c.rank)));
-    // Image zone — top portion of card
-    const imgZone=el('div',{class:'charcard-img-zone'});
-    if(typeof IMG!=='undefined'&&IMG.char[c.id]){
-      const img=el('img',{src:IMG.char[c.id].full,alt:c.name,class:'charcard-portrait',loading:'lazy',decoding:'async'});
-      img.onerror=function(){imgZone.textContent=c.emoji;imgZone.classList.add('charcard-img-fallback');};
-      imgZone.appendChild(img);
-    }else{
-      imgZone.classList.add('charcard-img-fallback');
-      imgZone.textContent=c.emoji;
+  function toast(text, tone = '', ms = 2800) {
+    const el = document.createElement('div');
+    el.className = 'toast ' + tone;
+    el.innerHTML = text;
+    els.toasts.prepend(el);
+    while (els.toasts.children.length > 4) els.toasts.lastChild.remove();
+    setTimeout(() => el.classList.add('out'), ms);
+    setTimeout(() => el.remove(), ms + 600);
+  }
+  // First-time guidance: each tip shows once per device.
+  function coach(key) {
+    try {
+      if (localStorage.getItem('c3d.coach.' + key)) return;
+      localStorage.setItem('c3d.coach.' + key, '1');
+    } catch { return; }
+    toast(`💡 ${t('coach.' + key)}`, 'coach', 7000);
+  }
+
+  // Numbers that rise from coins / cards / plots in the 3D scene.
+  function floater(pid, where, text, tone = '') {
+    const p = ctx.scene.screenOf(pid, where);
+    if (!p || p.behind || document.hidden) return;
+    const el = document.createElement('div');
+    el.className = 'floater ' + tone;
+    el.textContent = text;
+    el.style.left = p.x + 'px';
+    el.style.top = p.y + 'px';
+    els.floaters.appendChild(el);
+    setTimeout(() => el.remove(), 1600);
+  }
+
+  function showEmote(pid, e) {
+    if (!EMOTES.includes(e) || !L.view) return;
+    const anchor = pid === L.view.me ? els.me : L.labelEls.get(pid);
+    if (!anchor) return;
+    const r = anchor.getBoundingClientRect();
+    const el = document.createElement('div');
+    el.className = 'emote';
+    el.textContent = e;
+    el.style.left = r.left + r.width / 2 + 'px';
+    el.style.top = r.top + 'px';
+    els.floaters.appendChild(el);
+    setTimeout(() => el.remove(), 2600);
+  }
+
+  function banner(e) {
+    let html;
+    if (e.k === 'complete') {
+      html = `<div class="bn final"><div class="bn-emb">${svg('trophy', 'emb')}</div>
+        <div class="bn-txt"><div class="bn-rank">${t('ui.finalSub', { name: realName(e.pid) })}</div><div class="bn-name">${t('ui.finalRound')}</div></div></div>`;
+    } else {
+      const c = CHAR[e.charId];
+      const sub = e.pid === null ? t('ui.calledNobody') : e.killed ? `${pname(e.pid)} · ${t('ui.calledSlain')}` : pname(e.pid);
+      html = `<div class="bn ${e.pid === null ? 'none' : ''} ${e.killed ? 'slain' : ''}" style="--cc:${c.color}">
+        <div class="bn-emb">${svg(c.key, 'emb')}</div>
+        <div class="bn-txt"><div class="bn-rank">${ROMAN[c.rank]}</div><div class="bn-name">${esc(cname(e.charId))}</div>
+        <div class="bn-sub">${e.pid !== null && !e.killed ? avatar(P(e.pid)) : ''}${sub}</div></div></div>`;
     }
-    card.appendChild(imgZone);
-    // Info zone — bottom portion, always clean background
-    const infoZone=el('div',{class:'charcard-info-zone'});
-    infoZone.appendChild(el('div',{class:`charcard-name${avail?' available':''}`},`${c.rank}. ${cn(c.id)}`));
-    if(removed){// defensive: dealDraft excludes removed chars, but extensions may add face-up removed cards
-      infoZone.appendChild(el('div',{class:'charcard-removed-label'},t('draft.not_in_play')));
-    }else{
-      infoZone.appendChild(el('div',{class:'charcard-ability'},ca(c.id)));
+    els.banner.innerHTML = html;
+    els.banner.classList.remove('show');
+    void els.banner.offsetWidth;
+    els.banner.classList.add('show');
+  }
+
+  // Called by the controller for every new event, in order. Returns ms to let it breathe.
+  function event(e, view) {
+    L.view = view;
+    const txt = evText(e);
+    if (txt && e.k !== 'gold' && e.k !== 'cards') L.log.push({ id: e.id, k: e.k, txt });
+    if (L.log.length > 300) L.log.splice(0, L.log.length - 300);
+    if (L.sheet === 'log') renderSheet();
+    const mine = e.pid === view.me;
+    switch (e.k) {
+      case 'call':
+        L.shown = { round: view.round, call: e.rank };
+        renderTrack(view);
+        banner(e);
+        sfx(e.killed ? 'kill' : 'call');
+        if (mine && !e.killed) setTimeout(() => sfx('turn'), 500);
+        return e.pid === null ? 750 : e.killed ? 1200 : 1350;
+      case 'round': toast(`<b>${t('ui.round', { n: e.n })}</b>`, 'gold'); return 900;
+      case 'pick': case 'discard': return 220;
+      case 'gold': sfx('coin', e.n); floater(e.pid, 'coins', `+${e.n}`, 'gold'); return 420;
+      case 'cards': case 'draw': sfx('card', e.n); floater(e.pid, 'cards', `+${e.n}`, 'card'); return 420;
+      case 'build': sfx('build'); floater(e.pid, 'plot', `+${e.card.cost}★`, 'pts'); if (!mine) toast(txt, 'c-' + e.card.color); return 750;
+      case 'destroy': sfx('destroy'); floater(e.pid, 'coins', `−${e.cost}`, 'loss'); floater(e.target, 'plot', `−${e.card.cost}★`, 'loss'); toast(txt, 'danger'); return 1000;
+      case 'robbed': sfx('coin', 4); floater(e.from, 'coins', `−${e.n}`, 'loss'); floater(e.to, 'coins', `+${e.n}`, 'gold'); toast(txt, 'danger'); return 900;
+      case 'tithe': floater(e.from, 'coins', '−1', 'loss'); floater(e.to, 'coins', '+1', 'gold'); sfx('coin', 1); toast(txt); return 600;
+      case 'kill': sfx('kill'); toast(txt, 'danger'); return 700;
+      case 'rob': toast(txt); return 600;
+      case 'crown': sfx('crown'); toast(txt, 'gold'); return 700;
+      case 'complete': sfx('win'); banner(e); toast(`<b>${txt}</b>`, 'gold'); return 2000;
+      case 'swap': case 'wizTake': case 'graveyard': case 'seer': case 'peek': case 'seerGive': case 'redraw': sfx('card', 2); toast(txt); return 700;
+      case 'over': sfx('win'); return 600;
     }
-    card.appendChild(infoZone);
-    if(avail){
-      card.tabIndex=0;
-      card.onclick=()=>{const result=humanDraft(S,c.id);if(result)S=result;render();};
-      card.onkeydown=function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();const result=humanDraft(S,c.id);if(result)S=result;render();}};
-    }else{
-      card.tabIndex=-1;
+    return 300;
+  }
+
+  // ── render ──
+  function render(view) {
+    const prevMe = L.view?.me;
+    L.view = view;
+    const me = view.players[view.me];
+    const T = view.turn;
+    const myTurn = view.phase === 'turns' && T?.pid === view.me && !view.interrupt;
+    const draftMine = view.phase === 'draft' && view.draft.order[view.draft.idx] === view.me;
+    // a new turn (incl. my second character straight after my first) closes the last turn's tools
+    const turnKey = myTurn ? view.round + ':' + T.charId : null, wasWar = L.sheet === 'war';
+    if (turnKey !== L.turnKey) { L.turnKey = turnKey; L.sel = null; if (TURN_SHEETS.includes(L.sheet)) L.sheet = null; }
+    if (myTurn && ABILITY_ICON[L.sheet] && L.sheet !== abilityKey(view)) L.sheet = null; // ability already spent
+    if (wasWar && L.sheet !== 'war') ctx.scene.highlight([]);
+    if (prevMe !== view.me) { L.labelEls.forEach(el => el.remove()); L.labelEls.clear(); }
+    if (L.hint && L.hint.seq !== view.evSeq) L.hint = null;
+    if (me && L.sel && !me.hand.some(c => c.uid === L.sel)) L.sel = null;
+
+    els.round.innerHTML = `<span class="rc-n">${t('ui.round', { n: view.round })}</span><span class="rc-p">${t('ui.' + (view.phase === 'idle' ? 'turns' : view.phase))}</span>`;
+    renderTrack(view);
+    renderLabels(view);
+
+    if (me) {
+      const curChar = myTurn ? T.charId : null;
+      els.me.style.setProperty('--seat', seatHue(me.id));
+      els.me.innerHTML = `
+        <div class="mp-id">${avatar(me)}<span class="mp-name">${esc(me.name)}</span>${view.crown === me.id ? `<span class="crown-ico" title="Crown">${svg('crown')}</span>` : ''}</div>
+        <div class="mp-stats"><span class="st gold" title="${t('ui.gold')}">${svg('gold')}<b>${me.gold}</b></span>
+          <span class="st" title="${t('ui.city')}">${svg('build')}<b>${me.city.length}/${view.cfg.goal}</b></span>
+          <span class="st" title="${t('ui.projected')}">★<b>${shownScore(view, me)}</b></span></div>
+        <div class="mp-chars">${me.chars.map(c => chip(c, curChar === c ? 'data-on="1"' : view.killed === rankOf(c) && view.revealed.includes(c) ? 'data-dead="1"' : '')).join('')}</div>`;
     }
-    grid.appendChild(card);
+
+    renderHand(view, me, myTurn);
+    renderActions(view, me, myTurn, draftMine);
+    renderPrompt(view, myTurn, draftMine);
+
+    // decisions that can't wait open themselves
+    const pend = myTurn ? T.pending : null;
+    const auto = view.interrupt?.pid === view.me ? 'grave'
+      : draftMine ? (view.draft.mustDiscard ? 'discard' : 'draft')
+      : pend?.k === 'keep' ? 'keep' : pend?.k === 'wizard' ? 'wizPick' : pend?.k === 'seerGive' ? 'seerGive' : null;
+    if (auto && L.sheet !== auto) { L.sheet = auto; L.multi.clear(); }
+    else if (!auto && BLOCKING.includes(L.sheet) && L.sheet !== 'over') L.sheet = null;
+    if (draftMine) coach('draft');
+    if (myTurn) coach('turn');
+    if (view.phase === 'turns' && view.round === 1 && !myTurn) coach('call');
+    if (view.round === 2) coach('cam');
+    if (view.phase === 'over' && !L.overShown) { L.overShown = true; setTimeout(() => { if (L.view?.phase === 'over') { L.sheet = 'over'; renderSheet(); } }, 2200); }
+    if (view.phase !== 'over') L.overShown = false;
+    renderSheet();
+    ctx.scene.highlight(L.sheet === 'war' ? warTargets(view).filter(x => x.ok).map(x => x.card.uid) : []);
+    insets();
+  }
+
+  function renderTrack(view) {
+    const ids = [...view.cfg.chars].sort((a, b) => rankOf(a) - rankOf(b));
+    const up = view.draft?.faceUp || [];
+    const call = L.shown?.round === view.round ? L.shown.call : view.call; // follows the banner, not the state
+    els.track.innerHTML = ids.map(id => {
+      const r = rankOf(id);
+      const revealed = view.revealed.find(c => rankOf(c) === r);
+      const holder = revealed ? view.players.find(p => p.chars.includes(revealed)) : null;
+      const cls = [
+        up.includes(id) ? 'up' : '',
+        view.phase === 'turns' && call === r ? 'now' : '',
+        view.phase === 'turns' && call > r ? 'past' : '',
+        view.killed === r ? 'killed' : '',
+        view.robbed === r ? 'robbed' : '',
+      ].join(' ');
+      const shown = revealed || id;
+      return `<span class="tk ${cls}" style="--cc:${CHAR[shown].color}" data-char="${shown}">
+        <span class="tk-emb">${svg(CHAR[shown].key)}</span><span class="tk-r">${ROMAN[r]}</span>
+        ${view.killed === r ? `<span class="tk-mark k">${svg('skull')}</span>` : view.robbed === r ? `<span class="tk-mark r">${svg('thief')}</span>` : ''}
+        ${holder ? `<span class="tk-who">${esc(holder.avatar || '·')}</span>` : ''}</span>`;
+    }).join('');
+  }
+
+  function renderLabels(view) {
+    const actor = actorOf(view);
+    const seen = new Set();
+    for (const p of view.players) {
+      if (p.id === view.me) continue;
+      seen.add(p.id);
+      let el = L.labelEls.get(p.id);
+      if (!el) {
+        el = document.createElement('button');
+        el.className = 'seat';
+        el.dataset.a = 'inspect';
+        el.dataset.v = p.id;
+        el.style.setProperty('--seat', seatHue(p.id));
+        els.labels.appendChild(el);
+        L.labelEls.set(p.id, el);
+      }
+      const live = view.phase !== 'over' && view.phase !== 'idle';
+      el.classList.toggle('active', actor === p.id && live);
+      el.classList.toggle('winner', view.phase === 'over' && view.winner === p.id);
+      el.classList.toggle('done', p.city.length >= view.cfg.goal);
+      el.innerHTML = `<div class="s-top">${avatar(p)}<span class="s-name">${esc(p.name)}</span>${view.crown === p.id ? `<span class="crown-ico">${svg('crown')}</span>` : ''}${p.ai && ctx.mode() !== 'solo' ? '<span class="tag ai">AI</span>' : ''}${actor === p.id && live ? '<span class="dots"><i></i><i></i><i></i></span>' : ''}</div>
+        <div class="s-stats"><span class="st gold">${svg('gold')}<b>${p.gold}</b></span><span class="st">${svg('card')}<b>${p.handCount}</b></span><span class="st">${svg('build')}<b>${p.city.length}</b></span><span class="st">★<b>${shownScore(view, p)}</b></span></div>
+        ${p.chars.length || p.charCount ? `<div class="s-chars">${p.chars.map(c => chip(c, view.killed === rankOf(c) ? 'data-dead="1"' : '')).join('')}${'<span class="chip hid">?</span>'.repeat(Math.max(0, p.charCount - p.chars.length))}</div>` : ''}`;
+    }
+    for (const [pid, el] of L.labelEls) if (!seen.has(pid)) { el.remove(); L.labelEls.delete(pid); }
+  }
+
+  // positions labels every frame from the 3D projection; ticks the turn timer
+  function frame() {
+    for (const [pid, el] of L.labelEls) {
+      const p = ctx.scene.labelPos(pid);
+      if (!p || p.behind) { el.style.opacity = 0; continue; }
+      const w = el.offsetWidth, h = el.offsetHeight;
+      const x = Math.max(6, Math.min(innerWidth - w - 6, p.x - w / 2));
+      const y = Math.max(els.top.offsetHeight + 4, Math.min(innerHeight - els.dock.offsetHeight - h - 4, p.y - h / 2));
+      el.style.transform = `translate(${x}px, ${y}px)`;
+      el.style.opacity = 1;
+    }
+    const tm = els.prompt.querySelector('.timer');
+    if (tm) {
+      const left = Math.max(0, Math.ceil((+tm.dataset.at - Date.now()) / 1000));
+      if (tm.textContent !== left + 's') { tm.textContent = left + 's'; tm.classList.toggle('low', left <= 10); }
+    }
+  }
+
+  function buildState(view, me, card) {
+    const T = view.turn;
+    if (!T || T.pid !== view.me) return null;
+    if (!T.income) return t('ui.incomeFirst');
+    if (countsTowardLimit(T.charId, card) && T.built >= T.max) return T.max === 0 ? t('ui.noBuild') : t('ui.limit');
+    if (!canPlace(me, card)) return t('ui.dup');
+    const cost = buildCost(me, card);
+    if (cost > me.gold && !(card.id === 'thieves_den' && cost <= me.gold + me.hand.length - 1)) return t('ui.tooPoor');
+    return 'ok';
+  }
+
+  function renderHand(view, me, myTurn) {
+    if (!me) { els.hand.innerHTML = ''; return; }
+    const hand = sortHand(me.hand), n = hand.length;
+    if (!n) { els.hand.innerHTML = `<div class="hand-empty">${t('ui.empty')}</div>`; return; }
+    const mid = (n - 1) / 2;
+    els.hand.innerHTML = hand.map((c, i) => {
+      const st = myTurn && !view.turn.pending ? buildState(view, me, c) : null;
+      const cls = [st === 'ok' ? 'playable' : st ? 'blocked' : '', L.sel === c.uid ? 'sel' : ''].join(' ');
+      return cardHTML(c, { cls, costShown: buildCost(me, c), attrs: `data-a="card" data-k="${i + 1}" style="--i:${i - mid};--a:${Math.abs(i - mid)}" ${st && st !== 'ok' ? `data-why="${esc(st)}"` : ''}` });
+    }).join('');
+    fitHand();
+  }
+  function fitHand() {
+    const cards = els.hand.querySelectorAll('.card');
+    if (!cards.length) return;
+    const cw = cards[0].offsetWidth || 80, avail = els.hand.clientWidth - 8, n = cards.length;
+    const gap = n > 1 ? Math.min(8, (avail - cw) / (n - 1) - cw) : 0;
+    els.hand.style.setProperty('--gap', gap + 'px');
+  }
+  addEventListener('resize', () => fitHand());
+
+  function abilityKey(view) {
+    const T = view.turn;
+    const k = ACTIVE[CHAR[T.charId].key];
+    return k && !T.used.ability ? k : null;
+  }
+
+  function renderActions(view, me, myTurn, draftMine) {
+    const hintBtn = `<button class="btn small ghost hint-btn" data-a="hint" title="H">${svg('help')}<span>${t('ui.hint')}</span></button>`;
+    if (!myTurn || view.turn.pending) { els.actions.innerHTML = ''; return; }
+    const T = view.turn, b = [];
+    if (!T.income) {
+      const n = has(me, 'observatory') ? 3 : 2;
+      b.push(`<button class="btn gold" data-a="gold">${svg('gold')}<span>${t('ui.takeGold')}</span><kbd>G</kbd></button>`);
+      b.push(`<button class="btn" data-a="draw" ${view.deckCount ? '' : 'disabled'}>${svg('draw')}<span>${has(me, 'library') ? t('ui.drawAll', { n }) : t('ui.drawCards', { n, k: 1 })}</span><kbd>D</kbd></button>`);
+    }
+    const ab = abilityKey(view);
+    if (ab) b.push(`<button class="btn ability" style="--cc:${CHAR[T.charId].color}" data-a="sheet" data-v="${ab}">${svg(ABILITY_ICON[ab])}<span>${esc(cname(T.charId))}</span><kbd>A</kbd></button>`);
+    if (has(me, 'smithy') && !T.used.smithy && me.gold >= 2) b.push(`<button class="btn small" data-a="smithy">${svg('smithy')}<span>${t('ui.smithy')}</span></button>`);
+    if (has(me, 'laboratory') && !T.used.lab && me.hand.length) b.push(`<button class="btn small" data-a="sheet" data-v="lab">${svg('lab')}<span>${t('ui.lab')}</span></button>`);
+    const sel = me.hand.find(c => c.uid === L.sel);
+    if (sel && buildState(view, me, sel) === 'ok') b.push(`<button class="btn primary" data-a="build">${svg('build')}<span>${t('ui.buildFor', { n: buildCost(me, sel) })}</span><kbd>B</kbd></button>`);
+    if (T.income) b.push(`<button class="btn ${sel ? '' : 'primary'} end" data-a="end">${svg('end')}<span>${t('ui.endTurn')}</span><kbd>E</kbd></button>`);
+    b.push(hintBtn);
+    els.actions.innerHTML = b.join('');
+    markHint();
+  }
+
+  function renderPrompt(view, myTurn, draftMine) {
+    let s = '';
+    const actor = actorOf(view);
+    if (view.phase === 'over') s = t('ui.winner', { name: pname(view.winner) });
+    else if (view.interrupt && view.interrupt.pid !== view.me) s = t('ui.waitingGrave', { name: pname(view.interrupt.pid) });
+    else if (myTurn) {
+      const T = view.turn;
+      const left = Math.max(0, T.max - T.built);
+      s = `<b style="color:${CHAR[T.charId].color}">${t('ui.yourTurn', { char: cname(T.charId) })}</b> · ` +
+        (!T.income ? t('ui.chooseIncome') : T.max === 0 ? t('ui.noBuild') : `${t('ui.mainHint')} <span class="muted">${t('ui.buildsLeft', { n: left })}</span>`);
+    } else if (draftMine) s = `<b>${t(view.draft.mustDiscard ? 'ui.discardTitle' : 'ui.pickChar')}</b>`;
+    else if (view.phase === 'draft') s = t(view.draft.mustDiscard ? 'ui.waitingDiscard' : 'ui.waitingDraft', { name: pname(view.draft.order[view.draft.idx]) });
+    else if (view.turn) s = t('ui.waitingFor', { name: pname(view.turn.pid) });
+    const dl = ctx.deadline?.();
+    if (dl && dl.pid === actor && view.phase !== 'over') s += ` <span class="timer" data-at="${dl.at}"></span>`;
+    els.prompt.innerHTML = s;
+  }
+
+  // ── hints: the advisor (normal-level AI) suggests a move and the UI points at it ──
+  function describe(a, v) {
+    const me = v.players[v.me];
+    const cardIn = (list, uid) => list?.find(c => c.uid === uid);
+    switch (a.t) {
+      case 'pick': case 'discard': return t('h.' + a.t, { char: cname(a.charId) });
+      case 'gold': case 'draw': case 'end': case 'seer': case 'scholar': case 'smithy': case 'seerGive': return t('h.' + a.t);
+      case 'build': return t('h.build', { dist: dname(cardIn(me.hand, a.uid)) });
+      case 'lab': return t('h.lab', { dist: dname(cardIn(me.hand, a.uid)) });
+      case 'keep': return t('h.keep', { dist: dname(cardIn(v.turn.pending.cards, a.uids[0])) });
+      case 'wizTake': return t('h.wizTake', { dist: dname(cardIn(v.turn.pending.cards, a.uid)) });
+      case 'kill': case 'rob': return t('h.' + a.t, { char: cname(rankChar(a.rank)) });
+      case 'swap': case 'peek': return t('h.' + a.t, { name: realName(a.target) });
+      case 'redraw': return t('h.redraw', { n: a.uids.length });
+      case 'destroy': return t('h.destroy', { name: realName(a.target), dist: dname(cardIn(v.players[a.target].city, a.uid)) });
+      case 'nav': return t(a.choice === 'gold' ? 'h.navg' : 'h.navc');
+      case 'graveyard': return t(a.take ? 'h.graveYes' : 'h.graveNo');
+    }
+    return '';
+  }
+  function showHint() {
+    const a = ctx.hint?.();
+    if (!a || !L.view) return;
+    L.hint = { a, seq: L.view.evSeq };
+    toast(t('ui.hintSays', { what: `<b>${esc(describe(a, L.view))}</b>` }), 'gold');
+    if (a.t === 'build') L.sel = a.uid;
+    render(L.view);
+  }
+  function markHint() {
+    root.querySelectorAll('.suggest').forEach(el => el.classList.remove('suggest'));
+    const a = L.hint?.a;
+    if (!a) return;
+    const sel = [];
+    const ab = ABILITY_OF_ACTION[a.t];
+    if (ab) sel.push(`[data-a="sheet"][data-v="${ab}"]`);
+    if (a.t === 'pick' || a.t === 'discard') sel.push(`.ccard[data-char="${a.charId}"]`);
+    if (['gold', 'draw', 'end', 'smithy'].includes(a.t)) sel.push(`[data-a="${a.t}"]`);
+    if (a.t === 'build') sel.push(`.hand .card[data-uid="${a.uid}"]`, '[data-a="build"]');
+    if (a.t === 'lab') sel.push('[data-a="sheet"][data-v="lab"]', `.card[data-a="lab"][data-uid="${a.uid}"]`);
+    if (a.t === 'keep') sel.push(`.card[data-a="keep"][data-uid="${a.uids[0]}"]`);
+    if (a.t === 'wizTake') sel.push(`[data-a="${a.build ? 'wizBuild' : 'wizTake'}"][data-v="${a.uid}"]`);
+    if (a.t === 'kill' || a.t === 'rob') sel.push(`.ccard[data-a="${a.t}"][data-v="${a.rank}"]`);
+    if (a.t === 'swap' || a.t === 'peek') sel.push(`[data-a="${a.t}"][data-v="${a.target}"]`);
+    if (a.t === 'redraw' || a.t === 'seerGive') a.uids.forEach(u => sel.push(`.card[data-a="multi"][data-uid="${u}"]`));
+    if (a.t === 'destroy') sel.push(`.card[data-a="destroy"][data-uid="${a.uid}"]`);
+    if (a.t === 'seer') sel.push('[data-a="seerGo"]');
+    if (a.t === 'scholar') sel.push('[data-a="scholarGo"]');
+    if (a.t === 'nav') sel.push(`[data-a="nav"][data-v="${a.choice}"]`);
+    if (a.t === 'graveyard') sel.push(`[data-a="${a.take ? 'graveYes' : 'graveNo'}"]`);
+    sel.forEach(s => root.querySelectorAll(s).forEach(el => el.classList.add('suggest')));
+  }
+
+  // ── sheets ──
+  function warTargets(view) {
+    const me = view.players[view.me], out = [];
+    for (const o of view.players) {
+      const sh = shielded(view, o);
+      for (const card of o.city) {
+        const cost = destroyCost(o, card);
+        out.push({ o, card, cost, sh, ok: !sh && card.id !== 'keep' && cost <= me.gold });
+      }
+    }
+    return out;
+  }
+
+  function sheetFrame(title, body, { closable = true, cls = '', foot = '' } = {}) {
+    return `<div class="sh-head"><h2>${title}</h2>${closable ? `<button class="icon-btn" data-a="close" aria-label="${t('ui.close')}">${svg('close')}</button>` : ''}</div>
+      <div class="sh-body ${cls}">${body}</div>${foot}`;
+  }
+  function orderStrip(v) {
+    const d = v.draft;
+    return `<div class="order"><span class="muted">${t('ui.order')}</span>${d.order.map((pid, i) =>
+      `<span class="ord ${i < d.idx ? 'done' : i === d.idx ? 'now' : ''}" style="--seat:${seatHue(pid)}" title="${realName(pid)}">${avatar(P(pid))}</span>`).join('<i>›</i>')}</div>`;
+  }
+
+  function renderSheet() {
+    const v = L.view, s = L.sheet;
+    els.wrap.classList.toggle('open', !!s);
+    els.wrap.classList.toggle('blocking', BLOCKING.includes(s));
+    els.wrap.classList.toggle('side', ['war', 'inspect', 'log'].includes(s)); // keep the table clickable
+    if (!s || !v) { els.sheet.innerHTML = ''; return; }
+    // never leave a decision dialog on screen with nothing to decide
+    if ((s === 'draft' || s === 'discard') && !(v.phase === 'draft' && v.draft.options?.length)) { L.sheet = null; return renderSheet(); }
+    const me = v.players[v.me], T = v.turn, pend = T?.pid === v.me ? T.pending : null;
+    let html = '', wide = false;
+    const myRanks = me ? me.chars.map(rankOf) : [];
+    const hintFoot = `<div class="sh-foot"><button class="btn small ghost hint-btn" data-a="hint">${svg('help')}<span>${t('ui.hint')}</span></button></div>`;
+
+    if (s === 'draft' || s === 'discard') {
+      const discarding = s === 'discard';
+      const opts = [...(v.draft.options || [])].sort((a, b) => rankOf(a) - rankOf(b));
+      const second = me.chars.length > 0;
+      html = sheetFrame(t(discarding ? 'ui.discardTitle' : second ? 'ui.pickSecond' : 'ui.pickChar'),
+        `${orderStrip(v)}
+        <div class="ccards ${discarding ? 'discarding' : ''}">${opts.map(id => charHTML(id, { attrs: `data-a="${discarding ? 'discard' : 'pick'}"`, cls: !discarding && !v.draft.avail.includes(id) ? 'hiddenpick' : '' })).join('')}</div>
+        <div class="aside">${v.draft.faceUp.length ? `<span class="muted">${t('ui.faceUp')}</span>${v.draft.faceUp.map(id => chip(id)).join('')}` : ''}
+        ${v.draft.faceDown.length ? `<span class="chip hid">?</span><span class="muted">${t('ui.faceDown', { n: v.draft.faceDown.length })}</span>` : ''}
+        ${second ? `<span class="muted">· ${me.chars.map(c => chip(c)).join('')}</span>` : ''}</div>
+        ${discarding ? `<p class="note">${t('ui.discardHint')}</p>` : opts.length > v.draft.avail.length ? `<p class="note">${t('ui.lastPickNote')}</p>` : ''}`,
+        { closable: false, foot: hintFoot });
+      wide = true;
+    } else if (s === 'grave' && v.interrupt) {
+      const c = v.interrupt.card;
+      html = sheetFrame(t('ui.graveTitle'), `<div class="cards-big">${cardHTML(c, { cls: 'big' })}</div>
+        <p class="center">${t('ui.graveAsk', { dist: `<b>${esc(dname(c))}</b>` })}</p>
+        <div class="sh-foot two"><button class="btn" data-a="graveNo">${t('ui.graveNo')}</button>
+        <button class="btn primary" data-a="graveYes" ${me.gold >= 1 ? '' : 'disabled'}>${svg('gold')}${t('ui.graveYes')}</button></div>`, { closable: false });
+    } else if (s === 'keep' && pend) {
+      html = sheetFrame(t('ui.keepTitle', { n: pend.n }),
+        `<div class="cards-big">${sortHand(pend.cards).map(c => cardHTML(c, { cls: 'big' + (canPlace(me, c) ? '' : ' dupwarn'), costShown: buildCost(me, c), attrs: 'data-a="keep"' })).join('')}</div>
+        <p class="note">${t('ui.keepHint')}</p>`, { closable: false, foot: hintFoot });
+      wide = true;
+    } else if (s === 'kill' || s === 'rob') {
+      const ranks = targetRanks(v, s === 'kill' ? [1] : [1, 2, v.killed]).filter(r => !myRanks.includes(r));
+      html = sheetFrame(t(s === 'kill' ? 'ui.killTitle' : 'ui.robTitle'),
+        `<div class="ccards compact">${ranks.map(r => charHTML(rankChar(r), { attrs: `data-a="${s}" data-v="${r}"` })).join('')}</div>`, { foot: hintFoot });
+      wide = true;
+    } else if (s === 'mag') {
+      const opps = v.players.filter(p => p.id !== v.me);
+      html = sheetFrame(t('ui.magTitle'), `
+        <h4>${t('ui.magSwap')}</h4>
+        <div class="plist">${opps.map(p => `<button class="pitem" data-a="swap" data-v="${p.id}">${avatar(p)}<span>${esc(p.name)}</span><span class="st">${svg('card')}<b>${p.handCount}</b></span></button>`).join('')}</div>
+        <h4>${t('ui.magRedraw')}</h4><p class="note">${t('ui.magRedrawHint')}</p>
+        <div class="cards-pick">${sortHand(me.hand).map(c => cardHTML(c, { cls: L.multi.has(c.uid) ? 'picked' : '', attrs: 'data-a="multi"' })).join('')}</div>`,
+        { foot: `<div class="sh-foot"><button class="btn small ghost hint-btn" data-a="hint">${svg('help')}<span>${t('ui.hint')}</span></button><button class="btn primary" data-a="redraw" ${L.multi.size && v.deckCount ? '' : 'disabled'}>${t('ui.confirm')} · ${L.multi.size}</button></div>` });
+    } else if (s === 'war') {
+      const rows = warTargets(v);
+      const by = v.players.map(o => ({ o, list: rows.filter(r => r.o.id === o.id) })).filter(g => g.list.length);
+      html = sheetFrame(t('ui.warTitle'), `<p class="note">${t('ui.warHint')}</p>` + by.map(({ o, list }) => `
+        <div class="wgroup"><div class="wg-head" style="--seat:${seatHue(o.id)}">${avatar(o)}<b>${o.id === v.me ? t('ui.you') : esc(o.name)}</b>
+          ${list[0].sh ? `<span class="tag">${t('ui.shielded.' + list[0].sh)}</span>` : ''}</div>
+        <div class="cards-pick">${list.map(r => cardHTML(r.card, { cls: r.ok ? 'target' : 'blocked', attrs: r.ok ? `data-a="destroy" data-t="${o.id}"` : '', costShown: r.card.cost })
+          .replace('</button>', `<span class="dcost">${svg('gold')}${r.cost}</span></button>`)).join('')}</div></div>`).join(''), { foot: hintFoot });
+      wide = true;
+    } else if (s === 'wiz') {
+      const opps = v.players.filter(p => p.id !== v.me && p.handCount);
+      html = sheetFrame(t('ui.wizTitle'), `<div class="plist">${opps.map(p => `<button class="pitem" data-a="peek" data-v="${p.id}">${avatar(p)}<span>${esc(p.name)}</span><span class="st">${svg('card')}<b>${p.handCount}</b></span></button>`).join('')}</div>`, { foot: hintFoot });
+    } else if (s === 'wizPick' && pend) {
+      html = sheetFrame(cname(11) + ' · ' + esc(P(pend.target).name), `<div class="cards-big">${sortHand(pend.cards).map(c => {
+        const canB = canPlace(me, c) && buildCost(me, c) <= me.gold;
+        return `<div class="wiz-opt">${cardHTML(c, { cls: 'big', costShown: buildCost(me, c) })}
+          <button class="btn small" data-a="wizTake" data-v="${c.uid}">${t('ui.wizTake')}</button>
+          <button class="btn small primary" data-a="wizBuild" data-v="${c.uid}" ${canB ? '' : 'disabled'}>${t('ui.wizBuild', { n: buildCost(me, c) })}</button></div>`;
+      }).join('')}</div>`, { closable: false, foot: hintFoot });
+      wide = true;
+    } else if (s === 'seer') {
+      html = sheetFrame(cname(15), `<p>${esc(cabil(15))}</p>`, { foot: `<div class="sh-foot"><button class="btn primary" data-a="seerGo">${t('ui.seerGo')}</button></div>` });
+    } else if (s === 'seerGive' && pend) {
+      const names = pend.targets.map(id => realName(id)).join(' → ');
+      html = sheetFrame(t('ui.seerGive', { n: pend.targets.length }), `<p class="note">${t('ui.seerGiveHint', { names })}</p>
+        <div class="cards-pick">${sortHand(me.hand).map(c => cardHTML(c, { cls: L.multi.has(c.uid) ? 'picked' : '', attrs: 'data-a="multi"' })).join('')}</div>`,
+        { closable: false, foot: `<div class="sh-foot"><button class="btn small ghost hint-btn" data-a="hint">${svg('help')}<span>${t('ui.hint')}</span></button><button class="btn primary" data-a="seerGive" ${L.multi.size === pend.targets.length ? '' : 'disabled'}>${t('ui.confirm')} · ${L.multi.size}/${pend.targets.length}</button></div>` });
+    } else if (s === 'nav') {
+      html = sheetFrame(t('ui.navTitle'), `<p>${esc(cabil(10))}</p>`, { foot: `<div class="sh-foot two">
+        <button class="btn gold" data-a="nav" data-v="gold">${svg('gold')}${t('ui.nav4gold')}</button>
+        <button class="btn" data-a="nav" data-v="cards" ${v.deckCount ? '' : 'disabled'}>${svg('draw')}${t('ui.nav4cards')}</button></div>` });
+    } else if (s === 'scholar') {
+      html = sheetFrame(cname(14), `<p>${esc(cabil(14))}</p>`, { foot: `<div class="sh-foot"><button class="btn primary" data-a="scholarGo" ${v.deckCount ? '' : 'disabled'}>${t('ui.scholarGo')}</button></div>` });
+    } else if (s === 'lab') {
+      html = sheetFrame(dname('laboratory'), `<p class="note">${esc(ddesc('laboratory'))}</p>
+        <div class="cards-pick">${sortHand(me.hand).map(c => cardHTML(c, { attrs: 'data-a="lab"' })).join('')}</div>`);
+    } else if (s === 'den') {
+      const card = me.hand.find(c => c.uid === L.sel);
+      if (!card) { L.sheet = null; return renderSheet(); }
+      const cost = buildCost(me, card), need = Math.max(0, cost - me.gold), goldPaid = cost - L.multi.size;
+      html = sheetFrame(dname(card) + ' · ' + t('ui.denPay'), `<p class="note">${t('ui.denHint', { n: need })}</p>
+        <div class="cards-pick">${sortHand(me.hand.filter(c => c.uid !== card.uid)).map(c => cardHTML(c, { cls: L.multi.has(c.uid) ? 'picked' : '', attrs: 'data-a="multi"' })).join('')}</div>`,
+        { foot: `<div class="sh-foot"><button class="btn primary" data-a="denBuild" ${L.multi.size >= need && goldPaid >= 0 ? '' : 'disabled'}>${svg('build')}${svg('gold')}${Math.max(0, goldPaid)} + ${svg('card')}${L.multi.size}</button></div>` });
+    } else if (s === 'inspect') {
+      const p = P(L.inspect);
+      if (!p) { L.sheet = null; return renderSheet(); }
+      const sc = v.phase === 'over' ? v.scores[p.id].total : shownScore(v, p);
+      html = sheetFrame(`<span class="seat-dot" style="--seat:${seatHue(p.id)}"></span>${avatar(p)} ${p.id === v.me ? t('ui.you') : esc(p.name)}`, `
+        <div class="stats-row"><span class="st gold">${svg('gold')}<b>${p.gold}</b></span><span class="st">${svg('card')}<b>${p.handCount}</b></span>
+        <span class="st">${svg('build')}<b>${p.city.length}/${v.cfg.goal}</b></span><span class="st">★<b>${sc}</b></span>
+        ${p.chars.map(c => chip(c)).join('')}</div>
+        <div class="cards-pick city">${p.city.length ? p.city.map(c => cardHTML(c, { attrs: 'data-a="none"' })).join('') : `<p class="muted">—</p>`}</div>`);
+      wide = true;
+    } else if (s === 'log') {
+      html = sheetFrame(t('ui.log'), `<ol class="log">${L.log.map(l => `<li class="lk-${l.k}">${l.txt}</li>`).join('')}</ol>`, { cls: 'scroll' });
+    } else if (s === 'rules') {
+      const ids = [...new Set(v.cfg.chars)].sort((a, b) => rankOf(a) - rankOf(b));
+      const purples = Object.keys(DIST).filter(id => DIST[id][1] === 'purple');
+      html = sheetFrame(t('ui.rules'), `<div class="rules">${RULES[getLang()].replace('{goal}', v.cfg.goal)}</div>
+        <div class="ccards compact static">${ids.map(id => charHTML(id, { attrs: 'tabindex="-1"' })).join('')}</div>
+        <h3>${t('col.purple')}</h3><dl class="dlist">${purples.map(id => `<dt><span class="dot" style="background:${HUE.purple}"></span>${dname(id)} <span class="muted">${DIST[id][0]}</span></dt><dd>${ddesc(id)}</dd>`).join('')}</dl>
+        <p class="note">${t('ui.keys')}</p><p class="note">${t('ui.camHint')}</p>`, { cls: 'scroll' });
+      wide = true;
+    } else if (s === 'menu') {
+      const sp = ctx.getSpeed(), q = ctx.scene.quality;
+      html = sheetFrame(t('ui.menu'), `
+        <div class="menu-row"><span>${t('ui.sound')}</span><button class="btn small" data-a="sound" aria-pressed="${soundOn()}">${svg(soundOn() ? 'sound' : 'mute')}</button></div>
+        <div class="menu-row"><span>${t('ui.music')}</span><button class="btn small" data-a="music" aria-pressed="${musicEnabled()}">${musicEnabled() ? '♪ ON' : '♪ OFF'}</button></div>
+        ${ctx.mode() !== 'peer' ? `<div class="menu-row"><span>${t('lb.speed')}</span><div class="seg">${['slow', 'normal', 'fast'].map(k => `<button class="${sp === k ? 'on' : ''}" data-a="speed" data-v="${k}">${t('lb.' + k)}</button>`).join('')}</div></div>` : ''}
+        <div class="menu-row"><span>${t('ui.quality')}</span><div class="seg">${['high', 'low'].map(k => `<button class="${q === k ? 'on' : ''}" data-a="quality" data-v="${k}">${t('ui.q.' + k)}</button>`).join('')}</div></div>
+        <div class="menu-row"><span>${svg('lang')}</span><button class="btn small" data-a="lang">${t('lb.lang')}</button></div>
+        <p class="note">${t('ui.keys')}</p>`,
+        { foot: `<div class="sh-foot"><button class="btn danger" data-a="leave">${t('ui.leave')}</button></div>` });
+    } else if (s === 'over') {
+      const rows = [...v.scores].sort((a, b) => b.total - a.total);
+      const win = v.winner === v.me;
+      const cols = ['base', 'first', 'complete', 'colors', 'extra'].filter(k => rows.some(r => r.parts[k]));
+      const rec = ctx.stats?.();
+      html = `<div class="over ${win ? 'win' : ''}">
+        <div class="over-ico">${svg('trophy')}</div>
+        <h1>${win ? t('ui.youWin') : t('ui.youLose', { name: realName(v.winner) })}</h1>
+        <table class="score"><thead><tr><th></th>${[...cols, 'total'].map(k => `<th>${t('ui.score.' + k)}</th>`).join('')}</tr></thead>
+        <tbody>${rows.map((r, i) => `<tr class="${r.pid === v.winner ? 'w' : ''}" style="--d:${i * 120}ms;--seat:${seatHue(r.pid)}"><td>${avatar(P(r.pid))}${r.pid === v.me ? t('ui.you') : realName(r.pid)}</td>
+          ${cols.map(k => `<td>${r.parts[k] || '·'}</td>`).join('')}<td class="tot">${r.total}</td></tr>`).join('')}</tbody></table>
+        ${rec ? `<p class="note">${t('lb.stats', rec)}</p>` : ''}
+        <div class="sh-foot two">${ctx.mode() !== 'peer' ? `<button class="btn primary" data-a="again">${svg('play')}${t('ui.again')}</button>` : ''}<button class="btn" data-a="home">${t('ui.home')}</button></div></div>`;
+      wide = true;
+    }
+    if (!html) { L.sheet = null; els.wrap.classList.remove('open'); els.sheet.innerHTML = ''; return; }
+    els.sheet.className = 'sheet' + (wide ? ' wide' : '') + (s === 'over' ? ' over-sheet' : '');
+    els.sheet.innerHTML = html;
+    if (s === 'log') { const b = $('.sh-body', els.sheet); b.scrollTop = b.scrollHeight; }
+    markHint();
+    // keyboard users land inside a decision dialog
+    if (BLOCKING.includes(s) && !els.sheet.contains(document.activeElement)) els.sheet.querySelector('button:not([disabled]):not([data-a="close"])')?.focus({ preventScroll: true });
+  }
+
+  function openSheet(name) {
+    L.sheet = name;
+    L.multi.clear();
+    renderSheet();
+    ctx.scene.highlight(name === 'war' ? warTargets(L.view).filter(x => x.ok).map(x => x.card.uid) : []);
+    sfx('click');
+  }
+  function closeSheet() {
+    L.sheet = null; L.multi.clear(); renderSheet(); ctx.scene.highlight([]);
+  }
+
+  // ── input ──
+  const go = a => { L.multi.clear(); L.hint = null; ctx.dispatch(a); };
+  root.addEventListener('click', e => {
+    const el = e.target.closest('[data-a]');
+    if (!$('.emote-wrap', root)?.contains(e.target)) els.top.classList.remove('emoting');
+    if (!el || !root.contains(el)) {
+      if (e.target === els.wrap && !els.wrap.classList.contains('blocking')) closeSheet();
+      return;
+    }
+    const a = el.dataset.a, v = el.dataset.v, view = L.view;
+    if (!view) return;
+    const me = view.players[view.me];
+    switch (a) {
+      case 'close': return closeSheet();
+      case 'sheet': return openSheet(v);
+      case 'overview': ctx.scene.resetView(); return;
+      case 'hint': return showHint();
+      case 'emotes': els.top.classList.toggle('emoting'); return;
+      case 'emote': els.top.classList.remove('emoting'); return ctx.emote(v);
+      case 'inspect': L.inspect = +v; ctx.scene.focus(+v); return openSheet('inspect');
+      case 'pick': sfx('click'); return go({ t: 'pick', charId: +el.dataset.char });
+      case 'discard': sfx('click'); return go({ t: 'discard', charId: +el.dataset.char });
+      case 'graveYes': return go({ t: 'graveyard', take: true });
+      case 'graveNo': return go({ t: 'graveyard', take: false });
+      case 'gold': return go({ t: 'gold' });
+      case 'draw': return go({ t: 'draw' });
+      case 'end': L.sel = null; return go({ t: 'end' });
+      case 'smithy': return go({ t: 'smithy' });
+      case 'card': {
+        const uid = el.dataset.uid;
+        if (el.dataset.why) toast(el.dataset.why);
+        L.sel = L.sel === uid ? null : uid;
+        sfx('click');
+        return render(view);
+      }
+      case 'build': {
+        const card = me.hand.find(c => c.uid === L.sel);
+        if (!card) return;
+        if (buildCost(me, card) > me.gold) return openSheet('den');
+        L.sel = null;
+        return go({ t: 'build', uid: card.uid });
+      }
+      case 'denBuild': { const uid = L.sel; L.sel = null; const pay = [...L.multi]; closeSheet(); return go({ t: 'build', uid, pay }); }
+      case 'keep': return go({ t: 'keep', uids: [el.dataset.uid] });
+      case 'kill': closeSheet(); return go({ t: 'kill', rank: +v });
+      case 'rob': closeSheet(); return go({ t: 'rob', rank: +v });
+      case 'swap': closeSheet(); return go({ t: 'swap', target: +v });
+      case 'multi': {
+        const uid = el.dataset.uid;
+        // when the selection is already full (Seer give-back, Thieves' Den), a new pick replaces the oldest
+        const V = L.view, sel = V.players[V.me].hand.find(c => c.uid === L.sel);
+        const cap = L.sheet === 'seerGive' ? V.turn?.pending?.targets?.length : L.sheet === 'den' && sel ? buildCost(V.players[V.me], sel) : Infinity;
+        if (L.multi.has(uid)) L.multi.delete(uid);
+        else { if (L.multi.size >= cap) L.multi.delete(L.multi.values().next().value); L.multi.add(uid); }
+        sfx('click');
+        return renderSheet();
+      }
+      case 'redraw': { const uids = [...L.multi]; closeSheet(); return go({ t: 'redraw', uids }); }
+      case 'destroy': closeSheet(); return go({ t: 'destroy', target: +el.dataset.t, uid: el.dataset.uid });
+      case 'peek': closeSheet(); return go({ t: 'peek', target: +v });
+      case 'wizTake': return go({ t: 'wizTake', uid: v, build: false });
+      case 'wizBuild': return go({ t: 'wizTake', uid: v, build: true });
+      case 'seerGo': closeSheet(); return go({ t: 'seer' });
+      case 'seerGive': return go({ t: 'seerGive', uids: [...L.multi] });
+      case 'nav': closeSheet(); return go({ t: 'nav', choice: v });
+      case 'scholarGo': closeSheet(); return go({ t: 'scholar' });
+      case 'lab': closeSheet(); return go({ t: 'lab', uid: el.dataset.uid });
+      case 'sound': setSound(!soundOn()); return renderSheet();
+      case 'music': setMusic(!musicEnabled()); return renderSheet();
+      case 'speed': ctx.setSpeed(v); return renderSheet();
+      case 'quality': ctx.scene.setQuality(v); return renderSheet();
+      case 'lang': setLang(getLang() === 'zh' ? 'en' : 'zh'); ctx.relang(); return;
+      case 'leave': if (ctx.mode() === 'solo' || confirm(t('ui.leaveConfirm'))) ctx.leave(); return;
+      case 'again': closeSheet(); return ctx.again();
+      case 'home': closeSheet(); return ctx.leave();
+    }
   });
-  wrap.appendChild(grid);return wrap;
-}
-
-// ── ACTION ─────────────────────────────────────────────────────────────────────
-function renderAction(){
-  const me=S.players[0];const charId=me.char;const c=charById(charId);const maxB=charId===7?3:(charId===14||charId===15||charId===16)?2:1;
-  const wrap=el('div',null);
-  const banner=el('div',{class:'action-banner',style:`--char-clr:${c.clr};background:color-mix(in srgb,var(--char-clr) 8%,var(--bg-card));border-color:color-mix(in srgb,var(--char-clr) 25%,var(--border-main))`});
-  // Portrait image or emoji fallback
-  if(typeof IMG!=='undefined'&&IMG.char[charId]){
-    var bannerImg=el('img',{src:IMG.char[charId].full,alt:c.name,class:'action-banner-portrait'});
-    bannerImg.onerror=function(){var span=el('div',{class:'action-banner-emoji'},c.emoji);if(bannerImg.parentNode)bannerImg.parentNode.replaceChild(span,bannerImg);};
-    banner.appendChild(bannerImg);
-  }else{
-    banner.appendChild(el('div',{class:'action-banner-emoji'},c.emoji));
-  }
-  const bInfo=el('div',{class:'action-banner-info'});
-  const charNameEl=el('div',{class:'action-char-name',style:`--char-clr:${c.clr}`},cn(c.id));
-  bInfo.appendChild(charNameEl);
-  bInfo.appendChild(el('div',{class:'action-char-ability'},ca(c.id)));
-  if(charId===7)bInfo.appendChild(el('div',{class:'action-note'},t('note.arch_hand',{n:me.hand.length})));
-  if(charId===14)bInfo.appendChild(el('div',{class:'action-note'},t('note.scholar_action')));
-  if(charId===15)bInfo.appendChild(el('div',{class:'action-note-purple'},t('note.seer_action')));
-  if(charId===16)bInfo.appendChild(el('div',{class:'action-note-green'},t('note.trader_action',{n:me.city.filter(d=>d.color==='green').length})));
-  banner.appendChild(bInfo);wrap.appendChild(banner);
-
-  if(S.sub==='draw_pick'){
-    const drawPickLabel=charId===14?t('draw_pick.scholar',{n:S.drawOpts.length}):
-      me.city.some(d=>d.id==='observatory')?t('draw_pick.obs'):t('draw_pick.normal');
-    wrap.appendChild(el('div',{class:'draw-pick-label'},drawPickLabel));
-    const row=el('div',{class:'draw-pick-row'});
-    S.drawOpts.forEach(d=>row.appendChild(mkCard(d,{portrait:true,onClick:()=>{{const _nr=humanKeepCard(S,d.uid);if(_nr)S=_nr;render();};}})));
-    wrap.appendChild(row);return wrap;
-  }
-
-  // Income
-  if(!S.collected){
-    wrap.appendChild(el('div',{class:'sect-label'},t('income.label')));
-    if(charId===10){
-      const row=el('div',{class:'income-row-nav'});
-      row.appendChild(gbtn(t('income.nav_gold'),'#4a90d9',()=>{{const _nr=humanNavigator(S,'gold');if(_nr)S=_nr;render();};},'padding:10px 18px;font-size:12px;font-family:Cinzel,serif'));
-      if(S.deck.length)row.appendChild(gbtn(t('income.nav_cards'),'#4a90d9',()=>{{const _nr=humanNavigator(S,'cards');if(_nr)S=_nr;render();};},'padding:10px 18px;font-size:12px;font-family:Cinzel,serif'));
-      wrap.appendChild(row);
-      wrap.appendChild(el('div',{class:'action-note-warning'},t('income.nav_warning')));
-    }else{
-      const row=el('div',{class:'income-row'});
-      row.appendChild(gbtn(t('income.take_gold'),'#d4a843',()=>{{const _nr=humanCollectGold(S);if(_nr)S=_nr;render();};},'padding:10px 18px;font-size:12px;font-family:Cinzel,serif'));
-      if(S.deck.length){
-        const label=charId===14?t('income.draw_scholar'):
-                    me.city.some(d=>d.id==='observatory')?t('income.draw_obs'):
-                    me.city.some(d=>d.id==='library')?t('income.draw_library'):t('income.draw_normal');
-        row.appendChild(gbtn(label,'#5a9fd4',()=>{{const _nr=humanCollectCards(S);if(_nr)S=_nr;render();};},'padding:10px 18px;font-size:12px;font-family:Cinzel,serif'));
-      }
-      wrap.appendChild(row);
-    }
-  }
-
-  if(S.sub==='choose'||S.sub==='assassin_pick'||S.sub==='thief_pick'||S.sub==='warlord_pick'||S.sub==='wizard_pick'){
-    wrap.appendChild(el('div',{class:'sect-label'},t('special.label')));
-    wrap.appendChild(renderSpecial(charId));
-  }
-
-  if(S.sub==='mag_swap'){
-    wrap.appendChild(el('div',{class:'action-mag-prompt-purple'},t('mag.swap_with')));
-    const r=el('div',{class:'spec-row'});
-    S.players.filter(p=>p.id!==0).forEach(p=>r.appendChild(gbtn(`${p.name} (${p.hand.length})`, '#9b6fff',()=>{{const _nr=humanMagSwap(S,p.id);if(_nr)S=_nr;render();};})));
-    r.appendChild(gbtn(t('mag.cancel'),'#555',()=>{S={...S,sub:'choose'};render();}));wrap.appendChild(r);
-  }
-  if(S.sub==='mag_discard'){
-    wrap.appendChild(el('div',{class:'action-mag-prompt-purple'},t('mag.discard_select')));
-    const r=el('div',{class:'spec-row'});
-    me.hand.forEach(d=>{const sel=S.selCards.includes(d.uid);r.appendChild(mkCard(d,{portrait:true,selected:sel,onClick:()=>{
-      const sc=S.selCards.includes(d.uid)?S.selCards.filter(x=>x!==d.uid):[...S.selCards,d.uid];S={...S,selCards:sc};render();}}));});
-    wrap.appendChild(r);
-    const r2=el('div',{class:'spec-row-inline'});
-    if(S.selCards.length)r2.appendChild(gbtn(t('mag.discard_confirm',{n:S.selCards.length}),'#9b6fff',()=>{{const _nr=humanMagDiscard(S,S.selCards);if(_nr)S=_nr;render();};}));
-    r2.appendChild(gbtn(t('mag.cancel'),'#555',()=>{S={...S,sub:'choose',selCards:[]};render();}));wrap.appendChild(r2);
-  }
-  if(S.sub==='wizard_pick'){
-    const target=S.players.find(p=>p.id===S.wizardTargetId);
-    if(target){
-      wrap.appendChild(el('div',{class:'action-mag-prompt-purple'},t('wizard.hand_of',{name:target.name})));
-      if(!target.hand.length){
-        wrap.appendChild(el('div',{class:'state-empty mb-sm'},t('wizard.no_cards')));
-      }else{
-        const r=el('div',{class:'spec-row-lg'});
-        target.hand.forEach(d=>{
-          const canBuild=buildCost(me,d)<=me.gold&&canBuildDistrict(me,d);
-          const cardWrap=el('div',{class:'spec-col'});
-          cardWrap.appendChild(mkCard(d,{portrait:true}));
-          const takeBtn=gbtn(t('wizard.take'),'#9b6fff',()=>{{const _nr=humanWizardTake(S,d.uid,false);if(_nr)S=_nr;render();};},'font-size:10px;padding:3px 10px;width:100%');
-          cardWrap.appendChild(takeBtn);
-          if(canBuild){
-            const buildBtn=gbtn(t('wizard.build',{cost:buildCost(me,d)}),'#7a4fcc',()=>{{const _nr=humanWizardTake(S,d.uid,true);if(_nr)S=_nr;render();};},'font-size:10px;padding:3px 8px;width:100%');
-            cardWrap.appendChild(buildBtn);
-          }
-          r.appendChild(cardWrap);
-        });
-        wrap.appendChild(r);
-      }
-      wrap.appendChild(gbtn(t('wizard.cancel'),'#555',()=>{S={...S,sub:'choose',wizardTargetId:null};render();}));
-    }
-    return wrap;
-  }
-
-  if(S.collected&&S.sub==='choose'&&(
-    (me.city.some(d=>d.id==='smithy')&&!me.smithyUsed&&me.gold>=2&&S.deck.length)||
-    (me.city.some(d=>d.id==='laboratory')&&!me.labUsed&&me.hand.length>0)
-  )){
-    wrap.appendChild(el('div',{class:'sect-label'},t('active_bldg.label')));
-    if(me.city.some(d=>d.id==='smithy')&&!me.smithyUsed&&me.gold>=2&&S.deck.length){
-      const smithyRow=el('div',{class:'action-smithy-row'});
-      smithyRow.appendChild(el('span',{class:'action-smithy-icon'},'⚒️'));
-      const smithyInfo=el('div',{class:'action-smithy-info'});
-      smithyInfo.appendChild(el('div',{class:'action-smithy-title'},t('smithy.title')));
-      smithyInfo.appendChild(el('div',{class:'action-smithy-desc'},t('smithy.desc')));
-      smithyRow.appendChild(smithyInfo);
-      smithyRow.appendChild(gbtn(t('smithy.use'),'#c084fc',()=>{{const _nr=humanUseSmithy(S);if(_nr)S=_nr;render();};}));
-      wrap.appendChild(smithyRow);
-    }
-    if(me.city.some(d=>d.id==='laboratory')&&!me.labUsed&&me.hand.length>0){
-      const labRow=el('div',{class:'action-smithy-row'});
-      labRow.appendChild(el('span',{class:'action-smithy-icon'},'⚗️'));
-      const labInfo=el('div',{class:'action-smithy-info'});
-      labInfo.appendChild(el('div',{class:'action-smithy-title'},t('lab.title')));
-      labInfo.appendChild(el('div',{class:'action-smithy-desc'},t('lab.desc')));
-      labRow.appendChild(labInfo);
-      wrap.appendChild(labRow);
-      // Show hand cards as discard targets
-      const labCardRow=el('div',{class:'cards-wrap build-row'});
-      me.hand.forEach(function(d){
-        const c=mkCard(d,{portrait:true,player:me,noDesc:true});
-        c.style.cursor='pointer';
-        c.onclick=function(e){e.stopPropagation();var _nr=humanUseLab(S,d.uid);if(_nr&&_nr!==S){S=_nr;render();}};
-        labCardRow.appendChild(c);
-      });
-      wrap.appendChild(labCardRow);
-    }
-  }
-
-  if(S.collected&&S.sub==='choose'&&!S.noBuild){
-    const canBuild=S.builtCount<maxB;
-    if(canBuild){
-      wrap.appendChild(el('div',{class:'sect-label'},t('build.label',{n:S.builtCount,m:maxB,gold:me.gold})));
-      if(!me.hand.length)wrap.appendChild(el('div',{class:'state-empty mb-sm'},t('build.no_cards')));
-      else{
-        const row=el('div',{class:'cards-wrap build-row'});
-        me.hand.forEach(d=>{
-          const cost=buildCost(me,d);
-          var canAfford=cost<=me.gold&&canBuildDistrict(me,d);
-          // Thieves' Den: affordable if gold + other cards in hand >= cost
-          var isDen=d.id==='thieves_den';
-          if(!canAfford&&isDen&&canBuildDistrict(me,d)){
-            var cardsAvail=me.hand.length-1;
-            canAfford=cost<=me.gold+cardsAvail;
-          }
-          const card=mkCard(d,{portrait:true,player:me,noDesc:true,disabled:false});
-          if(!canAfford)card.style.opacity='0.45';
-          card.style.cursor='pointer';
-          card.onclick=function(e){e.stopPropagation();showBuildConfirm(d,cost,canAfford,isDen);};
-          row.appendChild(card);
-        });
-        wrap.appendChild(row);
-        if(!me.hand.some(d=>{var c=buildCost(me,d);if(c<=me.gold&&canBuildDistrict(me,d))return true;if(d.id==='thieves_den'&&canBuildDistrict(me,d)&&c<=me.gold+(me.hand.length-1))return true;return false;}))
-          wrap.appendChild(el('div',{class:'state-empty mb-sm'},t('build.cannot_afford')));
-      }
-    }else if(S.builtCount>0){
-      wrap.appendChild(el('div',{class:'build-done-msg'},t('build.done',{n:S.builtCount,m:maxB})));
-    }
-  }
-  // Build confirm popup: shows card detail + build button
-  function showBuildConfirm(d,cost,canAfford,isDen){
-    var existing=document.getElementById('card-detail-overlay');
-    if(existing)existing.remove();
-    var overlay=el('div',{id:'card-detail-overlay'});
-    overlay.onclick=function(e){if(e.target===overlay)overlay.remove();};
-    var box=el('div',{class:'card-detail-box color-'+d.color});
-    var art=el('div',{class:'card-detail-art'});
-    art.textContent=DEMOJI[d.id]||'🏛';
-    if(typeof IMG!=='undefined'&&IMG.district[d.id]){
-      var src=IMG.district[d.id].full;
-      art.style.backgroundImage='url('+src+')';art.style.backgroundSize='cover';art.style.backgroundPosition='center';
-      var probe=new Image();probe.onload=function(){art.textContent='';};probe.onerror=function(){art.style.backgroundImage='';};probe.src=src;
-    }
-    box.appendChild(art);
-    var info=el('div',{class:'card-detail-info'});
-    info.appendChild(el('div',{class:'card-detail-cost'},cost+'✦'));
-    info.appendChild(el('div',{class:'card-detail-name'},dn(d)));
-    info.appendChild(el('div',{class:'card-detail-type'},clabel(d.color)));
-    if(d.special&&SDESC[d.special])info.appendChild(el('div',{class:'card-detail-desc'},sdesc(d.special)));
-    // Thieves' Den: needs card payment UI if not enough gold
-    if(canAfford&&isDen&&cost>me.gold){
-      var deficit=cost-me.gold;
-      var otherCards=me.hand.filter(function(c){return c.uid!==d.uid;});
-      var selected={};
-      info.appendChild(el('div',{class:'den-pay-label'},t('den.pay',{cost,gold:me.gold,deficit})));
-      var cardList=el('div',{class:'den-card-list'});
-      otherCards.forEach(function(c){
-        var item=el('div',{class:'den-card-item'});
-        item.textContent=(DEMOJI[c.id]||'🏛')+' '+dn(c)+' ('+c.cost+'✦)';
-        item.onclick=function(){
-          if(selected[c.uid]){delete selected[c.uid];item.classList.remove('den-card-selected');}
-          else{selected[c.uid]=true;item.classList.add('den-card-selected');}
-          var cnt=Object.keys(selected).length;
-          buildBtn.textContent=t('den.build_btn',{gold:me.gold,n:cnt});
-          buildBtn.disabled=cnt<deficit;
-          buildBtn.style.opacity=cnt<deficit?'0.5':'1';
-        };
-        cardList.appendChild(item);
-      });
-      info.appendChild(cardList);
-      var buildBtn=el('button',{class:'gbtn build-confirm-btn'},t('den.build_btn_zero',{gold:me.gold}));
-      buildBtn.disabled=true;
-      buildBtn.style.cssText='margin-top:10px;width:100%;background:#4db87a;color:#fff;border:none;padding:10px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;opacity:0.5';
-      buildBtn.onclick=function(){
-        var uids=Object.keys(selected);
-        if(uids.length<deficit)return;
-        overlay.remove();var _nr=humanBuild(S,d.uid,uids);if(_nr){S=_nr;render();}
-      };
-      info.appendChild(buildBtn);
-    }else if(canAfford){
-      var buildBtn=el('button',{class:'gbtn build-confirm-btn'},t('build.confirm_for',{cost}));
-      buildBtn.style.cssText='margin-top:10px;width:100%;background:#4db87a;color:#fff;border:none;padding:10px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer';
-      buildBtn.onclick=function(){overlay.remove();var _nr=humanBuild(S,d.uid);if(_nr){S=_nr;render();}};
-      info.appendChild(buildBtn);
-    }else{
-      var reason=!canBuildDistrict(me,d)?t('build.already_built'):t('build.not_enough_gold',{cost,gold:me.gold});
-      info.appendChild(el('div',{class:'build-cant-reason'},reason));
-    }
-    var closeBtn=el('button',{class:'card-detail-close'},'✕');
-    closeBtn.onclick=function(){overlay.remove();};
-    info.appendChild(closeBtn);
-    box.appendChild(info);overlay.appendChild(box);document.body.appendChild(overlay);
-  }
-  if(S.noBuild&&S.collected&&S.sub==='choose'){
-    wrap.appendChild(el('div',{class:'action-navigator-note'},t('navigator.note')));
-  }
-  if(S.collected&&S.sub==='choose'){
-    var endBtn=el('button',{class:'action-end-turn'},t('action.end_turn'));
-    endBtn.onclick=function(){var _nr=humanEndTurn(S);if(_nr)S=_nr;render();};
-    wrap.appendChild(endBtn);
-  }
-  return wrap;
-}
-
-function renderSpecial(charId){
-  const me=S.players[0];const wrap=el('div',{class:'special-wrap'});
-
-  // Extension UI hook — checked first so expansions can override base characters too
-  if(EXT._specialHooks[charId]){
-    const extEl=EXT._specialHooks[charId](S,charId);
-    if(extEl){wrap.appendChild(extEl);return wrap;}
-  }
-
-  // ── Assassin ──
-  if(charId===1){
-    if(S.sub==='assassin_pick'){
-      wrap.appendChild(el('div',{class:'action-assassin-prompt'},t('assassin.choose')));
-      const r=el('div',{class:'spec-row-sm'});
-      CHARS.filter(ch=>S.charPool.includes(ch.id)&&ch.rank!==1).forEach(ch=>r.appendChild(gbtn(`${ch.emoji} ${cn(ch.id)}`,'#cc7777',()=>{{const _nr=humanKill(S,ch.id);if(_nr)S=_nr;render();};})));
-      r.appendChild(gbtn(t('btn.cancel'),'#555',()=>{S={...S,sub:'choose'};render();}));
-      wrap.appendChild(r);
-    }else if(me.pendingKill){
-      const pkChar=CHARS.find(ch=>S.charPool.includes(ch.id)&&ch.rank===me.pendingKill);
-      const c=pkChar||{emoji:'?',name:'?'};
-      const box=el('div',{class:'action-pending-box'});
-      box.appendChild(el('span',{class:'action-pending-icon'},'☠️'));
-      const info=el('div',{class:'action-pending-info'});
-      info.appendChild(el('div',{class:'action-pending-label-red'},t('assassin.will_kill')));
-      info.appendChild(el('div',{class:'action-pending-target'},`${c.emoji} ${cn(c.id)}`));
-      box.appendChild(info);
-      box.appendChild(gbtn(t('btn.change'),'#886',()=>{S={...S,sub:'assassin_pick'};render();}));
-      wrap.appendChild(box);
-    }else{
-      wrap.appendChild(gbtn(t('assassin.btn'),'#cc7777',()=>{S={...S,sub:'assassin_pick'};render();}));
-    }
-    return wrap;
-  }
-
-  // ── Thief ──
-  if(charId===2){
-    if(S.sub==='thief_pick'){
-      wrap.appendChild(el('div',{class:'action-thief-prompt'},t('thief.choose')));
-      const r=el('div',{class:'spec-row-sm'});
-      CHARS.filter(ch=>S.charPool.includes(ch.id)&&ch.rank!==1&&ch.rank!==2).forEach(ch=>r.appendChild(gbtn(`${ch.emoji} ${cn(ch.id)}`,'#b0b0b0',()=>{{const _nr=humanSteal(S,ch.id);if(_nr)S=_nr;render();};})));
-      r.appendChild(gbtn(t('btn.cancel'),'#555',()=>{S={...S,sub:'choose'};render();}));
-      wrap.appendChild(r);
-    }else if(me.stolenTarget){
-      const stChar=CHARS.find(ch=>S.charPool.includes(ch.id)&&ch.rank===me.stolenTarget);
-      const c=stChar||{emoji:'?',name:'?'};
-      const box=el('div',{class:'action-pending-box-thief'});
-      box.appendChild(el('span',{class:'action-pending-icon'},'🕵️'));
-      const info=el('div',{class:'action-pending-info'});
-      info.appendChild(el('div',{class:'action-pending-label-muted'},t('thief.will_steal')));
-      info.appendChild(el('div',{class:'action-pending-target'},`${c.emoji} ${cn(c.id)}`));
-      box.appendChild(info);
-      box.appendChild(gbtn(t('btn.change'),'#886',()=>{
-        S={...S,sub:'thief_pick',players:S.players.map(p=>p.id===0?{...p,stolenTarget:null}:p)};render();
-      }));
-      wrap.appendChild(box);
-    }else{
-      wrap.appendChild(gbtn(t('thief.btn'),'#b0b0b0',()=>{S={...S,sub:'thief_pick'};render();}));
-    }
-    return wrap;
-  }
-
-  // ── Magician ──
-  if(charId===3){
-    if(me.magicianUsed){
-      wrap.appendChild(el('div',{class:'state-info'},t('magician.used')));
-    }else{
-      const r=el('div',{class:'spec-row-actions'});
-      r.appendChild(gbtn(t('magician.swap_btn'),'#9b6fff',()=>{S={...S,sub:'mag_swap'};render();}));
-      r.appendChild(gbtn(t('magician.discard_btn'),'#9b6fff',()=>{S={...S,sub:'mag_discard',selCards:[]};render();}));
-      wrap.appendChild(r);
-    }
-    return wrap;
-  }
-
-  // ── King ──
-  if(charId===4){
-    const yellows=me.city.filter(d=>d.color==='yellow').length;
-    const txt=yellows>0?t('king.note_with_gold',{n:yellows}):t('king.note_no_gold');
-    wrap.appendChild(el('div',{class:'action-king-note'},txt));return wrap;
-  }
-
-  // ── Patrician ──
-  if(charId===12){
-    const yellows=me.city.filter(d=>d.color==='yellow').length;
-    const txt=yellows>0?t('patrician.note_with_cards',{n:yellows}):t('patrician.note_no_cards');
-    wrap.appendChild(el('div',{class:'action-king-note'},txt));return wrap;
-  }
-
-  // ── Bishop ──
-  if(charId===5){wrap.appendChild(el('div',{class:'action-bishop-note'},t('bishop.note',{n:me.city.filter(d=>d.color==='blue').length})));return wrap;}
-
-  // ── Abbot ──
-  if(charId===13){wrap.appendChild(el('div',{class:'action-bishop-note'},t('abbot.note',{n:me.city.filter(d=>d.color==='blue').length})));return wrap;}
-
-  // ── Merchant ──
-  if(charId===6){wrap.appendChild(el('div',{class:'action-bishop-note'},t('merchant.note')));return wrap;}
-
-  // ── Architect ──
-  if(charId===7){
-    wrap.appendChild(el('div',{class:'action-bishop-note'},t('architect.note')));
-    return wrap;
-  }
-
-  // ── Scholar ──
-  if(charId===14){
-    wrap.appendChild(el('div',{class:'action-bishop-note'},t('scholar.note')));
-    return wrap;
-  }
-
-  // ── Queen ──
-  if(charId===9){
-    wrap.appendChild(el('div',{class:'action-bishop-note'},t('queen.note')));return wrap;
-  }
-
-  // ── Navigator ──
-  if(charId===10){
-    wrap.appendChild(el('div',{class:'state-info',style:'color:var(--c-blue-txt)'},t('navigator.note_short')));return wrap;
-  }
-
-  // ── Wizard ──
-  if(charId===11&&S.sub==='choose'){
-    if(me.wizardUsed){
-      wrap.appendChild(el('div',{class:'state-info'},t('wizard.used')));
-    }else if(!S.wizardTargetId){
-      const others=S.players.filter(p=>p.id!==0&&p.hand.length>0);
-      if(!others.length){
-        wrap.appendChild(el('div',{class:'state-info'},t('wizard.no_opponents')));
-      }else{
-        wrap.appendChild(el('div',{class:'action-wiz-prompt'},t('wizard.choose_target')));
-        const r=el('div',{class:'spec-row-bare'});
-        others.forEach(p=>r.appendChild(gbtn(t('wizard.player_cards',{name:p.name,n:p.hand.length}),'#9b6fff',()=>{{const _nr=humanWizardTarget(S,p.id);if(_nr)S=_nr;render();}})));
-        wrap.appendChild(r);
-      }
-    }
-    return wrap;
-  }
-
-  // ── Seer ──
-  if(charId===15){
-    if(me.seerUsed){
-      wrap.appendChild(el('div',{class:'state-info'},t('seer.used')));
-    }else{
-      const opps=S.players.filter(p=>p.id!==0&&p.hand.length>0);
-      if(!opps.length){
-        wrap.appendChild(el('div',{class:'state-info'},t('wizard.no_opponents')));
-      }else{
-        wrap.appendChild(gbtn(t('seer.btn',{n:opps.length}),
-          '#9b6fff',()=>{{const _nr=humanSeer(S);if(_nr)S=_nr;render();};},'font-size:12px;padding:8px 14px;font-family:Cinzel,serif'));
-        wrap.appendChild(el('div',{class:'action-seer-note'},
-          t('seer.note',{n:opps.length})));
-      }
-    }
-    return wrap;
-  }
-
-  // ── Trader ──
-  if(charId===16){
-    const greens=me.city.filter(d=>d.color==='green').length;
-    const txt=greens>0?t('trader.note_with_gold',{n:greens}):t('trader.note_no_gold');
-    wrap.appendChild(el('div',{class:'action-green-note'},txt));
-    return wrap;
-  }
-
-  // ── Warlord ──
-  if(charId===8){
-    if(S.sub==='warlord_pick'){
-      wrap.appendChild(el('div',{class:'action-warlord-prompt'},t('warlord.choose')));
-      const targets=[];
-      S.players.forEach(p=>{if(p.id===me.id)return;if(p.char===5&&!p.dead)return;if(p.city.length>=8)return;
-        const wall=p.city.some(w=>w.id==='great_wall');
-        p.city.forEach(d=>{if(d.id==='keep')return;const c1=wall?d.cost:Math.max(0,d.cost-1);
-          if(c1<=me.gold)targets.push({pid:p.id,pname:p.name,d,c1,wall});});});
-      const r=el('div',{class:'spec-row-sm'});
-      if(!targets.length)r.appendChild(el('span',{class:'action-warlord-no-targets'},t('warlord.no_targets')));
-      targets.forEach(tgt=>r.appendChild(gbtn(`${DEMOJI[tgt.d.id]||'🏛'} ${tgt.pname}: ${dn(tgt.d)} (${tgt.c1}✦${tgt.wall?' 🧱':''})`, '#d45a5a',()=>{{const _nr=humanWarlord(S,tgt.pid,tgt.d.uid);if(_nr)S=_nr;render();};})));
-      r.appendChild(gbtn(t('btn.cancel'),'#555',()=>{S={...S,sub:'choose'};render();}));
-      wrap.appendChild(r);
-    }else if(S.pendingDestroy){
-      const pd=S.pendingDestroy;
-      const box=el('div',{class:'action-pending-box'});
-      box.appendChild(el('span',{class:'action-pending-icon'},'💥'));
-      const info=el('div',{class:'action-pending-info'});
-      info.appendChild(el('div',{class:'action-pending-label-red'},t('warlord.destroyed')));
-      info.appendChild(el('div',{class:'action-pending-target'},t('warlord.destroyed_detail',{pname:pd.tpName,dname:dn(pd.distObj||pd),cost:pd.cost})));
-      box.appendChild(info);
-      box.appendChild(gbtn(t('btn.undo'),'#886',()=>{
-        const pd=S.pendingDestroy;
-        S={...S,pendingDestroy:null,sub:'choose',players:S.players.map(p=>{
-          if(p.id===0)return{...p,gold:p.gold+pd.cost};
-          if(p.id===pd.pid)return{...p,city:[...p.city,pd.distObj]};
-          return p;
-        })};
-        render();
-      }));
-      wrap.appendChild(box);
-    }else{
-      wrap.appendChild(gbtn(t('warlord.btn'),'#d45a5a',()=>{S={...S,sub:'warlord_pick'};render();}));
-    }
-    return wrap;
-  }
-
-  return wrap;
-}
-
-function renderGameOver(){
-  const fp=S.firstCompleter;
-  const scores=S.players.map(p=>({p,score:calcScore(p,fp===p.id)})).sort((a,b)=>b.score-a.score);
-  const maxScore=scores[0]?scores[0].score:1;
-  const wrap=el('div',{class:'gameover-wrap'});
-  const box=el('div',{class:'gameover-box'});
-  box.append(el('div',{class:'gameover-title'},t('gameover.title')),
-             el('div',{class:'gameover-subtitle'},t('gameover.subtitle',{n:S.round})));
-  // Winner portrait/avatar
-  var winner=scores[0]?scores[0].p:null;
-  if(winner){
-    var winAvatar=typeof getAvatar==='function'?getAvatar(winner.id):'🏆';
-    var winAvatarEl=el('div',{class:'gameover-winner-emoji'},winAvatar);
-    box.appendChild(winAvatarEl);
-  }
-  scores.forEach((sc,i)=>{
-    const medals=['🥇','🥈','🥉','🏅'];
-    const row=el('div',{class:'gameover-row'+(i===0?' first':'')});
-    const info=el('div',{class:'gameover-row-info'});
-    var avatar=typeof getAvatar==='function'?getAvatar(sc.p.id):'';
-    info.append(el('div',{class:'gameover-name'},(avatar?avatar+' ':'')+sc.p.name),
-                el('div',{class:'gameover-districts'},t('gameover.districts',{n:sc.p.city.length})));
-    // Score bar
-    var scorePct=maxScore>0?Math.round(sc.score/maxScore*100):0;
-    var barWrap=el('div',{class:'gameover-score-bar'});
-    var barFill=el('div',{class:'gameover-score-fill'});
-    barFill.style.setProperty('--score-pct',scorePct+'%');
-    barFill.style.animationDelay=(i*0.1)+'s';
-    barWrap.appendChild(barFill);
-    info.appendChild(barWrap);
-    if(sc.p.city.some(d=>d.color==='purple')){
-      const purps=el('div',{class:'gameover-purps'});
-      sc.p.city.filter(d=>d.color==='purple').forEach(d=>{
-        purps.appendChild(el('span',{class:'gameover-purp-badge'},`${DEMOJI[d.id]||'✨'} ${dn(d)}`));
-      });info.appendChild(purps);}
-    row.append(el('span',{class:'gameover-medal'},medals[i]||`${i+1}`),info,
-               el('span',{class:'gameover-score'},`${sc.score}✦`));
-    box.appendChild(row);
+  root.addEventListener('dblclick', e => {
+    const el = e.target.closest('.hand .card.playable');
+    if (!el) return;
+    L.sel = el.dataset.uid;
+    render(L.view);
+    $('[data-a="build"]', els.actions)?.click();
   });
-  box.appendChild(gbtn(t('gameover.play_again'),'#d4a843',()=>{S=runAIDraft(newGame());render();},'width:100%;margin-top:18px;padding:12px;font-family:Cinzel,serif;font-size:14px'));
-  wrap.appendChild(box);return wrap;
+  addEventListener('keydown', e => {
+    if (!root.classList.contains('on') || e.target.closest?.('input, textarea') || e.metaKey || e.ctrlKey || e.altKey) return;
+    const click = sel => { const b = root.querySelector(sel); if (b && !b.disabled) { b.click(); e.preventDefault(); } };
+    const k = e.key.toLowerCase();
+    if (k === 'escape') { if (L.sheet && !els.wrap.classList.contains('blocking')) closeSheet(); else els.top.classList.remove('emoting'); return; }
+    if (els.wrap.classList.contains('open') && !['h', 'l'].includes(k)) {
+      if (/^[1-9]$/.test(k)) click(`.sheet .ccard:nth-of-type(${k}), .sheet .cards-big > :nth-child(${k}) [data-a], .sheet .cards-big > .card:nth-child(${k})`);
+      return;
+    }
+    if (k === 'g') click('[data-a="gold"]');
+    else if (k === 'd') click('[data-a="draw"]');
+    else if (k === 'b') click('[data-a="build"]');
+    else if (k === 'a') click('.actions .btn.ability');
+    else if (k === 'e' || k === 'enter') click('[data-a="end"]');
+    else if (k === 'h') showHint();
+    else if (k === 'l') L.sheet === 'log' ? closeSheet() : openSheet('log');
+    else if (/^[1-9]$/.test(k)) click(`.hand .card[data-k="${k}"]`);
+  });
+
+  // tooltips for cards, chips and 3D buildings
+  function showTip(html, x, y) {
+    els.tip.innerHTML = html;
+    els.tip.classList.add('on');
+    const w = els.tip.offsetWidth, h = els.tip.offsetHeight;
+    els.tip.style.transform = `translate(${Math.min(innerWidth - w - 8, Math.max(8, x - w / 2))}px, ${y - h - 14 < 8 ? y + 18 : y - h - 14}px)`;
+  }
+  const hideTip = () => els.tip.classList.remove('on');
+  const cardTip = card => `<b>${esc(dname(card))}</b> <span class="muted">· ${t('col.' + card.color)} · ${t('ui.cost', { n: card.cost })}</span>${ddesc(card.id) ? `<p>${esc(ddesc(card.id))}</p>` : ''}`;
+  const charTip = id => `<b style="color:${CHAR[id].color}">${ROMAN[CHAR[id].rank]} · ${esc(cname(id))}</b><p>${esc(cabil(id))}</p>`;
+  root.addEventListener('pointerover', e => {
+    if (e.pointerType !== 'mouse') return;
+    const c = e.target.closest('.card[data-id]'), ch = e.target.closest('[data-char]:not(.ccard)');
+    if (!c && !ch) return hideTip();
+    const r = (c || ch).getBoundingClientRect();
+    if (c) showTip(cardTip({ id: c.dataset.id, color: DIST[c.dataset.id][1], cost: DIST[c.dataset.id][0] }) + (c.dataset.why ? `<p class="warn">${esc(c.dataset.why)}</p>` : ''), r.left + r.width / 2, r.top);
+    else showTip(charTip(+ch.dataset.char), r.left + r.width / 2, r.top);
+  });
+  root.addEventListener('pointerout', e => { if (!e.relatedTarget || !root.contains(e.relatedTarget)) hideTip(); });
+  // subtle 3D tilt on hand cards (desktop)
+  els.hand.addEventListener('pointermove', e => {
+    const c = e.target.closest('.card');
+    if (!c || e.pointerType !== 'mouse') return;
+    const r = c.getBoundingClientRect();
+    c.style.setProperty('--rx', ((e.clientY - r.top) / r.height - 0.5) * -14 + 'deg');
+    c.style.setProperty('--ry', ((e.clientX - r.left) / r.width - 0.5) * 14 + 'deg');
+  });
+
+  // 3D picks
+  function onPick(h) {
+    if (!L.view || !h) return;
+    if (L.sheet === 'war' && h.card) {
+      const tgt = warTargets(L.view).find(x => x.card.uid === h.card.uid && x.ok);
+      if (tgt) { closeSheet(); return go({ t: 'destroy', target: tgt.o.id, uid: tgt.card.uid }); }
+    }
+    if (h.pid !== null && h.pid !== undefined) {
+      L.inspect = h.pid;
+      ctx.scene.focus(h.pid);
+      openSheet('inspect');
+    }
+  }
+  function onHover(h, x, y) {
+    if (h?.card) showTip(cardTip(h.card), x, y);
+    else hideTip();
+  }
+
+  return {
+    render, event, frame, toast, onPick, onHover, showEmote,
+    relang() { chrome(); if (L.view) render(L.view); },
+    show() { root.classList.add('on'); insets(); },
+    hide() { root.classList.remove('on'); L.sheet = null; L.log = []; L.shown = null; L.labelEls.forEach(el => el.remove()); L.labelEls.clear(); els.wrap.classList.remove('open'); hideTip(); },
+    resetLog() { L.log = []; L.shown = null; },
+  };
 }
