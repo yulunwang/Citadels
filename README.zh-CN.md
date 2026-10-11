@@ -1,8 +1,8 @@
 # 富饶之城 · Citadels 3D
 
-[English](README.md) · **简体中文**
+[English](README.md) · **简体中文** · [日本語](README.ja.md) · [한국어](README.ko.md) · [Español](README.es.md) · [Français](README.fr.md)
 
-在烛光下的 3D 牌桌上建造你的城市：选角色、互相算计，第一个建成城市的人不一定赢，得分最高的才赢。
+在烛光下的 3D 牌桌上建造你的城市：每轮秘密挑选角色、互相算计，得分最高的人获胜——第一个建成城市的人不一定赢。
 
 ## ▶ [点这里开始玩](https://yulunwang.github.io/Citadels/)
 
@@ -25,7 +25,7 @@
 
 - **2–7 人**，单人或联机都行。
 - **三档电脑难度**：简单、普通、狡诈。电脑只知道它该知道的信息，不会偷看你的手牌和角色。
-- **中英文**随时切换。
+- **六种语言**：English、简体中文、日本語、한국어、Español、Français，随时从 🌐 菜单切换。
 - **断线不怕**：单人游戏自动存档；联机时刷新页面会自动回到座位。
 - **快捷键**：G 拿金币 · D 摸牌 · B 建造 · A 角色技能 · E 结束回合 · H 提示 · 1–9 选手牌。
 
@@ -40,7 +40,7 @@ node serve.mjs    # 打开 http://localhost:5173
 测试：
 
 ```bash
-node test/engine.test.mjs     # 规则自检
+node test/engine.test.mjs     # 规则自检 + 检查每种语言都翻译齐全
 node test/pressure.mjs 600    # 压力测试：公平性（电脑看不到隐藏信息）、随机乱点、AI 行为统计
 node test/ai-duel.mjs 400     # 狡诈 vs 普通 AI 胜率
 ```
@@ -52,6 +52,9 @@ node test/ai-duel.mjs 400     # 狡诈 vs 普通 AI 胜率
 | `js/scene.js`、`js/models.js`、`js/materials.js` | 3D 牌桌、建筑模型、材质 |
 | `js/ui.js`、`js/lobby.js` | 游戏界面、大厅 |
 | `js/main.js`、`js/net.js` | 流程控制、存档、联机（PeerJS） |
-| `js/data.js`、`js/i18n.js`、`js/sfx.js` | 卡牌数据、中英文文本、音效 |
+| `js/i18n.js`、`js/lang/*.js` | 文本：中英文在 `i18n.js`，其他语言各一个文件 |
+| `js/data.js`、`js/sfx.js` | 卡牌数据、音效 |
+
+**添加新语言**：复制 `js/lang/fr.js`，翻译其中的文字（保留 `{占位符}`），再在 `js/i18n.js` 的 `LANGS` 和 `EXTRA` 里登记。漏翻或占位符不一致时，`node test/engine.test.mjs` 会报错。
 
 合并到 `main` 后会自动发布到上面的网址；每个 PR 也会自动生成预览地址。

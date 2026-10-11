@@ -63,6 +63,10 @@ export const AVATARS = ['🦊', '🐺', '🦅', '🐉', '🦁', '🐻', '🦉', 
 export const AI_NAMES = {
   en: ['Lady Mira', 'Duke Arven', 'Baron Selt', 'Countess Vael', 'Lord Draven', 'Dame Isolde'],
   zh: ['米拉夫人', '阿尔文公爵', '塞尔特男爵', '维尔伯爵夫人', '德拉文勋爵', '伊索德女爵'],
+  ja: ['ミラ夫人', 'アーヴェン公', 'セルト男爵', 'ヴェール伯爵夫人', 'ドレイヴン卿', 'イゾルデ女卿'],
+  ko: ['미라 부인', '아르벤 공작', '셀트 남작', '베일 백작부인', '드레이븐 경', '이졸데 경'],
+  es: ['Doña Mira', 'Duque Arven', 'Barón Selt', 'Condesa Vael', 'Lord Draven', 'Dama Isolda'],
+  fr: ['Dame Mira', 'Duc Arven', 'Baron Selt', 'Comtesse Vael', 'Seigneur Draven', 'Dame Isolde'],
 };
 
 // Heraldic colour per seat (flags on the table, label accents in the HUD).
