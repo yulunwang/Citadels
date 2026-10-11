@@ -1,16 +1,17 @@
 // App controller: owns the authoritative state (solo/host), the AI driver, event playback,
 // persistence, turn timer, emotes, stats and the host/peer plumbing. UI, lobby and scene are views.
 
-import { createScene } from './scene.js?v=7e94daef';
-import { renderThumbs } from './models.js?v=7e94daef';
-import { createUI, EMOTES } from './ui.js?v=7e94daef';
-import { createLobby } from './lobby.js?v=7e94daef';
-import { createGame, act, viewFor, currentActor, VERSION } from './engine.js?v=7e94daef';
-import { aiAction, safeAction } from './ai.js?v=7e94daef';
-import { DIST_IDS, AI_NAMES, AVATARS, PRESETS } from './data.js?v=7e94daef';
-import { t, getLang, setLang } from './i18n.js?v=7e94daef';
-import * as net from './net.js?v=7e94daef';
-import { initSettings, openSettings, closeSettings } from './settings.js?v=7e94daef';
+import { createScene } from './scene.js?v=3583e150';
+import { renderThumbs } from './models.js?v=3583e150';
+import { createUI, EMOTES } from './ui.js?v=3583e150';
+import { createLobby } from './lobby.js?v=3583e150';
+import { createGame, act, viewFor, currentActor, VERSION } from './engine.js?v=3583e150';
+import { aiAction, safeAction } from './ai.js?v=3583e150';
+import { DIST_IDS, AI_NAMES, AVATARS, PRESETS } from './data.js?v=3583e150';
+import { t, getLang, setLang } from './i18n.js?v=3583e150';
+import * as net from './net.js?v=3583e150';
+import { initSettings, openSettings, closeSettings } from './settings.js?v=3583e150';
+import { startTutorial, stopTutorial, tutorialActive } from './tutorial.js?v=3583e150';
 
 const SPEED = { slow: 1.45, normal: 1, fast: 0.5 };
 const store = {
@@ -53,6 +54,8 @@ const lobby = createLobby({
   getSpeed: () => G.speed, setSpeed, relang, openSettings,
   canContinue, cont, stats: () => store.get('c3d.stats'),
   startSolo, createRoom, addAI, removeSeat, startHost, joinRoom,
+  // the guided first game: easy opponents, the classic eight, a fixed deal that teaches well
+  startTutorial: o => { startTutorial(); startSolo({ ...o, opp: 3, chars: PRESETS.classic, goal: 8, level: 'easy', seed: 2026 }); },
   cancelNet: () => { closeRoom(); closeLink(); },
 });
 
@@ -222,6 +225,7 @@ function enterGame(mode) {
 function leave() {
   clearTimeout(G.aiTimer);
   closeSettings();
+  if (tutorialActive()) stopTutorial();
   if (G.mode === 'host') { store.del('c3d.hostsave'); closeRoom(); }
   if (G.mode === 'peer') { store.del('c3d.peer', sessionStorage); closeLink(); }
   G.mode = null; G.S = null; G.view = null; G.queue = []; G.deadline = null;
@@ -244,7 +248,7 @@ function aiPlayers(n, taken) {
 }
 
 function startSolo(o) {
-  G.cfg = { players: [{ name: o.name, avatar: o.avatar, ai: false }, ...aiPlayers(o.opp, [o.avatar])], chars: o.chars, goal: o.goal, level: o.level };
+  G.cfg = { players: [{ name: o.name, avatar: o.avatar, ai: false }, ...aiPlayers(o.opp, [o.avatar])], chars: o.chars, goal: o.goal, level: o.level, seed: o.seed };
   G.me = 0;
   enterGame('solo');
   setState(createGame(G.cfg));

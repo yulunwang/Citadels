@@ -1,15 +1,15 @@
 // English + Chinese live in the table below; other languages are one file each in ./lang/ (missing keys
 // fall back to English). t('key', {vars}) — '{name}' placeholders.
-import { CHAR } from './data.js?v=7e94daef';
-import ja from './lang/ja.js?v=7e94daef';
-import ko from './lang/ko.js?v=7e94daef';
-import es from './lang/es.js?v=7e94daef';
-import fr from './lang/fr.js?v=7e94daef';
-import zhTW from './lang/zh-TW.js?v=7e94daef';
-import de from './lang/de.js?v=7e94daef';
-import pt from './lang/pt.js?v=7e94daef';
-import ru from './lang/ru.js?v=7e94daef';
-import it from './lang/it.js?v=7e94daef';
+import { CHAR } from './data.js?v=3583e150';
+import ja from './lang/ja.js?v=3583e150';
+import ko from './lang/ko.js?v=3583e150';
+import es from './lang/es.js?v=3583e150';
+import fr from './lang/fr.js?v=3583e150';
+import zhTW from './lang/zh-TW.js?v=3583e150';
+import de from './lang/de.js?v=3583e150';
+import pt from './lang/pt.js?v=3583e150';
+import ru from './lang/ru.js?v=3583e150';
+import it from './lang/it.js?v=3583e150';
 
 export const EXTRA = { 'zh-TW': zhTW, ja, ko, es, fr, de, pt, ru, it };
 export const LANGS = {
@@ -330,6 +330,78 @@ const D = {
   'ui.endSure': ['End anyway?', '仍要结束？'],
   'ui.endHint': ['You can still build this turn.', '本回合还能建造。'],
   'ui.yourTurnTitle': ['Your turn!', '轮到你了！'],
+
+  // guidance (draft details, turn steps, targeting)
+  'lb.presetDesc.classic': ['The 8 original characters. Best for a first game.', '原版 8 个角色，最适合第一次玩。'],
+  'lb.presetDesc.queen': ['The originals plus the Queen (IX): 3 gold for sitting next to the King.', '原版角色加上王后（IX）：坐在国王旁边可得 3 金。'],
+  'lb.presetDesc.expanded': ['Brings in the Wizard, Patrician, Abbot and Scholar.', '换入巫师、贵族、修道院长和学者。'],
+  'lb.presetDesc.mixed': ['Newer characters: Seer, Navigator, Trader, Patrician, Abbot.', '新角色组合：先知、航海家、贸易商、贵族、修道院长。'],
+  'lb.presetDesc.custom': ['Pick one character for each rank.', '为每个等级挑选一个角色。'],
+  'lb.lvlDesc.easy': ['Plays loosely and makes mistakes. Good for learning.', '出牌随意、常犯错，适合熟悉规则。'],
+  'lb.lvlDesc.normal': ['Solid play: reads the table and goes after the leader.', '稳健：会观察局势，专门针对领先者。'],
+  'lb.lvlDesc.hard': ['Deduces who holds what and looks ahead before key moves.', '会推断谁拿了什么角色，关键时刻提前推演。'],
+  'dr.after': ['{n} still to choose after you', '你之后还有 {n} 人挑选'],
+  'dr.last': ['You choose last', '你最后一个挑选'],
+  'dr.choose': ['Choose the {char}', '选择{char}'],
+  'dr.discardGo': ['Discard the {char}', '弃掉{char}'],
+  'dr.tapCard': ['Tap a character', '点选一个角色'],
+  'fy.gold': ['+{n} gold', '+{n} 金'],
+  'fy.cards': ['+{n} cards', '+{n} 张牌'],
+  'fy.crown': ['takes the Crown', '拿到王冠'],
+  'fy.queen': ['+3 gold if next to the King', '坐在国王旁 +3 金'],
+  'fy.shield': ['shields your {n} districts', '保护你的 {n} 座建筑'],
+  'fy.leader': ['leader: {name} ★{n}', '领先：{name} ★{n}'],
+  'fy.richest': ['richest rival: {name}, {n} gold', '最富对手：{name}，{n} 金'],
+  'fy.hands': ['your hand {a} · biggest rival hand {b}', '你 {a} 张手牌 · 对手最多 {b} 张'],
+  'fy.peek': ['biggest hand: {name}, {n} cards', '手牌最多：{name}，{n} 张'],
+  'fy.target': ['cheapest to destroy: {n} gold', '最便宜可拆：{n} 金'],
+  'fy.build': ['build up to {n}', '最多建 {n} 座'],
+  'fy.noBuild': ['no building', '不能建造'],
+  'tg.income': ['Income', '收入'],
+  'tg.build': ['Build {a}/{b}', '建造 {a}/{b}'],
+  'kill.go': ['Assassinate the {char}', '刺杀{char}'],
+  'rob.go': ['Rob the {char}', '偷窃{char}'],
+  'war.have': ['You have {n} gold', '你有 {n} 金'],
+  'war.toGo': ['{n} to finish', '还差 {n} 座'],
+  'war.go': ['Destroy {dist} · {n} gold', '摧毁{dist} · {n} 金'],
+  'war.pick': ['Choose a district', '选择一座建筑'],
+  'war.keep': ['Indestructible', '无法摧毁'],
+  'me.killed': ['The Assassin named your {char}: you lose this turn!', '刺客点名了你的{char}：你本轮失去回合！'],
+  'me.robbed': ['The Thief is after your {char}: your gold is at risk!', '盗贼盯上了你的{char}：你的金币有危险！'],
+
+  // round feed, end-of-game recap, tutorial
+  'tl.title': ['Round {n}: what happened', '第 {n} 轮动态'],
+  'tl.open': ['What happened this round', '查看本轮动态'],
+  'tl.empty': ['No one has acted yet this round.', '本轮还没有人行动。'],
+  'ov.win': ['You won with {n} points!', '你以 {n} 分获胜！'],
+  'ov.place': ['You placed #{rank} with {n} points', '你排第 {rank} 名 · {n} 分'],
+  'ov.behind': ['{n} behind the winner', '距冠军 {n} 分'],
+  'ov.moments': ['Highlights', '本局亮点'],
+  'ov.journey': ['Characters played each round', '每轮角色轨迹'],
+  'mo.built': ['Most built', '建造最多'],
+  'mo.earned': ['Most gold earned', '收入最多'],
+  'mo.stole': ['Best thief', '偷得最多'],
+  'mo.razed': ['Most destroyed', '拆除最多'],
+  'mo.slain': ['Most assassinated', '被刺杀最多'],
+  'mo.n.built': ['{n} districts', '{n} 座'],
+  'mo.n.gold': ['{n} gold', '{n} 金'],
+  'mo.n.times': ['{n}×', '{n} 次'],
+  'tut.start': ['Tutorial', '新手教程'],
+  'tut.pitch': ['First time? Learn by playing', '第一次玩？边玩边学'],
+  'tut.next': ['Got it', '知道了'],
+  'tut.done': ['Let\'s play!', '开始吧！'],
+  'tut.skip': ['Skip tutorial', '跳过教程'],
+  'tut.yourMove': ['Try it now', '现在试试'],
+  'tut.welcome': ['Welcome to Citadels! Build the most valuable city. When someone completes 8 districts, the round is finished and the highest score wins.', '欢迎来到富饶之城！目标是建造最有价值的城市。有人建满 8 座建筑后，打完这一轮，得分最高者获胜。'],
+  'tut.draft': ['Each round you secretly choose a character. The gold line on each card shows what it would give you right now. Tap one, then confirm.', '每轮你要秘密挑选一个角色。每张卡底部金色的一行，告诉你它现在能给你带来什么。点一张看看，再点按钮确认。'],
+  'tut.track': ['Characters act in order from I to IX. This bar shows who has acted and who is next — you play when your character is called.', '角色按 I 到 IX 的顺序依次登场。这一排显示谁已行动、下一个是谁——轮到你的角色时就该你了。'],
+  'tut.income': ['Your turn! First take income: 2 gold, or draw 2 cards and keep 1.', '轮到你了！先拿收入：拿 2 金，或摸 2 张牌留 1 张。'],
+  'tut.build': ['Now build: tap a glowing card you can afford, then Build. A district\'s cost is also its points.', '现在建造：点一张亮起的、付得起的手牌，再点「建造」。建筑的造价就是它的分数。'],
+  'tut.ability': ['Your character has a special power. Tap it to use it — or tap Hint if you\'re unsure.', '你的角色有特殊技能，点这里使用。拿不准就点「提示」。'],
+  'tut.end': ['Nothing more to do this turn: tap End turn.', '这回合没什么可做的了，点「结束回合」。'],
+  'tut.feed': ['Others are playing now. Tap the round counter at any time to see what everyone did this round.', '现在轮到其他人。随时点左上角的轮数，可以查看本轮每个人做了什么。'],
+  'tut.score': ['Scoring: districts are worth their cost. +4 for completing first, +2 for completing later, +3 for all five colours, plus bonuses on purple districts.', '计分：建筑按造价计分。率先完成 +4，之后完成 +2，五种颜色齐全 +3，紫色特殊建筑另有加分。'],
+  'tut.finish': ['That\'s everything! Finish this game on your own. Settings ⚙️ (top right) has tips, speed and more.', '教程完成！接下来自己打完这局吧。右上角 ⚙️ 设置里可以调速度、开关提示等。'],
 };
 
 export const KEYS = () => Object.keys(D); // for the translation completeness test

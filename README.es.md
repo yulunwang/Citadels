@@ -27,6 +27,7 @@ No hay nada que descargar ni instalar: funciona en cualquier navegador de ordena
 - **Tres niveles de IA:** Fácil, Normal y Astuta. La IA solo sabe lo que le corresponde: nunca ve tu mano ni los personajes ocultos.
 - **11 idiomas:** English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português, Русский e Italiano. Cámbialo cuando quieras en ⚙️ Ajustes.
 - **Ajustes (⚙️):** cuatro pistas de música generadas (Luz de velas, Jardín lunar, Ciudadela neón, Noche de taberna) con volumen, velocidad de la IA, confirmación antes de terminar un turno en el que aún puedes construir, avisos de turno (título parpadeante, vibración), reducir movimiento y símbolos de color en las cartas para daltónicos.
+- **Aprende jugando:** una primera partida guiada, un resumen ronda a ronda de lo que hizo cada uno (toca el contador de rondas), cada elección explicada con números («+2 de oro, se queda la Corona») y un resumen final con momentos destacados.
 - **Nunca pierdes una partida:** las partidas en solitario se guardan solas, y si recargas la página en línea vuelves directamente a tu asiento.
 - **Atajos:** G oro · D robar cartas · B construir · A habilidad del personaje · E terminar turno · H pista · 1–9 elegir carta.
 

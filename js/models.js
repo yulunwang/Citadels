@@ -5,8 +5,8 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { HUE, DIST } from './data.js?v=7e94daef';
-import { pattern, warmEnvironment } from './materials.js?v=7e94daef';
+import { HUE, DIST } from './data.js?v=3583e150';
+import { pattern, warmEnvironment } from './materials.js?v=3583e150';
 
 const MAT = {};
 const std = o => new THREE.MeshStandardMaterial(o);
@@ -355,7 +355,7 @@ export async function renderThumbs(ids, size = 320) {
     r.render(scene, cam);
     out[id] = canvas.toDataURL('image/png');
     scene.remove(m);
-    await new Promise(requestAnimationFrame);
+    await new Promise(r => (document.hidden ? setTimeout(r, 0) : requestAnimationFrame(r))); // rAF never fires in background tabs
   }
   pm.dispose();
   r.dispose();

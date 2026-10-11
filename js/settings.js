@@ -1,8 +1,8 @@
 // Settings: one panel for language, sound, gameplay, display and your record, opened from the lobby
 // corner and the in-game top bar. Preferences persist in localStorage; other modules read `prefs`.
-import { t, getLang, setLang, LANGS } from './i18n.js?v=7e94daef';
-import { svg } from './icons.js?v=7e94daef';
-import { sfx, soundOn, setSound, musicEnabled, setMusic, volume, setVolume, TRACKS, musicTrack, setTrack } from './sfx.js?v=7e94daef';
+import { t, getLang, setLang, LANGS } from './i18n.js?v=3583e150';
+import { svg } from './icons.js?v=3583e150';
+import { sfx, soundOn, setSound, musicEnabled, setMusic, volume, setVolume, TRACKS, musicTrack, setTrack } from './sfx.js?v=3583e150';
 
 const KEY = 'c3d.settings';
 const systemCalm = () => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { return false; } };
@@ -20,12 +20,15 @@ export function applyPrefs() {
   ctx?.scene.setCalm(prefs.reduceMotion);
 }
 
+// Browsers refuse (and log an error) to vibrate before the page has had a real tap.
+export const vibrate = p => { if (navigator.userActivation?.hasBeenActive ?? true) navigator.vibrate?.(p); };
+
 // "Your turn" nudges for when you're looking elsewhere: a flashing tab title, and a buzz on phones.
 let flashTimer = null;
 export function alertTurn() {
   if (!prefs.turnAlert) return;
   const away = document.hidden;
-  if (away || ctx?.mode() !== 'solo') navigator.vibrate?.([90, 60, 90]);
+  if (away || ctx?.mode() !== 'solo') vibrate([90, 60, 90]);
   if (!away || flashTimer) return;
   const base = document.title;
   let on = false;
