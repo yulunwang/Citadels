@@ -261,6 +261,32 @@ export default {
   'coach.call': 'A corte chama os personagens do I ao IX — acompanhe a barra no topo.',
   'coach.cam': 'Arraste a mesa para olhar em volta · toque numa cidade para examiná-la.',
 
+  // settings
+  'set.title': 'Configurações',
+  'set.sound': 'Som',
+  'set.sfx': 'Efeitos sonoros',
+  'set.track': 'Faixa musical',
+  'set.track.candle': 'Luz de velas',
+  'set.track.garden': 'Jardim ao luar',
+  'set.track.neon': 'Cidadela neon',
+  'set.track.tavern': 'Noite na taverna',
+  'set.game': 'Jogo',
+  'set.confirmEnd': 'Confirmar fim de turno se ainda puder construir',
+  'set.turnAlert': 'Avisar quando for minha vez',
+  'set.tips': 'Dicas para iniciantes',
+  'set.tipsReset': 'Mostrar de novo',
+  'set.tipsAgain': 'Serão mostradas ✓',
+  'set.display': 'Tela',
+  'set.motion': 'Reduzir movimento',
+  'set.symbols': 'Símbolos de cor nas cartas',
+  'set.record': 'Histórico',
+  'set.noGames': 'Nenhum jogo ainda',
+  'set.reset': 'Zerar',
+  'set.resetSure': 'Toque de novo',
+  'ui.endSure': 'Encerrar mesmo assim?',
+  'ui.endHint': 'Você ainda pode construir neste turno.',
+  'ui.yourTurnTitle': 'Sua vez!',
+
   _rules: `<h3>Objetivo</h3><p>Construa a cidade mais valiosa. Quando alguém completa uma cidade com <b>{goal}</b> distritos, a rodada é jogada até o fim e vence a maior pontuação.</p>
 <h3>Cada rodada</h3><ol><li><b>Escolha de personagens.</b> Começando por quem tem a Coroa, cada jogador pega um personagem em segredo. Alguns são separados abertos e um fica virado para baixo.</li>
 <li><b>Corte real.</b> Os personagens são chamados por nível (I → IX). Na sua vez: pegue <b>2 ouro</b> ou <b>compre 2 cartas e fique com 1</b>; depois construa um distrito pagando o custo. O poder do personagem pode ser usado a qualquer momento.</li></ol>

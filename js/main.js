@@ -10,6 +10,7 @@ import { aiAction, safeAction } from './ai.js';
 import { DIST_IDS, AI_NAMES, AVATARS, PRESETS } from './data.js';
 import { t, getLang, setLang } from './i18n.js';
 import * as net from './net.js';
+import { initSettings, openSettings, closeSettings } from './settings.js';
 
 const SPEED = { slow: 1.45, normal: 1, fast: 0.5 };
 const store = {
@@ -39,7 +40,7 @@ const scene = createScene(document.getElementById('gl'), {
 
 const ui = createUI({
   scene, thumbs,
-  dispatch, leave, again, relang, setSpeed,
+  dispatch, leave, again, relang, setSpeed, openSettings,
   mode: () => G.mode,
   getSpeed: () => G.speed,
   hint,
@@ -49,13 +50,18 @@ const ui = createUI({
 });
 
 const lobby = createLobby({
-  getSpeed: () => G.speed, setSpeed, relang,
+  getSpeed: () => G.speed, setSpeed, relang, openSettings,
   canContinue, cont, stats: () => store.get('c3d.stats'),
   startSolo, createRoom, addAI, removeSeat, startHost, joinRoom,
   cancelNet: () => { closeRoom(); closeLink(); },
 });
 
 function setSpeed(v) { G.speed = v; store.set('c3d.speed', v); }
+initSettings({
+  scene, relang, setSpeed, getSpeed: () => G.speed, mode: () => G.mode,
+  leave: () => { if (G.mode === 'solo' || confirm(t('ui.leaveConfirm'))) leave(); },
+  stats: () => store.get('c3d.stats'), resetStats: () => { store.del('c3d.stats'); lobby.render(); },
+});
 function relang() {
   document.title = t('lb.title');
   ui.relang();
@@ -215,6 +221,7 @@ function enterGame(mode) {
 
 function leave() {
   clearTimeout(G.aiTimer);
+  closeSettings();
   if (G.mode === 'host') { store.del('c3d.hostsave'); closeRoom(); }
   if (G.mode === 'peer') { store.del('c3d.peer', sessionStorage); closeLink(); }
   G.mode = null; G.S = null; G.view = null; G.queue = []; G.deadline = null;

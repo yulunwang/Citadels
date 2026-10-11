@@ -25,7 +25,8 @@ Primeira vez? A tela inicial tem **Como jogar**, e durante a partida o botão **
 
 - **De 2 a 7 jogadores**, solo ou online.
 - **Três níveis de IA:** Fácil, Normal e Astuta. A IA só sabe o que pode saber: nunca vê sua mão nem os personagens ocultos.
-- **11 idiomas:** English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português, Русский e Italiano. Troque quando quiser pelo menu 🌐.
+- **11 idiomas:** English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português, Русский e Italiano. Troque quando quiser em ⚙️ Configurações.
+- **Configurações (⚙️):** quatro músicas geradas (Luz de velas, Jardim ao luar, Cidadela neon, Noite na taverna) com volume, velocidade da IA, confirmação antes de encerrar um turno em que ainda dá para construir, avisos de vez (título piscando, vibração), movimento reduzido e símbolos de cor nas cartas para daltônicos.
 - **Nenhuma partida se perde:** jogos solo são salvos automaticamente, e quem recarrega a página online volta direto para o seu lugar.
 - **Atalhos:** G ouro · D comprar · B construir · A habilidade do personagem · E encerrar turno · H dica · 1–9 escolher carta.
 
@@ -50,7 +51,7 @@ node test/ai-duel.mjs 400     # taxa de vitória da Astuta contra a Normal
 | `js/engine.js` | Motor de regras: `act(state, pid, action)` e `viewFor(state, pid)` (o que cada jogador pode ver) |
 | `js/ai.js`, `js/search.js` | Jogadores de IA (só recebem `viewFor`) e a busca à frente do nível Astuta |
 | `js/scene.js`, `js/models.js`, `js/materials.js` | Mesa 3D, modelos de prédios, materiais |
-| `js/ui.js`, `js/lobby.js` | Interface do jogo e saguão |
+| `js/ui.js`, `js/lobby.js`, `js/settings.js` | Interface do jogo e saguão |
 | `js/main.js`, `js/net.js` | Fluxo da partida, salvamento, jogo online (PeerJS) |
 | `js/i18n.js`, `js/lang/*.js` | Textos: inglês e chinês simplificado em `i18n.js`, um arquivo para cada outro idioma |
 | `js/data.js`, `js/sfx.js` | Dados das cartas, som |

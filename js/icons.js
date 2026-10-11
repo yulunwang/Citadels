@@ -32,6 +32,7 @@ const UI = {
   mute: '<path d="M8 19h7l9-7v24l-9-7H8z"/><path d="M31 19l10 10M41 19L31 29"/>',
   lang: '<circle cx="24" cy="24" r="17"/><path d="M7 24h34M24 7c6 6 6 28 0 34M24 7c-6 6-6 28 0 34"/>',
   close: '<path d="M13 13l22 22M35 13L13 35"/>',
+  gear: '<circle cx="24" cy="24" r="6"/><path d="M24 5v6M24 37v6M5 24h6M37 24h6M10.6 10.6l4.2 4.2M33.2 33.2l4.2 4.2M10.6 37.4l4.2-4.2M33.2 14.8l4.2-4.2"/><circle cx="24" cy="24" r="13"/>',
   menu: '<path d="M10 14h28M10 24h28M10 34h28"/>',
   skull: '<path d="M12 30v-8a12 12 0 0 1 24 0v8l-4 2v6H16v-6z"/><circle cx="19" cy="24" r="3"/><circle cx="29" cy="24" r="3"/><path d="M22 38v-3M26 38v-3"/>',
   eye: C.seer,

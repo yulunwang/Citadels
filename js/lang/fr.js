@@ -261,6 +261,32 @@ export default {
   'coach.call': 'La cour appelle les personnages du I au IX : suivez la barre en haut.',
   'coach.cam': 'Faites glisser la table pour regarder autour · touchez une cité pour l\'examiner.',
 
+  // settings
+  'set.title': 'Réglages',
+  'set.sound': 'Son',
+  'set.sfx': 'Effets sonores',
+  'set.track': 'Morceau',
+  'set.track.candle': 'Chandelles',
+  'set.track.garden': 'Jardin lunaire',
+  'set.track.neon': 'Citadelle néon',
+  'set.track.tavern': 'Soir de taverne',
+  'set.game': 'Jeu',
+  'set.confirmEnd': 'Confirmer la fin du tour s\'il reste à bâtir',
+  'set.turnAlert': 'M\'avertir quand c\'est mon tour',
+  'set.tips': 'Conseils pour débuter',
+  'set.tipsReset': 'Réafficher',
+  'set.tipsAgain': 'Réaffichés ✓',
+  'set.display': 'Affichage',
+  'set.motion': 'Réduire les animations',
+  'set.symbols': 'Symboles de couleur sur les cartes',
+  'set.record': 'Palmarès',
+  'set.noGames': 'Aucune partie pour l\'instant',
+  'set.reset': 'Réinitialiser',
+  'set.resetSure': 'Touchez encore',
+  'ui.endSure': 'Finir quand même ?',
+  'ui.endHint': 'Vous pouvez encore bâtir ce tour-ci.',
+  'ui.yourTurnTitle': 'À vous !',
+
   _rules: `<h3>But du jeu</h3><p>Bâtissez la cité la plus prestigieuse. Quand un joueur achève une cité de <b>{goal}</b> quartiers, on termine la manche et le meilleur score l'emporte.</p>
 <h3>Chaque manche</h3><ol><li><b>Choix des personnages.</b> En commençant par le détenteur de la Couronne, chacun prend un personnage en secret. Certains sont écartés face visible, un face cachée.</li>
 <li><b>Cour royale.</b> Les personnages sont appelés par rang (I → IX). À votre tour : prenez <b>2 or</b> ou <b>piochez 2 cartes et gardez-en 1</b>, puis bâtissez un quartier en payant son coût. Le pouvoir du personnage s'utilise à tout moment.</li></ol>

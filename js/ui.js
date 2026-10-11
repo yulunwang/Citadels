@@ -5,15 +5,18 @@ import { CHAR, HUE, DIST, COLORS, SEAT_HUES } from './data.js';
 import {
   rankOf, has, buildCost, canPlace, destroyCost, shielded, targetRanks, countsTowardLimit, score,
 } from './engine.js';
-import { t, cname, cabil, dname, ddesc, RULES, getLang, setLang, langSelect } from './i18n.js';
+import { t, cname, cabil, dname, ddesc, RULES, getLang } from './i18n.js';
 import { svg, ROMAN } from './icons.js';
-import { sfx, soundOn, setSound, musicEnabled, setMusic } from './sfx.js';
+import { sfx } from './sfx.js';
+import { prefs, alertTurn } from './settings.js';
 
 const $ = (sel, el = document) => el.querySelector(sel);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const ACTIVE = { assassin: 'kill', thief: 'rob', magician: 'mag', warlord: 'war', wizard: 'wiz', seer: 'seer', navigator: 'nav', scholar: 'scholar' };
 const ABILITY_ICON = { kill: 'assassin', rob: 'thief', mag: 'magician', war: 'warlord', wiz: 'wizard', seer: 'seer', nav: 'navigator', scholar: 'scholar' };
 const ABILITY_OF_ACTION = { kill: 'kill', rob: 'rob', swap: 'mag', redraw: 'mag', destroy: 'war', peek: 'wiz', seer: 'seer', nav: 'nav', scholar: 'scholar' };
+// Colour-blind aid (setting): each district colour also gets a symbol.
+const COLOR_SYM = { yellow: 'king', blue: 'bishop', green: 'merchant', red: 'warlord', purple: 'magician' };
 const BLOCKING = ['draft', 'discard', 'keep', 'wizPick', 'seerGive', 'grave', 'over'];
 const TURN_SHEETS = ['kill', 'rob', 'mag', 'war', 'wiz', 'seer', 'nav', 'scholar', 'den', 'lab'];
 export const EMOTES = ['👍', '😂', '😮', '😡', '😈', '👑', '🙏', '🎉'];
@@ -55,7 +58,7 @@ export function createUI(ctx) {
         <button class="icon-btn" data-a="overview" title="${t('ui.resetView')}">${svg('focus')}</button>
         <button class="icon-btn" data-a="sheet" data-v="log" title="${t('ui.log')}">${svg('log')}</button>
         <button class="icon-btn" data-a="sheet" data-v="rules" title="${t('ui.rules')}">${svg('help')}</button>
-        <button class="icon-btn" data-a="sheet" data-v="menu" title="${t('ui.menu')}">${svg('menu')}</button>
+        <button class="icon-btn" data-a="settings" title="${t('set.title')}">${svg('gear')}</button>
       </div>`;
     els.round = $('.round-chip', els.top);
     els.track = $('.calltrack', els.top);
@@ -84,7 +87,7 @@ export function createUI(ctx) {
     return `<button class="card c-${card.color} ${cls}" data-uid="${card.uid}" data-id="${card.id}" ${attrs}>
       <span class="card-art" ${thumb(card.id)}></span>
       <span class="card-cost${cost < card.cost ? ' disc' : ''}">${cost}</span>
-      ${card.color === 'purple' ? '<span class="card-gem">✦</span>' : ''}
+      ${card.color === 'purple' ? '<span class="card-gem">✦</span>' : ''}<span class="card-sym">${svg(COLOR_SYM[card.color])}</span>
       <span class="card-name${/^[^\u3040-\u9fff\uac00-\ud7af]{9,}$/.test(dname(card)) ? ' long' : ''}">${esc(dname(card))}</span></button>`;
   }
   function charHTML(id, { cls = '', attrs = '', sub = '' } = {}) {
@@ -144,6 +147,7 @@ export function createUI(ctx) {
   }
   // First-time guidance: each tip shows once per device.
   function coach(key) {
+    if (!prefs.tips) return;
     try {
       if (localStorage.getItem('c3d.coach.' + key)) return;
       localStorage.setItem('c3d.coach.' + key, '1');
@@ -241,7 +245,9 @@ export function createUI(ctx) {
     const draftMine = view.phase === 'draft' && view.draft.order[view.draft.idx] === view.me;
     // a new turn (incl. my second character straight after my first) closes the last turn's tools
     const turnKey = myTurn ? view.round + ':' + T.charId : null, wasWar = L.sheet === 'war';
-    if (turnKey !== L.turnKey) { L.turnKey = turnKey; L.sel = null; if (TURN_SHEETS.includes(L.sheet)) L.sheet = null; }
+    if (turnKey !== L.turnKey) { L.turnKey = turnKey; L.sel = null; L.endArmed = false; if (TURN_SHEETS.includes(L.sheet)) L.sheet = null; if (turnKey) alertTurn(); }
+    const draftKey = draftMine ? view.round + ':' + view.draft.idx : null;
+    if (draftKey !== L.draftKey) { L.draftKey = draftKey; if (draftKey) alertTurn(); }
     if (myTurn && ABILITY_ICON[L.sheet] && L.sheet !== abilityKey(view)) L.sheet = null; // ability already spent
     if (wasWar && L.sheet !== 'war') ctx.scene.highlight([]);
     if (prevMe !== view.me) { L.labelEls.forEach(el => el.remove()); L.labelEls.clear(); }
@@ -618,16 +624,6 @@ export function createUI(ctx) {
         <h3>${t('col.purple')}</h3><dl class="dlist">${purples.map(id => `<dt><span class="dot" style="background:${HUE.purple}"></span>${dname(id)} <span class="muted">${DIST[id][0]}</span></dt><dd>${ddesc(id)}</dd>`).join('')}</dl>
         <p class="note">${t('ui.keys')}</p><p class="note">${t('ui.camHint')}</p>`, { cls: 'scroll' });
       wide = true;
-    } else if (s === 'menu') {
-      const sp = ctx.getSpeed(), q = ctx.scene.quality;
-      html = sheetFrame(t('ui.menu'), `
-        <div class="menu-row"><span>${t('ui.sound')}</span><button class="btn small" data-a="sound" aria-pressed="${soundOn()}">${svg(soundOn() ? 'sound' : 'mute')}</button></div>
-        <div class="menu-row"><span>${t('ui.music')}</span><button class="btn small" data-a="music" aria-pressed="${musicEnabled()}">${musicEnabled() ? '♪ ON' : '♪ OFF'}</button></div>
-        ${ctx.mode() !== 'peer' ? `<div class="menu-row"><span>${t('lb.speed')}</span><div class="seg">${['slow', 'normal', 'fast'].map(k => `<button class="${sp === k ? 'on' : ''}" data-a="speed" data-v="${k}">${t('lb.' + k)}</button>`).join('')}</div></div>` : ''}
-        <div class="menu-row"><span>${t('ui.quality')}</span><div class="seg">${['high', 'low'].map(k => `<button class="${q === k ? 'on' : ''}" data-a="quality" data-v="${k}">${t('ui.q.' + k)}</button>`).join('')}</div></div>
-        <div class="menu-row"><span>${t('lb.lang')}</span><label class="lang-pick">${svg('lang')}${langSelect()}</label></div>
-        <p class="note">${t('ui.keys')}</p>`,
-        { foot: `<div class="sh-foot"><button class="btn danger" data-a="leave">${t('ui.leave')}</button></div>` });
     } else if (s === 'over') {
       const rows = [...v.scores].sort((a, b) => b.total - a.total);
       const win = v.winner === v.me;
@@ -665,7 +661,6 @@ export function createUI(ctx) {
 
   // ── input ──
   const go = a => { L.multi.clear(); L.hint = null; ctx.dispatch(a); };
-  root.addEventListener('change', e => { if (e.target.dataset.a === 'lang') { setLang(e.target.value); ctx.relang(); } });
   root.addEventListener('click', e => {
     const el = e.target.closest('[data-a]');
     if (!$('.emote-wrap', root)?.contains(e.target)) els.top.classList.remove('emoting');
@@ -674,7 +669,7 @@ export function createUI(ctx) {
       return;
     }
     const a = el.dataset.a, v = el.dataset.v, view = L.view;
-    if (!view || a === 'lang') return; // the <select> handles itself (see 'change')
+    if (!view) return;
     const me = view.players[view.me];
     switch (a) {
       case 'close': return closeSheet();
@@ -690,7 +685,19 @@ export function createUI(ctx) {
       case 'graveNo': return go({ t: 'graveyard', take: false });
       case 'gold': return go({ t: 'gold' });
       case 'draw': return go({ t: 'draw' });
-      case 'end': L.sel = null; return go({ t: 'end' });
+      case 'end': {
+        // Ending while a build is still possible is usually a slip: ask once (setting).
+        const canBuild = me && view.turn.built < view.turn.max && me.hand.some(c => buildState(view, me, c) === 'ok');
+        if (prefs.confirmEnd && canBuild && !L.endArmed) {
+          L.endArmed = true;
+          el.classList.add('armed'); el.querySelector('span').textContent = t('ui.endSure');
+          toast(t('ui.endHint'), 'gold');
+          setTimeout(() => { L.endArmed = false; if (L.view) render(L.view); }, 3000);
+          return sfx('click');
+        }
+        L.sel = null; L.endArmed = false; return go({ t: 'end' });
+      }
+      case 'settings': return ctx.openSettings();
       case 'smithy': return go({ t: 'smithy' });
       case 'card': {
         const uid = el.dataset.uid;
@@ -731,11 +738,6 @@ export function createUI(ctx) {
       case 'nav': closeSheet(); return go({ t: 'nav', choice: v });
       case 'scholarGo': closeSheet(); return go({ t: 'scholar' });
       case 'lab': closeSheet(); return go({ t: 'lab', uid: el.dataset.uid });
-      case 'sound': setSound(!soundOn()); return renderSheet();
-      case 'music': setMusic(!musicEnabled()); return renderSheet();
-      case 'speed': ctx.setSpeed(v); return renderSheet();
-      case 'quality': ctx.scene.setQuality(v); return renderSheet();
-      case 'leave': if (ctx.mode() === 'solo' || confirm(t('ui.leaveConfirm'))) ctx.leave(); return;
       case 'again': closeSheet(); return ctx.again();
       case 'home': closeSheet(); return ctx.leave();
     }

@@ -25,7 +25,8 @@ New to Citadels? The home screen has **How to play**, and during a game the **Hi
 
 - **2–7 players**, solo or online.
 - **Three AI levels:** Easy, Normal and Cunning. The AI only knows what it is allowed to know; it never sees your hand or hidden characters.
-- **11 languages:** English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português, Русский and Italiano. Pick one from the 🌐 menu at any time.
+- **11 languages:** English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português, Русский and Italiano. Pick one in ⚙️ Settings at any time.
+- **Settings (⚙️):** four generated music tracks (Candlelight, Moonlit Garden, Neon Citadel, Tavern Night) with volume, AI speed, a check before ending a turn with builds left, turn alerts (tab title flash, vibration), reduce motion and colour-blind card symbols.
 - **Never lose a game:** solo games autosave, and online players who refresh go straight back to their seat.
 - **Keys:** G gold · D draw · B build · A character ability · E end turn · H hint · 1–9 select a card.
 
@@ -50,7 +51,7 @@ node test/ai-duel.mjs 400     # Cunning vs Normal AI win rate
 | `js/engine.js` | Rules engine: `act(state, pid, action)` and `viewFor(state, pid)` (what each player may see) |
 | `js/ai.js`, `js/search.js` | Computer players (they receive only `viewFor`) and the Cunning level's lookahead |
 | `js/scene.js`, `js/models.js`, `js/materials.js` | 3D table, district models, materials |
-| `js/ui.js`, `js/lobby.js` | In-game interface and lobby |
+| `js/ui.js`, `js/lobby.js`, `js/settings.js` | In-game interface and lobby |
 | `js/main.js`, `js/net.js` | Game flow, saves, online play (PeerJS) |
 | `js/i18n.js`, `js/lang/*.js` | Text: English and Chinese in `i18n.js`, one file per other language |
 | `js/data.js`, `js/sfx.js` | Card data, sound |

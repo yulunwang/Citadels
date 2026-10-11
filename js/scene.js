@@ -378,10 +378,12 @@ export function createScene(canvas, hooks = {}) {
 
   // ── animation system ──
   const anims = [];
-  const tween = (dur, fn, e = ease.out) => new Promise(res => anims.push({ t: 0, dur, fn, e, res }));
+  let calm = false; // 'reduce motion': quicker tweens, no particle bursts, the camera settles instead of drifting
+  const tween = (dur, fn, e = ease.out) => new Promise(res => anims.push({ t: 0, dur: calm ? dur * 0.3 : dur, fn, e, res }));
   const wait = ms => tween(ms / 1000, () => {});
   const bursts = [];
   function burst(pos, { count = 24, color = 0xffd08a, speed = 2.2, life = 0.9, size = 0.22, up = 1.2, spread = 1 } = {}) {
+    if (calm) return;
     const g = new THREE.BufferGeometry();
     const p = new Float32Array(count * 3), v = [];
     for (let i = 0; i < count; i++) {
@@ -994,7 +996,7 @@ export function createScene(canvas, hooks = {}) {
     crown.rotation.y = t * 0.6;
     if (follow === null && spot.intensity > 0) spot.intensity = Math.max(0, spot.intensity - dt * 240);
     // camera: fitted goal + the player's own orbit/zoom + a gentle breath
-    const k = 1 - Math.exp(-dt * 2.6), ku = 1 - Math.exp(-dt * 8);
+    const k = 1 - Math.exp(-dt * (calm ? 12 : 2.6)), ku = 1 - Math.exp(-dt * 8);
     camNow.pos.lerp(camGoal.pos, k);
     camNow.target.lerp(camGoal.target, k);
     for (const p of ['yaw', 'pitch', 'zoom']) user[p] += (userGoal[p] - user[p]) * ku;
@@ -1045,6 +1047,6 @@ export function createScene(canvas, hooks = {}) {
       userGoal.yaw = userGoal.pitch = 0; userGoal.zoom = 1;
     },
     highlight(uids, color = 0xff5a4a) { targetUids = uids; targetColor = color; applyGlow(); },
-    setQuality, get quality() { return quality; },
+    setQuality, get quality() { return quality; }, setCalm: v => { calm = v; },
   };
 }
