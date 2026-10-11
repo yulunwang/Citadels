@@ -261,6 +261,32 @@ export default {
   'coach.call': 'Der Hof ruft die Figuren von I bis IX auf – folge der Leiste oben.',
   'coach.cam': 'Ziehe den Tisch, um dich umzusehen · tippe eine Stadt an, um sie anzusehen.',
 
+  // settings
+  'set.title': 'Einstellungen',
+  'set.sound': 'Klang',
+  'set.sfx': 'Soundeffekte',
+  'set.track': 'Musikstück',
+  'set.track.candle': 'Kerzenschein',
+  'set.track.garden': 'Mondgarten',
+  'set.track.neon': 'Neon-Zitadelle',
+  'set.track.tavern': 'Tavernennacht',
+  'set.game': 'Spiel',
+  'set.confirmEnd': 'Zugende bestätigen, wenn noch gebaut werden kann',
+  'set.turnAlert': 'Benachrichtigen, wenn ich dran bin',
+  'set.tips': 'Einsteigertipps',
+  'set.tipsReset': 'Erneut zeigen',
+  'set.tipsAgain': 'Wird erneut gezeigt ✓',
+  'set.display': 'Darstellung',
+  'set.motion': 'Bewegung reduzieren',
+  'set.symbols': 'Farbsymbole auf Karten',
+  'set.record': 'Bilanz',
+  'set.noGames': 'Noch keine Spiele',
+  'set.reset': 'Zurücksetzen',
+  'set.resetSure': 'Nochmal tippen',
+  'ui.endSure': 'Trotzdem beenden?',
+  'ui.endHint': 'Du kannst in diesem Zug noch bauen.',
+  'ui.yourTurnTitle': 'Du bist dran!',
+
   _rules: `<h3>Ziel</h3><p>Baue die wertvollste Stadt. Sobald jemand eine Stadt mit <b>{goal}</b> Gebäuden vollendet, wird die Runde zu Ende gespielt, und die höchste Punktzahl gewinnt.</p>
 <h3>Jede Runde</h3><ol><li><b>Figuren wählen.</b> Beginnend mit dem Kronenträger nimmt jeder geheim eine Figur. Einige werden offen beiseitegelegt, eine verdeckt.</li>
 <li><b>Königshof.</b> Die Figuren werden nach Rang aufgerufen (I → IX). In deinem Zug: Nimm <b>2 Gold</b> oder <b>ziehe 2 Karten und behalte 1</b>; dann baue ein Gebäude, indem du seine Kosten zahlst. Die Fähigkeit deiner Figur kannst du jederzeit nutzen.</li></ol>

@@ -261,6 +261,32 @@ export default {
   'coach.call': '王宮は I から IX の順に役職を呼びます。上の列を見てください。',
   'coach.cam': 'テーブルをドラッグして見回せます · 街をタップすると詳しく見られます。',
 
+  // settings
+  'set.title': '設定',
+  'set.sound': 'サウンド',
+  'set.sfx': '効果音',
+  'set.track': 'BGM',
+  'set.track.candle': 'キャンドルライト',
+  'set.track.garden': '月夜の庭',
+  'set.track.neon': 'ネオン・シタデル',
+  'set.track.tavern': '酒場の夜',
+  'set.game': 'ゲーム',
+  'set.confirmEnd': '建設できるのに手番を終えるときは確認',
+  'set.turnAlert': '自分の番を知らせる',
+  'set.tips': '初心者向けヒント',
+  'set.tipsReset': 'もう一度表示',
+  'set.tipsAgain': '再表示します ✓',
+  'set.display': '表示',
+  'set.motion': '動きを減らす',
+  'set.symbols': 'カードに色の記号を表示',
+  'set.record': '戦績',
+  'set.noGames': 'まだ対局がありません',
+  'set.reset': 'リセット',
+  'set.resetSure': 'もう一度押すとリセット',
+  'ui.endSure': 'それでも終了？',
+  'ui.endHint': 'この手番はまだ建設できます。',
+  'ui.yourTurnTitle': 'あなたの番！',
+
   _rules: `<h3>目的</h3><p>最も価値の高い街を築きましょう。誰かが <b>{goal}</b> つの建物で街を完成させると、そのラウンドの終わりにゲームが終了し、得点が最も高い人が勝ちです。</p>
 <h3>各ラウンド</h3><ol><li><b>役職を選ぶ。</b>王冠を持つ人から順に、こっそり役職を1つ取ります。いくつかは表向きに、1つは伏せて除外されます。</li>
 <li><b>王宮の召集。</b>役職はランク順（I → IX）に呼ばれます。自分の番では <b>金貨2枚</b> を取るか、<b>カードを2枚引いて1枚残し</b>、建設費を払って建物を建てます。役職の能力は手番中いつでも使えます。</li></ol>

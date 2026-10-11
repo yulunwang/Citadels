@@ -261,6 +261,32 @@ export default {
   'coach.call': '왕궁은 I부터 IX까지 역할을 차례로 부릅니다. 위쪽 순서 표시를 보세요.',
   'coach.cam': '테이블을 드래그해 둘러보세요 · 도시를 누르면 자세히 볼 수 있습니다.',
 
+  // settings
+  'set.title': '설정',
+  'set.sound': '사운드',
+  'set.sfx': '효과음',
+  'set.track': '배경 음악',
+  'set.track.candle': '촛불',
+  'set.track.garden': '달빛 정원',
+  'set.track.neon': '네온 시타델',
+  'set.track.tavern': '선술집의 밤',
+  'set.game': '게임',
+  'set.confirmEnd': '건설할 수 있는데 차례를 끝내면 확인',
+  'set.turnAlert': '내 차례 알림',
+  'set.tips': '초보자 팁',
+  'set.tipsReset': '다시 보기',
+  'set.tipsAgain': '다시 표시됩니다 ✓',
+  'set.display': '화면',
+  'set.motion': '움직임 줄이기',
+  'set.symbols': '카드에 색상 기호 표시',
+  'set.record': '전적',
+  'set.noGames': '아직 게임이 없습니다',
+  'set.reset': '초기화',
+  'set.resetSure': '한 번 더 누르면 초기화',
+  'ui.endSure': '그래도 끝낼까요?',
+  'ui.endHint': '이번 차례에 아직 건설할 수 있습니다.',
+  'ui.yourTurnTitle': '내 차례!',
+
   _rules: `<h3>목표</h3><p>가장 가치 있는 도시를 세우세요. 누군가 건물 <b>{goal}</b>개로 도시를 완성하면 그 라운드를 끝으로 게임이 끝나고, 점수가 가장 높은 사람이 이깁니다.</p>
 <h3>매 라운드</h3><ol><li><b>역할 고르기.</b> 왕관을 가진 사람부터 차례로 몰래 역할을 하나씩 가져갑니다. 일부는 앞면으로, 하나는 뒷면으로 제외됩니다.</li>
 <li><b>왕궁의 호명.</b> 역할은 등급 순서(I → IX)대로 호명됩니다. 내 차례에는 <b>금화 2개</b>를 받거나 <b>카드 2장을 뽑아 1장을 남긴</b> 뒤, 건설비를 내고 건물을 짓습니다. 역할 능력은 차례 중 언제든 쓸 수 있습니다.</li></ol>

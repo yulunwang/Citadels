@@ -25,7 +25,8 @@ Prima volta? Nella schermata iniziale c'è **Come si gioca**, e durante la parti
 
 - **Da 2 a 7 giocatori**, da soli o online.
 - **Tre livelli di IA:** Facile, Normale e Astuta. L'IA sa solo ciò che le è concesso: non vede mai la tua mano né i personaggi nascosti.
-- **11 lingue:** English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português, Русский e Italiano, da cambiare quando vuoi dal menu 🌐.
+- **11 lingue:** English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português, Русский e Italiano, da cambiare quando vuoi in ⚙️ Impostazioni.
+- **Impostazioni (⚙️):** quattro brani musicali generati (Lume di candela, Giardino lunare, Cittadella neon, Notte in taverna) con volume, velocità dell'IA, conferma prima di finire un turno in cui puoi ancora costruire, avvisi di turno (titolo lampeggiante, vibrazione), movimento ridotto e simboli dei colori sulle carte per i daltonici.
 - **Nessuna partita persa:** le partite in solitario si salvano da sole, e online chi ricarica la pagina torna subito al suo posto.
 - **Tasti:** G oro · D pesca · B costruisci · A abilità del personaggio · E fine turno · H suggerimento · 1–9 scegli una carta.
 
@@ -50,7 +51,7 @@ node test/ai-duel.mjs 400     # percentuale di vittorie di Astuta contro Normale
 | `js/engine.js` | Motore delle regole: `act(state, pid, action)` e `viewFor(state, pid)` (ciò che ogni giocatore può vedere) |
 | `js/ai.js`, `js/search.js` | Giocatori IA (ricevono solo `viewFor`) e la ricerca in avanti del livello Astuta |
 | `js/scene.js`, `js/models.js`, `js/materials.js` | Tavolo 3D, modelli degli edifici, materiali |
-| `js/ui.js`, `js/lobby.js` | Interfaccia di gioco e lobby |
+| `js/ui.js`, `js/lobby.js`, `js/settings.js` | Interfaccia di gioco e lobby |
 | `js/main.js`, `js/net.js` | Svolgimento della partita, salvataggi, gioco online (PeerJS) |
 | `js/i18n.js`, `js/lang/*.js` | Testi: inglese e cinese semplificato in `i18n.js`, un file per ogni altra lingua |
 | `js/data.js`, `js/sfx.js` | Dati delle carte, suoni |

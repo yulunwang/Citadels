@@ -25,7 +25,8 @@ Première partie ? L'écran d'accueil propose **Règles du jeu**, et en cours de
 
 - **De 2 à 7 joueurs**, en solo ou en ligne.
 - **Trois niveaux d'IA :** Facile, Normale et Rusée. L'IA ne sait que ce qu'elle a le droit de savoir : elle ne voit jamais votre main ni les personnages cachés.
-- **11 langues :** English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português, Русский et Italiano, à changer à tout moment depuis le menu 🌐.
+- **11 langues :** English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português, Русский et Italiano, à changer à tout moment dans ⚙️ Réglages.
+- **Réglages (⚙️) :** quatre musiques générées (Chandelles, Jardin lunaire, Citadelle néon, Soir de taverne) avec volume, vitesse de l'IA, confirmation avant de finir un tour où l'on peut encore bâtir, alertes de tour (titre clignotant, vibration), animations réduites et symboles de couleur sur les cartes pour les daltoniens.
 - **Aucune partie perdue :** les parties en solo s'enregistrent automatiquement, et en ligne, recharger la page vous ramène directement à votre place.
 - **Raccourcis :** G or · D piocher · B bâtir · A pouvoir du personnage · E fin du tour · H conseil · 1–9 choisir une carte.
 
@@ -50,7 +51,7 @@ node test/ai-duel.mjs 400     # taux de victoire de Rusée contre Normale
 | `js/engine.js` | Moteur de règles : `act(state, pid, action)` et `viewFor(state, pid)` (ce que chaque joueur peut voir) |
 | `js/ai.js`, `js/search.js` | Joueurs IA (ils ne reçoivent que `viewFor`) et l'anticipation du niveau Rusée |
 | `js/scene.js`, `js/models.js`, `js/materials.js` | Table 3D, modèles de bâtiments, matériaux |
-| `js/ui.js`, `js/lobby.js` | Interface de jeu et salon |
+| `js/ui.js`, `js/lobby.js`, `js/settings.js` | Interface de jeu et salon |
 | `js/main.js`, `js/net.js` | Déroulement de la partie, sauvegardes, jeu en ligne (PeerJS) |
 | `js/i18n.js`, `js/lang/*.js` | Textes : anglais et chinois dans `i18n.js`, un fichier par autre langue |
 | `js/data.js`, `js/sfx.js` | Données des cartes, sons |

@@ -1,8 +1,8 @@
 // Lobby screens: home, solo setup, host room, join room, waiting room.
 import { CHAR, PRESETS, AVATARS } from './data.js';
-import { t, cname, cabil, getLang, setLang, RULES, langSelect } from './i18n.js';
+import { t, cname, cabil, getLang, RULES } from './i18n.js';
 import { svg, ROMAN } from './icons.js';
-import { sfx, soundOn, setSound, musicEnabled, setMusic } from './sfx.js';
+import { sfx } from './sfx.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -40,8 +40,7 @@ export function createLobby(ctx) {
       <div class="strip">${[...L.chars].sort((a, b) => CHAR[a].rank - CHAR[b].rank).map(id => `<span class="chip" style="--cc:${CHAR[id].color}" title="${esc(cname(id))} — ${esc(cabil(id))}">${svg(CHAR[id].key)}<b>${ROMAN[CHAR[id].rank]}</b></span>`).join('')}
         <button class="link" data-a="custom">${t('lb.preset.custom')} ▾</button></div></div>
     <div class="field row"><span>${t('lb.goal')}</span><div class="seg">${[7, 8].map(g => `<button class="${L.goal === g ? 'on' : ''}" data-a="goal" data-v="${g}">${g}</button>`).join('')}</div></div>
-    <div class="field row"><span>${t('lb.level')}</span><div class="seg">${['easy', 'normal', 'hard'].map(k => `<button class="${L.level === k ? 'on' : ''}" data-a="level" data-v="${k}">${t('lb.lvl.' + k)}</button>`).join('')}</div></div>
-    <div class="field row"><span>${t('lb.speed')}</span><div class="seg">${['slow', 'normal', 'fast'].map(k => `<button class="${ctx.getSpeed() === k ? 'on' : ''}" data-a="speed" data-v="${k}">${t('lb.' + k)}</button>`).join('')}</div></div>`;
+    <div class="field row"><span>${t('lb.level')}</span><div class="seg">${['easy', 'normal', 'hard'].map(k => `<button class="${L.level === k ? 'on' : ''}" data-a="level" data-v="${k}">${t('lb.lvl.' + k)}</button>`).join('')}</div></div>`;
   };
   const timerSetup = () => `<div class="field row"><span>${t('lb.timer')}</span><div class="seg">${[0, 60, 120].map(s => `<button class="${L.timer === s ? 'on' : ''}" data-a="timer" data-v="${s}">${s ? s + 's' : t('lb.off')}</button>`).join('')}</div></div>`;
 
@@ -102,9 +101,7 @@ export function createLobby(ctx) {
         break;
     }
     root.innerHTML = `<div class="lb-panel ${L.screen}">${body}</div>
-      <div class="lb-corner"><label class="icon-btn lang-pick" title="${t('lb.lang')}">${svg('lang')}${langSelect()}</label>
-      <button class="icon-btn" data-a="music" title="${t('lb.music')}" aria-pressed="${musicEnabled()}">${musicEnabled() ? '♪' : '<s>♪</s>'}</button>
-      <button class="icon-btn" data-a="sound" aria-pressed="${soundOn()}">${svg(soundOn() ? 'sound' : 'mute')}</button></div>`;
+      <div class="lb-corner"><button class="icon-btn labelled" data-a="settings">${svg('gear')}<span>${t('set.title')}</span></button></div>`;
   }
 
   const readFields = () => {
@@ -119,7 +116,6 @@ export function createLobby(ctx) {
     if (!el) return;
     readFields();
     const a = el.dataset.a, v = el.dataset.v;
-    if (a === 'lang') return; // the <select> handles itself (see 'change')
     sfx('click');
     switch (a) {
       case 'go': L.error = null; if (L.screen === 'room' || L.screen === 'wait' || L.screen === 'connecting') ctx.cancelNet(); L.screen = v; break;
@@ -129,9 +125,7 @@ export function createLobby(ctx) {
       case 'custom': L.custom = !L.custom; break;
       case 'rankpick': { const r = +el.dataset.r; L.chars = L.chars.filter(c => CHAR[c].rank !== r); if (+v) L.chars.push(+v); L.custom = true; break; }
       case 'goal': L.goal = +v; break;
-      case 'speed': ctx.setSpeed(v); break;
-      case 'sound': setSound(!soundOn()); break;
-      case 'music': setMusic(!musicEnabled()); break;
+      case 'settings': return ctx.openSettings();
       case 'level': L.level = v; break;
       case 'timer': L.timer = +v; break;
       case 'continue': return ctx.cont();
@@ -148,7 +142,6 @@ export function createLobby(ctx) {
     }
     render();
   });
-  root.addEventListener('change', e => { if (e.target.dataset.a === 'lang') { setLang(e.target.value); ctx.relang(); } });
   root.addEventListener('keydown', e => {
     if (e.key === 'Enter' && e.target.id === 'lb-code') { readFields(); $('[data-a="joinRoom"]', root)?.click(); }
   });

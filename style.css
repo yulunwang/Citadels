@@ -630,8 +630,71 @@ input:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(230, 189, 10
 .card.back { background: linear-gradient(160deg, #1d2a44, #0c1322) padding-box, linear-gradient(150deg, #f6dc9c, #8d6a2f, #e6bd6a) border-box; }
 .card-name.long { font-size: max(7px, calc(var(--cw) * 0.098)); letter-spacing: -0.01em; }
 
-/* language picker: a native <select> dressed as the surrounding button */
-.lang-pick { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
-.lang-sel { appearance: none; -webkit-appearance: none; background: transparent; border: 0; color: inherit; font: inherit; padding: 0 2px; cursor: pointer; outline: none; }
-.lang-sel option { background: var(--bg); color: var(--ink); }
-.lang-pick:focus-within { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+/* ── settings panel ── */
+.set-wrap {
+  position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 16px; pointer-events: none; opacity: 0;
+  background: rgba(3, 5, 8, 0.6); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); transition: opacity 0.25s;
+}
+.set-wrap.open { opacity: 1; pointer-events: auto; }
+.set {
+  width: min(820px, 100%); max-height: calc(100dvh - 32px); display: flex; flex-direction: column; padding: 18px 20px 16px;
+  border-radius: 22px; background: var(--glass-2); border: 1px solid var(--line-2); box-shadow: var(--shadow), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); transform: translateY(14px) scale(0.98); transition: transform 0.3s var(--ease);
+}
+.set-wrap.open .set { transform: none; }
+.set .sh-head h2 svg { width: 22px; height: 22px; }
+.set-body { min-height: 0; overflow: auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 4px 22px; }
+.set-body section { min-width: 0; }
+.set-body .set-lang { grid-column: 1 / -1; }
+.set-body h4 { margin: 10px 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--ink-3); font-weight: 600; }
+.set-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 40px; border-bottom: 1px solid var(--line); font-size: 13.5px; color: var(--ink); }
+.set-row > span { min-width: 0; line-height: 1.3; }
+.set-ctl { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.set .seg button { padding: 6px 10px; }
+.lang-grid, .track-grid { display: grid; gap: 6px; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); }
+.track-grid { grid-template-columns: repeat(2, 1fr); margin: 8px 0 4px; }
+.lang-grid button, .track-grid button {
+  padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.03); color: var(--ink-2);
+  font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.lang-grid button:hover, .track-grid button:hover { border-color: var(--line-2); color: var(--ink); }
+.lang-grid button.on, .track-grid button.on { border-color: var(--gold); color: var(--gold-hi); background: rgba(230, 189, 106, 0.12); box-shadow: inset 0 0 0 1px rgba(230, 189, 106, 0.35); }
+.lang-grid button:focus-visible, .track-grid button:focus-visible, .switch:focus-visible, .vol:focus-visible { outline: 2px solid var(--gold-hi); outline-offset: 2px; }
+/* iOS-style switch */
+.switch { position: relative; width: 42px; height: 24px; flex-shrink: 0; border-radius: 999px; border: 1px solid var(--line-2); background: rgba(0, 0, 0, 0.4); cursor: pointer; padding: 0; transition: background 0.2s, border-color 0.2s; }
+.switch i { position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: var(--ink-3); transition: transform 0.2s var(--ease), background 0.2s; }
+.switch[aria-checked="true"] { background: linear-gradient(180deg, #f6d793, #c9953d); border-color: var(--gold); }
+.switch[aria-checked="true"] i { transform: translateX(18px); background: #23160a; }
+/* volume slider */
+.vol { -webkit-appearance: none; appearance: none; width: 104px; height: 4px; padding: 0; border: 0; border-radius: 4px; cursor: pointer;
+  background: linear-gradient(90deg, var(--gold) var(--p, 50%), rgba(255, 255, 255, 0.14) var(--p, 50%)); }
+.vol:disabled { opacity: 0.35; cursor: default; }
+.vol::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--gold-hi); border: 2px solid #23160a; box-shadow: 0 0 0 1px var(--gold); }
+.vol::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--gold-hi); border: 2px solid #23160a; }
+.set .sh-foot { margin-top: 12px; }
+.icon-btn.labelled { width: auto; padding: 0 12px; gap: 6px; font-size: 13px; font-weight: 600; }
+@media (max-width: 600px) {
+  .set-wrap { padding: 0; place-items: end stretch; }
+  .set { width: 100%; max-height: 100dvh; border-radius: 20px 20px 0 0; padding: 14px 14px max(12px, env(safe-area-inset-bottom)); }
+  .set-body { grid-template-columns: 1fr; gap: 0; }
+  .set-row { min-height: 36px; font-size: 13px; }
+  .lang-grid { grid-template-columns: repeat(4, 1fr); gap: 5px; }
+  .lang-grid button, .track-grid button { padding: 6px 4px; font-size: 12px; }
+  .vol { width: 84px; }
+  .icon-btn.labelled span { display: none; }
+}
+
+/* end turn "are you sure?" state */
+.btn.end.armed { border-color: var(--danger); color: #ffd2cb; background: linear-gradient(180deg, rgba(229, 106, 92, 0.28), transparent), var(--glass-2); animation: armed 0.9s ease-in-out infinite alternate; }
+@keyframes armed { to { box-shadow: 0 0 0 3px rgba(229, 106, 92, 0.35); } }
+
+/* colour-blind aid: a symbol per district colour (setting) */
+.card-sym { display: none; position: absolute; top: 5%; right: 7%; width: calc(var(--cw) * 0.24); height: calc(var(--cw) * 0.24); color: #fff;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.9)); }
+.card-sym svg { width: 100%; height: 100%; stroke-width: 3.2; }
+html.symbols .card-sym { display: block; }
+html.symbols .card-gem { display: none; }
+
+/* reduce motion (setting, defaults to the OS preference) */
+html.calm *, html.calm *::before, html.calm *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
